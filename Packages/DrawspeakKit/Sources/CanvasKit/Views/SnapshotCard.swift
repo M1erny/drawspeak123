@@ -48,7 +48,14 @@ struct SnapshotCard: View {
                         }
                     }
                     // Presentation only: stored captures and exported source colors stay intact.
-                    .brightness(colorScheme == .dark ? -0.10 : 0)
+                    // A plain dimming layer, not `.brightness`: a color filter renders the
+                    // whole card offscreen, and a tall board zoomed in exceeds the GPU
+                    // texture limit, so the image would vanish.
+                    .overlay {
+                        if colorScheme == .dark {
+                            Color.black.opacity(0.10).allowsHitTesting(false)
+                        }
+                    }
                 }
             } else {
                 ContentUnavailableView(String(localized: "No Version", bundle: .module), systemImage: "square.dashed")
