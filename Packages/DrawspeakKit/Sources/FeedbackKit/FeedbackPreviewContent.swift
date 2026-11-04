@@ -17,7 +17,12 @@ struct FeedbackPreviewContent: View {
                 FeedbackDeliveryResult(model: model, entry: entry)
             } else {
                 List {
-                    Section { FeedbackRecipientRow(model: model, onChooseThread: onChooseThread) }
+                    Section {
+                        FeedbackRecipientRow(model: model, onChooseThread: onChooseThread)
+                        if model.recipient == nil && model.startsNewThread {
+                            FeedbackNewThreadFields(model: model)
+                        }
+                    }
                     if model.pendingCount > 0 {
                         Text("^[\(model.pendingCount) comment](inflect: true) still transcribing", bundle: .module)
                             .font(.subheadline).foregroundStyle(.secondary)

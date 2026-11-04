@@ -12,49 +12,65 @@ import Foundation
 ///     <!doctype html> ...
 ///     ````
 ///
-/// A fence is three or more backticks; the closing fence has the same count.
+/// Fences use three or more backticks or tildes; closers use at least that count.
 public enum TextBundleParser {
     public struct Bundle: Equatable, Sendable {
         public var manifest: Data?
         public var files: [String: Data]
     }
 
+    struct Block {
+        var info: String
+        var text: String
+        var data: Data { Data(text.utf8) }
+        var words: [String] { info.lowercased().split(whereSeparator: { $0.isWhitespace }).map(String.init) }
+    }
+
+    static func blocks(_ text: String) -> [Block] {
+        let lines = text.components(separatedBy: "\n")
+        var result: [Block] = []
+        var index = 0
+        while index < lines.count {
+            let line = lines[index].trimmingCharacters(in: .whitespacesAndNewlines)
+            guard let marker = line.first, marker == "`" || marker == "~" else { index += 1; continue }
+            let count = line.prefix { $0 == marker }.count
+            guard count >= 3 else { index += 1; continue }
+            let info = String(line.dropFirst(count)).trimmingCharacters(in: .whitespaces)
+            var cursor = index + 1
+            while cursor < lines.count {
+                let closing = lines[cursor].trimmingCharacters(in: .whitespacesAndNewlines)
+                if closing.count >= count && closing.allSatisfy({ $0 == marker }) { break }
+                cursor += 1
+            }
+            guard cursor < lines.count else { break }
+            result.append(Block(info: info, text: lines[(index + 1)..<cursor].joined(separator: "\n")))
+            index = cursor + 1
+        }
+        return result
+    }
+
     public static func parse(_ text: String) -> Bundle {
         var manifest: Data?
         var files: [String: Data] = [:]
-        let lines = text.components(separatedBy: "\n")
-        var index = 0
-        while index < lines.count {
-            let line = lines[index]
-            let trimmed = line.trimmingCharacters(in: .whitespaces)
-            let ticks = trimmed.prefix { $0 == "`" }.count
-            guard ticks >= 3 else { index += 1; continue }
-            let info = trimmed.dropFirst(ticks).trimmingCharacters(in: .whitespaces)
-            let fence = String(repeating: "`", count: ticks)
-            var body: [String] = []
-            var cursor = index + 1
-            var closed = false
-            while cursor < lines.count {
-                if lines[cursor].trimmingCharacters(in: .whitespaces) == fence { closed = true; break }
-                body.append(lines[cursor])
-                cursor += 1
+        for block in blocks(text) {
+            if block.words.contains("drawspeak-manifest") { manifest = block.data }
+            else if block.words.contains("drawspeak-file"), let path = attribute("path", in: block.info), ManifestValidator.isSafeRelativePath(path) {
+                files[path] = block.data
             }
-            guard closed else { break }
-            let content = Data(body.joined(separator: "\n").utf8)
-            if info == "drawspeak-manifest" {
-                manifest = content
-            } else if info.hasPrefix("drawspeak-file"), let path = attribute("path", in: info), ManifestValidator.isSafeRelativePath(path) {
-                files[path] = content
-            }
-            index = cursor + 1
         }
         return Bundle(manifest: manifest, files: files)
     }
 
     static func attribute(_ name: String, in info: String) -> String? {
-        guard let range = info.range(of: "\(name)=\"") else { return nil }
-        let rest = info[range.upperBound...]
-        guard let end = rest.firstIndex(of: "\"") else { return nil }
-        return String(rest[..<end])
+        capture("(?i)(?:^|[\\s<])" + NSRegularExpression.escapedPattern(for: name) + "\\s*=\\s*(?:\"([^\"]*)\"|'([^']*)'|([^\\s>]+))", in: info)
+    }
+
+    static func capture(_ pattern: String, in text: String) -> String? {
+        guard let regex = try? NSRegularExpression(pattern: pattern),
+              let match = regex.firstMatch(in: text, range: NSRange(text.startIndex..., in: text)) else { return nil }
+        for index in 1..<match.numberOfRanges {
+            if let range = Range(match.range(at: index), in: text) { return String(text[range]) }
+        }
+        return nil
     }
 }

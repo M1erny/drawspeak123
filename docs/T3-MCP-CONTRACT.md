@@ -305,7 +305,7 @@ Usable and relevant for Drawspeak:
 | `t3_thread_send_attachments` | writesThreads | **the feedback send** |
 | `t3_thread_send` | writesThreads | text-only follow-up (idempotent) |
 | `t3_thread_interrupt` | writesThreads | optional Stop |
-| `t3_thread_launch` | startsThreads | optional "new review thread" (not specified here) |
+| `t3_thread_launch` | startsThreads | "New Thread" in Send: {projectId, title, message, attachments, clientRequestId}; returns threadId `mcp:launch:…` (verified live 2026-11-04) |
 | `t3_environment_read` | reads | server identity |
 
 Unusable from Drawspeak (thread caller only): `delegate_task`, `task_status`, `task_cancel`, `create_threads`, `request_secret`, `t3_background_wait`, `t3_worktree_handoff`, `t3_worktree_status`, `t3_preview_list`, `t3_preview_close`, all `preview_*`, all `device_*`, `html_render`, `html_preview`.

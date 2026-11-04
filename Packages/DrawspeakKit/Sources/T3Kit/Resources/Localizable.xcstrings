@@ -46,6 +46,17 @@
         }
       }
     },
+    "Attach at most 8 files.": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Attach at most 8 files."
+          }
+        }
+      }
+    },
     "Attach between 1 and 8 files.": {
       "extractionState": "manual",
       "localizations": {
@@ -108,6 +119,17 @@
           "stringUnit": {
             "state": "translated",
             "value": "Choose Thread"
+          }
+        }
+      }
+    },
+    "Choose a project and a thread title.": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Choose a project and a thread title."
           }
         }
       }
@@ -245,6 +267,17 @@
         }
       }
     },
+    "Invalid request id.": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Invalid request id."
+          }
+        }
+      }
+    },
     "JSON-RPC error": {
       "extractionState": "manual",
       "localizations": {
@@ -362,6 +395,17 @@
           "stringUnit": {
             "state": "translated",
             "value": "T3 Code rejected the authorization request."
+          }
+        }
+      }
+    },
+    "T3 Code rejected the new thread (HTTP %lld).": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "T3 Code rejected the new thread (HTTP %lld)."
           }
         }
       }
@@ -494,6 +538,17 @@
           "stringUnit": {
             "state": "translated",
             "value": "Unsupported image type: %@."
+          }
+        }
+      }
+    },
+    "Untitled Project": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Untitled Project"
           }
         }
       }

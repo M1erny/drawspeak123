@@ -13,8 +13,11 @@ public struct OutboxEntry: Codable, Hashable, Identifiable, Sendable {
     public var attempts: [DeliveryAttempt]
     /// Agent work status reported by the thread, separate from delivery.
     public var agentStatus: String?
+    /// Set while the batch starts a new thread that the server has not returned yet.
+    /// `thread` then holds the host and the requested title, with an empty `threadId`.
+    public var newThread: NewThreadTarget?
 
-    public init(id: String, createdAt: Date, thread: ThreadBinding, items: [BatchItem], isRepeat: Bool, state: DeliveryState, receipt: DeliveryReceipt? = nil, attempts: [DeliveryAttempt] = [], agentStatus: String? = nil) {
+    public init(id: String, createdAt: Date, thread: ThreadBinding, items: [BatchItem], isRepeat: Bool, state: DeliveryState, receipt: DeliveryReceipt? = nil, attempts: [DeliveryAttempt] = [], agentStatus: String? = nil, newThread: NewThreadTarget? = nil) {
         self.id = id
         self.createdAt = createdAt
         self.thread = thread
@@ -24,6 +27,23 @@ public struct OutboxEntry: Codable, Hashable, Identifiable, Sendable {
         self.receipt = receipt
         self.attempts = attempts
         self.agentStatus = agentStatus
+        self.newThread = newThread
+    }
+}
+
+/// Where a batch that starts a new thread goes, kept until the server returns the thread.
+public struct NewThreadTarget: Codable, Hashable, Sendable {
+    public var projectId: String
+    public var projectTitle: String?
+    public var title: String
+    /// Sent with every launch attempt; the server returns the same thread for the same value.
+    public var clientRequestId: String
+
+    public init(projectId: String, projectTitle: String?, title: String, clientRequestId: String) {
+        self.projectId = projectId
+        self.projectTitle = projectTitle
+        self.title = title
+        self.clientRequestId = clientRequestId
     }
 }
 

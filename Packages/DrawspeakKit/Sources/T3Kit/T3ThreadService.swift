@@ -24,22 +24,38 @@ nonisolated public struct T3ThreadService: ThreadService, Sendable {
         }
         // The thread list schema has no project title; resolve titles from the project catalog.
         if threads.contains(where: { $0.projectId != nil && $0.projectTitle == nil }) {
-            var titles: [String: String] = [:], projectCursor: Int?
-            var seenProjectCursors = Set<Int>()
-            while true {
-                var args: [String: JSONValue] = ["limit": .number(100)]
-                if let projectCursor { args["cursor"] = .number(Double(projectCursor)) }
-                let page = try await client.callTool(name: "t3_project_list", arguments: .object(args))
-                for project in page["projects"].array {
-                    if let id = project["id"].string, let title = project["title"].string { titles[id] = title }
-                }
-                guard let next = page["nextCursor"].int else { break }
-                guard seenProjectCursors.insert(next).inserted else { throw MCPError.invalidResponse }
-                projectCursor = next
+            var titles: [String: String] = [:]
+            for project in try await projectCatalog() {
+                if let id = project["id"].string, let title = project["title"].string { titles[id] = title }
             }
             for index in threads.indices { if let id = threads[index].projectId { threads[index].projectTitle = threads[index].projectTitle ?? titles[id] } }
         }
         return threads
+    }
+    /// Projects in catalog order, without archived or deleted ones.
+    public func listProjects() async throws -> [ProjectSummary] {
+        var projects: [ProjectSummary] = []
+        for project in try await projectCatalog() {
+            guard let id = project["id"].string, !id.isEmpty else { throw MCPError.invalidResponse }
+            guard project["archivedAt"].string == nil, project["deletedAt"].string == nil, !projects.contains(where: { $0.id == id }) else { continue }
+            let title = project["title"].string ?? project["name"].string ?? project["workspaceRoot"].string.map { URL(filePath: $0).lastPathComponent }
+            projects.append(ProjectSummary(id: id, title: title ?? String(localized: "Untitled Project", bundle: .module)))
+        }
+        return projects
+    }
+    /// Every page of `t3_project_list` ("Pages can shift": repeated cursors are refused).
+    private func projectCatalog() async throws -> [JSONValue] {
+        var projects: [JSONValue] = [], cursor: Int?
+        var seenCursors = Set<Int>()
+        while true {
+            var args: [String: JSONValue] = ["limit": .number(100)]
+            if let cursor { args["cursor"] = .number(Double(cursor)) }
+            let page = try await client.callTool(name: "t3_project_list", arguments: .object(args))
+            projects += page["projects"].array
+            guard let next = page["nextCursor"].int else { return projects }
+            guard seenCursors.insert(next).inserted else { throw MCPError.invalidResponse }
+            cursor = next
+        }
     }
     public func readMessages(threadId: String) async throws -> [ThreadMessage] {
         var result: [ThreadMessage] = [], position: Int?
@@ -76,12 +92,7 @@ nonisolated public struct T3ThreadService: ThreadService, Sendable {
         } else { batchId = UUID().uuidString }
         let message = "[drawspeak-batch:\(batchId)]\n" + text
         guard message.utf16.count <= 120_000 else { throw .notSent(String(localized: "Message including its delivery marker must be at most 120,000 characters.", bundle: .module)) }
-        for file in attachments {
-            let image = file.contentType.hasPrefix("image/")
-            guard !file.data.isEmpty, file.data.count <= (image ? 10_485_760 : 52_428_800) else { throw .notSent(String(localized: "\(file.fileName) exceeds the \(image ? "10" : "50") MiB limit or is empty.", bundle: .module)) }
-            guard (1...255).contains(file.fileName.count), (1...100).contains(file.contentType.count) else { throw .notSent(String(localized: "Invalid attachment name or MIME type.", bundle: .module)) }
-            guard !image || ["image/png", "image/jpeg", "image/gif", "image/webp"].contains(file.contentType) else { throw .notSent(String(localized: "Unsupported image type: \(file.contentType).", bundle: .module)) }
-        }
+        try validate(attachments)
         var uploaded: [JSONValue] = []
         do {
             let snapshot = try await client.callTool(name: "t3_thread_read", arguments: .object(["threadId": .string(threadId), "limit": .number(1), "runLimit": .number(1)]))
@@ -91,14 +102,7 @@ nonisolated public struct T3ThreadService: ThreadService, Sendable {
             let levels = ["read-only", "approval-required", "auto-accept-edits", "auto", "full-access"]
             if client.credentials.accessLevel == "read-only" { throw DeliveryFailure.notAuthorized }
             if let mode = thread["runtimeMode"].string, let required = levels.firstIndex(of: mode), let granted = levels.firstIndex(of: client.credentials.accessLevel), required > granted { throw DeliveryFailure.notSent(String(localized: "Pair with an access level that permits this thread's runtime mode.", bundle: .module)) }
-            for (index, file) in attachments.enumerated() {
-                let type = file.contentType.hasPrefix("image/") ? "image" : "file"
-                var descriptor: [String: JSONValue] = ["type": .string(type), "name": .string(file.fileName), "mimeType": .string(file.contentType), "sizeBytes": .number(Double(file.data.count))]
-                let prepared = try await client.callTool(name: "t3_attachment_prepare_upload", arguments: .object(["upload": .object(descriptor)]))
-                guard let id = prepared["attachmentId"].string, let relative = prepared["relativeUrl"].string else { throw MCPError.invalidResponse }
-                try await client.upload(data: file.data, relativeURL: relative, contentType: file.contentType)
-                descriptor["id"] = .string(id); uploaded.append(.object(descriptor)); progress(index + 1, attachments.count)
-            }
+            uploaded = try await upload(attachments, progress: progress)
         } catch MCPError.unauthorized { throw .notAuthorized }
         catch let failure as DeliveryFailure { throw failure }
         catch { throw .notSent(error.localizedDescription) }
@@ -114,6 +118,64 @@ nonisolated public struct T3ThreadService: ThreadService, Sendable {
         catch MCPError.tool(_, let message) { throw .notSent(message) }
         catch MCPError.http(let status) where (400..<500).contains(status) { throw .notSent(String(localized: "T3 Code rejected the send (HTTP \(status)).", bundle: .module)) }
         catch { throw .outcomeUnknown }
+    }
+    /// Starts a new thread with one first message (`t3_thread_launch`). The batch marker
+    /// `[drawspeak-batch:<clientRequestId>]` leads the message like a normal send. The
+    /// server makes a repeated call with the same `clientRequestId` return the same thread.
+    public func launchThread(projectId: String, title: String, text: String, attachments: [OutgoingAttachment], clientRequestId: String, progress: @Sendable (Int, Int) -> Void) async throws(DeliveryFailure) -> LaunchedThread {
+        let title = title.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !projectId.isEmpty, !title.isEmpty else { throw .notSent(String(localized: "Choose a project and a thread title.", bundle: .module)) }
+        guard (1...256).contains(clientRequestId.count) else { throw .notSent(String(localized: "Invalid request id.", bundle: .module)) }
+        guard attachments.count <= 8 else { throw .notSent(String(localized: "Attach at most 8 files.", bundle: .module)) }
+        let marker = "[drawspeak-batch:\(clientRequestId)]"
+        let message = text.hasPrefix(marker) ? text : marker + "\n" + text
+        guard message.utf16.count <= 120_000 else { throw .notSent(String(localized: "Message including its delivery marker must be at most 120,000 characters.", bundle: .module)) }
+        try validate(attachments)
+        guard client.credentials.accessLevel != "read-only" else { throw .notAuthorized }
+        let uploaded: [JSONValue]
+        do { uploaded = try await upload(attachments, progress: progress) }
+        catch MCPError.unauthorized { throw .notAuthorized }
+        catch { throw .notSent(error.localizedDescription) }
+        var args: [String: JSONValue] = ["projectId": .string(projectId), "title": .string(title), "message": .string(message), "clientRequestId": .string(clientRequestId)]
+        if !uploaded.isEmpty { args["attachments"] = .array(uploaded) }
+        let result: JSONValue
+        do { result = try await client.callTool(name: "t3_thread_launch", arguments: .object(args)) }
+        catch MCPError.unauthorized { throw .notAuthorized }
+        catch MCPError.tool(_, let message) { throw .notSent(message) }
+        catch MCPError.http(let status) where (400..<500).contains(status) { throw .notSent(String(localized: "T3 Code rejected the new thread (HTTP \(status)).", bundle: .module)) }
+        catch { throw .outcomeUnknown }
+        // The server accepted the launch; a reply we cannot read leaves the thread unknown.
+        guard let launched = Self.launchedThread(from: result, requestedTitle: title) else { throw .outcomeUnknown }
+        return launched
+    }
+    /// Accepts `threadId` at the top level or under `thread.threadId` / `thread.id`.
+    static func launchedThread(from result: JSONValue, requestedTitle: String) -> LaunchedThread? {
+        let thread = result["thread"]
+        guard let id = [result["threadId"].string, thread["threadId"].string, thread["id"].string].compactMap({ $0 }).first(where: { !$0.isEmpty }) else { return nil }
+        let title = [result["title"].string, thread["title"].string].compactMap { $0 }.first { !$0.isEmpty } ?? requestedTitle
+        let messageId = result["messageId"].string ?? result["message"]["messageId"].string ?? thread["messageId"].string
+        return LaunchedThread(threadId: id, title: title, messageId: messageId)
+    }
+    private func validate(_ attachments: [OutgoingAttachment]) throws(DeliveryFailure) {
+        for file in attachments {
+            let image = file.contentType.hasPrefix("image/")
+            guard !file.data.isEmpty, file.data.count <= (image ? 10_485_760 : 52_428_800) else { throw .notSent(String(localized: "\(file.fileName) exceeds the \(image ? "10" : "50") MiB limit or is empty.", bundle: .module)) }
+            guard (1...255).contains(file.fileName.count), (1...100).contains(file.contentType.count) else { throw .notSent(String(localized: "Invalid attachment name or MIME type.", bundle: .module)) }
+            guard !image || ["image/png", "image/jpeg", "image/gif", "image/webp"].contains(file.contentType) else { throw .notSent(String(localized: "Unsupported image type: \(file.contentType).", bundle: .module)) }
+        }
+    }
+    /// Prepares and uploads each file in order; returns the attachment descriptors for the message.
+    private func upload(_ attachments: [OutgoingAttachment], progress: @Sendable (Int, Int) -> Void) async throws -> [JSONValue] {
+        var uploaded: [JSONValue] = []
+        for (index, file) in attachments.enumerated() {
+            let type = file.contentType.hasPrefix("image/") ? "image" : "file"
+            var descriptor: [String: JSONValue] = ["type": .string(type), "name": .string(file.fileName), "mimeType": .string(file.contentType), "sizeBytes": .number(Double(file.data.count))]
+            let prepared = try await client.callTool(name: "t3_attachment_prepare_upload", arguments: .object(["upload": .object(descriptor)]))
+            guard let id = prepared["attachmentId"].string, let relative = prepared["relativeUrl"].string else { throw MCPError.invalidResponse }
+            try await client.upload(data: file.data, relativeURL: relative, contentType: file.contentType)
+            descriptor["id"] = .string(id); uploaded.append(.object(descriptor)); progress(index + 1, attachments.count)
+        }
+        return uploaded
     }
     /// Read-only reconciliation; nil means no evidence was found, not proof of non-delivery.
     public func reconcile(threadId: String, batchId: String) async throws -> MessageAck? {

@@ -7,7 +7,7 @@ struct FeedbackDeliveryResult: View {
     var body: some View {
         ScrollView {
             VStack(spacing: FeedbackLayout.sectionSpacing) {
-                Text(entry.state == .deliveryUnknown ? String(localized: "Delivery Not Confirmed", bundle: .module) : entry.state.feedbackLabel)
+                Text(title)
                     .font(.title2).accessibilityAddTraits(.isHeader)
                 switch entry.state {
                 case .sent:
@@ -25,6 +25,13 @@ struct FeedbackDeliveryResult: View {
                 }
                 if let notice = model.reconciliationNotice { Text(notice).font(.subheadline) }
             }.frame(maxWidth: .infinity).padding()
+        }
+    }
+    private var title: String {
+        switch entry.state {
+        case .deliveryUnknown: String(localized: "Delivery Not Confirmed", bundle: .module)
+        case .sent where !entry.thread.threadTitle.isEmpty: String(localized: "Sent to \(entry.thread.threadTitle)", bundle: .module)
+        default: entry.state.feedbackLabel
         }
     }
     private func check() { Task { await model.reconcile() } }

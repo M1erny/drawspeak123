@@ -8,11 +8,18 @@ import T3Kit
 /// Feedback and Pull buttons against a real T3 thread and writes a JSON report
 /// to Documents/e2e-result.json.
 ///
-/// Environment: DRAWSPEAK_E2E_THREAD=<threadId>, DRAWSPEAK_E2E_ACTION=send|pull.
+/// Environment: DRAWSPEAK_E2E_THREAD=<threadId>, DRAWSPEAK_E2E_ACTION=send|pull;
+/// or DRAWSPEAK_E2E_ACTION=sendNew with DRAWSPEAK_E2E_PROJECT=<projectId>, which sends the
+/// ready notes of a canvas without a thread to a new thread "Drawspeak E2E new thread".
 @MainActor
 enum DebugEndToEnd {
     static func runIfRequested(workspace: Workspace, connection: T3Connection) async {
         let environment = ProcessInfo.processInfo.environment
+        if environment["DRAWSPEAK_E2E_ACTION"] == "sendNew" {
+            guard let projectId = environment["DRAWSPEAK_E2E_PROJECT"], !projectId.isEmpty else { return }
+            await sendToNewThread(workspace: workspace, connection: connection, projectId: projectId)
+            return
+        }
         guard let threadId = environment["DRAWSPEAK_E2E_THREAD"], !threadId.isEmpty,
               let action = environment["DRAWSPEAK_E2E_ACTION"], let canvasId = workspace.currentCanvasId else { return }
         var report: [String: String] = ["action": action, "threadId": threadId]
@@ -50,6 +57,44 @@ enum DebugEndToEnd {
             report["messagesChecked"] = String(result.messagesChecked)
         default:
             report["error"] = "unknown action"
+        }
+    }
+
+    private static func sendToNewThread(workspace: Workspace, connection: T3Connection, projectId: String) async {
+        var report: [String: String] = ["action": "sendNew", "projectId": projectId]
+        defer { write(report) }
+        guard connection.threadService != nil else {
+            report["error"] = "not connected"
+            return
+        }
+        // One canvas belongs to one thread: use the current canvas if it has none, else another one.
+        let unbound = workspace.document.canvases.filter { $0.thread == nil }
+        let candidates = unbound.filter { $0.id == workspace.currentCanvasId } + unbound.filter { $0.id != workspace.currentCanvasId }
+        guard let canvas = candidates.first(where: { !(workspace.feedbackScope(canvasId: $0.id)?.ready.isEmpty ?? true) }),
+              let scope = workspace.feedbackScope(canvasId: canvas.id) else {
+            report["error"] = "no canvas without a thread has ready notes"
+            return
+        }
+        let title = "Drawspeak E2E new thread"
+        let placeholder = ThreadBinding(hostURL: connection.hostURL, threadId: "", threadTitle: title, projectId: projectId, projectTitle: nil)
+        let package = FeedbackPackageBuilder.build(
+            canvas: canvas, noteIds: Set(scope.ready.map(\.id)), thread: placeholder,
+            batchId: Workspace.newBatchId(now: .now), now: .now
+        )
+        report["canvas"] = canvas.title
+        report["batchId"] = package.batchId
+        do {
+            let attachments = try await FeedbackPayloadBuilder.attachments(for: package, blobs: workspace.blobs)
+            report["attachments"] = attachments.map { "\($0.fileName) \($0.data.count)B" }.joined(separator: ", ")
+            let entry = await workspace.sendToNewThread(
+                package: package, attachments: attachments, canvasId: canvas.id,
+                projectId: projectId, projectTitle: nil, threadTitle: title
+            )
+            report["state"] = entry.map { "\($0.state)" } ?? "nil"
+            report["threadId"] = workspace.canvas(canvas.id)?.thread?.threadId ?? ""
+            report["messageId"] = entry?.receipt?.messageId ?? ""
+        } catch {
+            report["error"] = "\(error)"
         }
     }
 

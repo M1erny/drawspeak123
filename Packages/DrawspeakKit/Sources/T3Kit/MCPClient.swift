@@ -39,7 +39,9 @@ public actor MCPClient {
             do { result = try await rpc(method: "tools/call", params: .object(["name": .string(name), "arguments": arguments])).0 }
             catch MCPError.http(404) {
                 sessionId = nil
-                guard ["t3_thread_list", "t3_thread_read", "t3_thread_search", "t3_project_list", "t3_project_read"].contains(name) else { throw MCPError.http(404) }
+                // Reads, and launches carrying a clientRequestId (the server returns the same thread on repeat).
+                guard ["t3_thread_list", "t3_thread_read", "t3_thread_search", "t3_project_list", "t3_project_read"].contains(name)
+                    || (name == "t3_thread_launch" && arguments["clientRequestId"].string != nil) else { throw MCPError.http(404) }
                 try await initialize()
                 result = try await rpc(method: "tools/call", params: .object(["name": .string(name), "arguments": arguments])).0
             }

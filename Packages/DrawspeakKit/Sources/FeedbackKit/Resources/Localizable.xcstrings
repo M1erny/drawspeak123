@@ -25,6 +25,17 @@
       },
       "comment": "Interpolated values identify a screen, proposal, version, comment, recipient, or attachment count as shown in the English key."
     },
+    "A new thread from this canvas isn't confirmed yet.": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "A new thread from this canvas isn't confirmed yet."
+          }
+        }
+      }
+    },
     "Add ^[%lld New Comment](inflect: true)": {
       "extractionState": "manual",
       "localizations": {
@@ -137,6 +148,17 @@
         }
       }
     },
+    "Couldn't confirm the new thread.": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Couldn't confirm the new thread."
+          }
+        }
+      }
+    },
     "Couldn't render image.": {
       "extractionState": "manual",
       "localizations": {
@@ -210,6 +232,17 @@
           "stringUnit": {
             "state": "translated",
             "value": "Drafts"
+          }
+        }
+      }
+    },
+    "Existing Thread…": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Existing Thread…"
           }
         }
       }
@@ -298,6 +331,17 @@
           "stringUnit": {
             "state": "translated",
             "value": "Message too long. Deselect some comments."
+          }
+        }
+      }
+    },
+    "New Thread": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "New Thread"
           }
         }
       }
@@ -419,6 +463,17 @@
           "stringUnit": {
             "state": "translated",
             "value": "Previously Sent"
+          }
+        }
+      }
+    },
+    "Project": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Project"
           }
         }
       }
@@ -579,6 +634,17 @@
         }
       }
     },
+    "Sent to %@": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sent to %@"
+          }
+        }
+      }
+    },
     "Some comments changed since this draft.": {
       "extractionState": "manual",
       "localizations": {
@@ -597,6 +663,17 @@
           "stringUnit": {
             "state": "translated",
             "value": "Thread changed."
+          }
+        }
+      }
+    },
+    "Title": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Title"
           }
         }
       }

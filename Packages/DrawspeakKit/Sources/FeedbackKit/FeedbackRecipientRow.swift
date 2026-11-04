@@ -7,8 +7,16 @@ struct FeedbackRecipientRow: View {
         LabeledContent {
             if let thread = model.recipient { Text(thread.displayName) }
             else {
-                Button(action: chooseThread) { Text("Choose Thread…", bundle: .module) }
-                    .disabled(onChooseThread == nil || model.busy)
+                Menu {
+                    Button(action: chooseThread) { Text("Existing Thread…", bundle: .module) }
+                        .disabled(onChooseThread == nil)
+                    Button(action: model.chooseNewThread) { Text("New Thread", bundle: .module) }
+                        .disabled(!model.canStartNewThread)
+                } label: {
+                    if model.startsNewThread { Text("New Thread", bundle: .module) }
+                    else { Text("Choose Thread…", bundle: .module) }
+                }
+                .disabled(model.busy)
             }
         } label: { Text("To", bundle: .module) }
     }

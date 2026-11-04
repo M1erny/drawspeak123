@@ -145,15 +145,46 @@ public struct ThreadSummary: Sendable, Hashable, Identifiable {
     }
 }
 
+/// A T3 Code project a new thread can be started in.
+public struct ProjectSummary: Sendable, Hashable, Identifiable {
+    public var id: String
+    public var title: String
+
+    public init(id: String, title: String) {
+        self.id = id
+        self.title = title
+    }
+}
+
+/// The thread created by `ThreadService.launchThread`.
+public struct LaunchedThread: Sendable, Hashable {
+    public var threadId: String
+    public var title: String
+    public var messageId: String?
+
+    public init(threadId: String, title: String, messageId: String?) {
+        self.threadId = threadId
+        self.title = title
+        self.messageId = messageId
+    }
+}
+
 /// The T3 Code thread operations the app needs. Implemented in T3Kit.
 public protocol ThreadService: Sendable {
     /// The T3 host this service talks to; operations require it to match the canvas binding.
     var hostURL: URL { get }
     func listThreads() async throws -> [ThreadSummary]
+    /// Projects a new thread can be started in (archived and deleted ones excluded).
+    func listProjects() async throws -> [ProjectSummary]
     func readMessages(threadId: String) async throws -> [ThreadMessage]
     /// Uploads every attachment, then sends exactly one message.
     /// Must throw `DeliveryFailure.outcomeUnknown` when the send request may have reached the server.
     func send(threadId: String, text: String, attachments: [OutgoingAttachment], progress: @Sendable (Int, Int) -> Void) async throws(DeliveryFailure) -> MessageAck
+    /// Uploads every attachment, then starts one new thread whose first message is `text`.
+    /// A retry with the same `clientRequestId` after an error or lost reply returns the
+    /// same thread instead of creating another one.
+    /// Must throw `DeliveryFailure.outcomeUnknown` when the launch request may have reached the server.
+    func launchThread(projectId: String, title: String, text: String, attachments: [OutgoingAttachment], clientRequestId: String, progress: @Sendable (Int, Int) -> Void) async throws(DeliveryFailure) -> LaunchedThread
     func downloadAttachment(threadId: String, attachment: ThreadAttachment) async throws -> Data
     /// Finds the outgoing user message (or accepted queue item) carrying the exact
     /// batch marker `[drawspeak-batch:<batchId>]`. Nil when no such message exists.

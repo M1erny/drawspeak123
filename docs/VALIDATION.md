@@ -77,3 +77,9 @@ Niezweryfikowane: fizyczny iPad i Apple Pencil (kalibracja nacisku, squeeze, odr
 - `xcodebuild test -scheme DrawspeakKit-Package` na symulatorze iPad Pro 13": 204 testy, exit 0 (2 testy Keychain pominięte bez hosta aplikacji).
 - **Scribe v2 Realtime na żywo** (`LiveRealtimeTests`, klucz z Apassy, syntetyczne nagranie PL strumieniowane 4× szybciej): 5 wyników częściowych, zatwierdzony tekst zgodny z nagraniem, `finished`.
 - Niezweryfikowane: mikrofon i czas startu nagrania na fizycznym iPadzie.
+
+## v3 — nowy wątek i odporny Pull (2026-11-04)
+
+- Na żywo z symulatora: Send → **New Thread** w projekcie Drawspeak (`t3_thread_launch`, threadId `mcp:launch:…`, stan `sent`). Agent w nowym wątku użył skilla `ui-review-variants` i `drawspeak_bundle.py`; **Pull** zaimportował 2 propozycje HTML obok Now.
+- Pull akceptuje teraz także luźne odpowiedzi (sam manifest + bloki ```html albo same bloki HTML), liczy hashe z otrzymanego tekstu i podaje powód, gdy nic nie znalazł.
+- `xcodebuild test -scheme DrawspeakKit-Package`: 227 testów, TEST SUCCEEDED.

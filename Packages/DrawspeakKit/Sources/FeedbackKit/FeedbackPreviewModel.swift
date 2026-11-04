@@ -16,6 +16,13 @@ final class FeedbackPreviewModel {
     var preparationFailed = false
     var error: String?
     var reconciliationNotice: String?
+    /// The canvas has no thread and the To row chose New Thread.
+    var startsNewThread = false
+    var newThreadTitle = ""
+    var newThreadProjectId: String?
+    private(set) var projects: [ProjectSummary] = []
+    private(set) var loadingProjects = false
+    private(set) var projectsError: String?
 
     init(workspace: Workspace, canvasId: UUID) { self.workspace = workspace; self.canvasId = canvasId }
     var entry: OutboxEntry? { workspace.canvas(canvasId)?.outbox.first { $0.id == batchId } }
@@ -35,6 +42,44 @@ final class FeedbackPreviewModel {
         }
     }
     var recipient: ThreadBinding? { entry?.thread ?? workspace.canvas(canvasId)?.thread }
+    /// One canvas belongs to one thread, so only a canvas without a thread can start one.
+    var canStartNewThread: Bool { workspace.canvas(canvasId)?.thread == nil && workspace.threads != nil }
+    var newThreadReady: Bool {
+        startsNewThread && recipient == nil && canStartNewThread && newThreadProjectId != nil
+            && !newThreadTitle.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    }
+
+    func chooseNewThread() {
+        startsNewThread = true
+        if newThreadTitle.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            newThreadTitle = workspace.canvas(canvasId)?.title ?? ""
+        }
+    }
+
+    func loadProjects() async {
+        guard startsNewThread, !loadingProjects, let threads = workspace.threads else { return }
+        loadingProjects = true
+        defer { loadingProjects = false }
+        do {
+            let result = try await threads.listProjects()
+            projects = result
+            projectsError = nil
+            if !result.contains(where: { $0.id == newThreadProjectId }) {
+                newThreadProjectId = Self.defaultProjectId(in: result, canvases: workspace.document.canvases)
+            }
+        } catch {
+            projectsError = error.localizedDescription
+        }
+    }
+
+    /// The project of the most recently used thread, else the first project.
+    static func defaultProjectId(in projects: [ProjectSummary], canvases: [ReviewCanvas]) -> String? {
+        let recent = canvases.compactMap { canvas -> (id: String, usedAt: Date)? in
+            guard let id = canvas.thread?.projectId else { return nil }
+            return (id, canvas.outbox.map(\.createdAt).max() ?? canvas.updatedAt)
+        }.sorted { $0.usedAt > $1.usedAt }
+        return recent.first { used in projects.contains { $0.id == used.id } }?.id ?? projects.first?.id
+    }
 
     func refresh() {
         guard let scope = workspace.feedbackScope(canvasId: canvasId) else { return }
@@ -130,7 +175,11 @@ final class FeedbackPreviewModel {
     }
     func send() async {
         refresh()
-        guard !busy, !selection.isEmpty, sendBlock == nil, recipient != nil, workspace.threads != nil else { return }
+        let toNewThread = recipient == nil
+        guard !busy, !selection.isEmpty, sendBlock == nil, workspace.threads != nil, !toNewThread || newThreadReady else { return }
+        if toNewThread, workspace.pendingNewThreadEntry(canvasId: canvasId) != nil {
+            error = String(localized: "A new thread from this canvas isn't confirmed yet.", bundle: .module); return
+        }
         batchId = Workspace.newBatchId(now: workspace.now())
         rebuild()
         guard let package else { return }
@@ -138,7 +187,16 @@ final class FeedbackPreviewModel {
         defer { busy = false }
         do {
             let attachments = try await FeedbackPayloadBuilder.attachments(for: package, blobs: workspace.blobs)
-            guard await workspace.send(package: package, attachments: attachments, canvasId: canvasId) != nil else { preparationFailed = true; error = String(localized: "Canvas unavailable.", bundle: .module); return }
+            let entry: OutboxEntry?
+            if toNewThread, let projectId = newThreadProjectId {
+                entry = await workspace.sendToNewThread(
+                    package: package, attachments: attachments, canvasId: canvasId, projectId: projectId,
+                    projectTitle: projects.first { $0.id == projectId }?.title, threadTitle: newThreadTitle
+                )
+            } else {
+                entry = await workspace.send(package: package, attachments: attachments, canvasId: canvasId)
+            }
+            guard entry != nil else { preparationFailed = true; error = String(localized: "Canvas unavailable.", bundle: .module); return }
             await workspace.saveNow()
         } catch { preparationFailed = true; self.error = error.localizedDescription }
     }
@@ -164,8 +222,14 @@ final class FeedbackPreviewModel {
     func reconcile() async {
         guard !busy, let batchId else { return }
         busy = true
+        let startsThread = entry?.newThread != nil
         let result = await workspace.reconcile(batchId: batchId, canvasId: canvasId)
-        reconciliationNotice = result == .notFound ? String(localized: "Not found in thread. Sending again may duplicate it.", bundle: .module) : result == .unavailable ? String(localized: "Can't reach thread.", bundle: .module) : nil
+        reconciliationNotice = switch result {
+        case .found: nil
+        case .notFound: String(localized: "Not found in thread. Sending again may duplicate it.", bundle: .module)
+        case .unavailable where startsThread: String(localized: "Couldn't confirm the new thread.", bundle: .module)
+        case .unavailable: String(localized: "Can't reach thread.", bundle: .module)
+        }
         await workspace.saveNow()
         busy = false
     }

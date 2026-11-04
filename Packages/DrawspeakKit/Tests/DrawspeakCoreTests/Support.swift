@@ -121,7 +121,22 @@ struct FakeThreadService: ThreadService {
     /// Runs when `send` starts, before any upload.
     var onSend: @Sendable () -> Void = {}
 
+    var projects: [ProjectSummary] = [ProjectSummary(id: "proj-1", title: "Shop")]
+    var launchFailure: DeliveryFailure?
+    var launchedThread = LaunchedThread(threadId: "new-thread-1", title: "Review", messageId: "msg-new")
+
     func listThreads() async throws -> [ThreadSummary] { log.record("listThreads"); return [] }
+    func listProjects() async throws -> [ProjectSummary] { log.record("listProjects"); return projects }
+    func launchThread(
+        projectId: String, title: String, text: String, attachments: [OutgoingAttachment], clientRequestId: String,
+        progress: @Sendable (Int, Int) -> Void
+    ) async throws(DeliveryFailure) -> LaunchedThread {
+        log.record("launch:\(projectId):\(title):\(clientRequestId)")
+        onSend()
+        progress(attachments.count, attachments.count)
+        if let launchFailure { throw launchFailure }
+        return launchedThread
+    }
     func readMessages(threadId: String) async throws -> [ThreadMessage] { log.record("readMessages"); return messages }
     func send(
         threadId: String, text: String, attachments: [OutgoingAttachment],
@@ -207,6 +222,21 @@ final class FakeTranscriber: Transcribing, Sendable {
         try? await Task.sleep(for: .milliseconds(30))
         return makeTranscript(text)
     }
+}
+
+/// Sends the notes of the current (unbound) canvas to a new thread in "proj-1".
+@MainActor
+func sendNotesToNewThread(
+    _ workspace: Workspace, noteIds: Set<UUID>, batchId: String = "ds-new-1", title: String = "Review"
+) async -> OutboxEntry? {
+    let canvas = workspace.currentCanvas!
+    let placeholder = ThreadBinding(hostURL: testThread.hostURL, threadId: "", threadTitle: title, projectId: "proj-1", projectTitle: "Shop")
+    let package = FeedbackPackageBuilder.build(canvas: canvas, noteIds: noteIds, thread: placeholder, batchId: batchId, now: fixedDate)
+    let attachments = [OutgoingAttachment(fileName: "01.png", contentType: "image/png", data: Data("png".utf8))]
+    return await workspace.sendToNewThread(
+        package: package, attachments: attachments, canvasId: canvas.id,
+        projectId: "proj-1", projectTitle: "Shop", threadTitle: title
+    )
 }
 
 /// Builds a package for the given notes and sends it through the workspace.

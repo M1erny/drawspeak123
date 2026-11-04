@@ -1063,6 +1063,55 @@ public final class Workspace {
         return canvas(canvasId)?.outbox.first { $0.id == entry.id }
     }
 
+    /// Freezes the shown package into the outbox and starts a new thread in `projectId`
+    /// whose first message carries it. Only for a canvas without a thread: on success the
+    /// canvas is bound to the new thread. Nil when the canvas already has a thread, a
+    /// new-thread batch is still unresolved, or no T3 connection exists.
+    @discardableResult
+    public func sendToNewThread(
+        package: FeedbackPackage, attachments: [OutgoingAttachment], canvasId: UUID,
+        projectId: String, projectTitle: String?, threadTitle: String
+    ) async -> OutboxEntry? {
+        let title = threadTitle.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard let canvas = canvas(canvasId), canvas.thread == nil, let threads,
+              !projectId.isEmpty, !title.isEmpty else { return nil }
+        if let existing = canvas.outbox.first(where: { $0.id == package.batchId }) {
+            switch existing.state {
+            case .readyToSend, .failed: break
+            case .uploading, .sending, .sent, .deliveryUnknown: return existing
+            }
+        }
+        // Another unresolved launch may already have created this canvas's thread.
+        if let pending = pendingNewThreadEntry(canvasId: canvasId), pending.id != package.batchId { return nil }
+        let entry = OutboxEntry(
+            id: package.batchId,
+            createdAt: now(),
+            thread: ThreadBinding(hostURL: threads.hostURL, threadId: "", threadTitle: title, projectId: projectId, projectTitle: projectTitle),
+            items: package.items,
+            isRepeat: package.isRepeat,
+            state: .readyToSend,
+            newThread: NewThreadTarget(projectId: projectId, projectTitle: projectTitle, title: title, clientRequestId: package.batchId)
+        )
+        mutateCanvas(canvasId) { canvas in
+            canvas.outbox.removeAll { $0.id == entry.id }
+            canvas.outbox.insert(entry, at: 0)
+        }
+        stagedAttachments[entry.id] = (FeedbackPackageBuilder.messageText(for: package), attachments)
+        await deliver(batchId: entry.id, canvasId: canvasId)
+        return self.canvas(canvasId)?.outbox.first { $0.id == entry.id }
+    }
+
+    /// A new-thread batch whose thread may exist but was not confirmed (not yet Sent).
+    public func pendingNewThreadEntry(canvasId: UUID) -> OutboxEntry? {
+        canvas(canvasId)?.outbox.first { entry in
+            guard entry.newThread != nil else { return false }
+            switch entry.state {
+            case .uploading, .sending, .deliveryUnknown: return true
+            case .readyToSend, .failed, .sent: return false
+            }
+        }
+    }
+
     /// Message text and attachments of entries in this session, for an explicit retry.
     @ObservationIgnored private var stagedAttachments: [String: (text: String, attachments: [OutgoingAttachment])] = [:]
 
@@ -1091,7 +1140,14 @@ public final class Workspace {
     /// Before the network call the entry is durably saved as Uploading with an open
     /// attempt; if that save fails nothing is sent. From that checkpoint on, a restart
     /// recovers the entry as Delivery Unknown (see `OutboxRecovery`).
+    ///
+    /// A new-thread entry launches the thread with its fixed `clientRequestId`, so a
+    /// repeated launch returns the same thread.
     public func deliver(batchId: String, canvasId: UUID) async {
+        await deliver(batchId: batchId, canvasId: canvasId, resumingUnknownLaunch: false)
+    }
+
+    private func deliver(batchId: String, canvasId: UUID, resumingUnknownLaunch: Bool) async {
         guard let entry = canvas(canvasId)?.outbox.first(where: { $0.id == batchId }) else { return }
         switch entry.state {
         case .readyToSend, .failed: break
@@ -1099,6 +1155,12 @@ public final class Workspace {
         }
         if let issue = connectionIssue(for: entry.thread) {
             updateOutbox(batchId, canvasId: canvasId) { $0.state = .failed(reason: issue) }
+            return
+        }
+        // One canvas, one thread: a launch that surely created nothing must not add a second thread.
+        // Repeating an unconfirmed launch is safe, because it can only return the same thread.
+        if entry.newThread != nil, !resumingUnknownLaunch, canvas(canvasId)?.thread != nil {
+            updateOutbox(batchId, canvasId: canvasId) { $0.state = .failed(reason: "This canvas already has a thread.") }
             return
         }
         guard let threads else { return }
@@ -1121,20 +1183,33 @@ public final class Workspace {
             }
             return
         }
-        do {
-            let ack = try await threads.send(threadId: entry.thread.threadId, text: staged.text, attachments: staged.attachments) { done, _ in
-                Task { @MainActor in
-                    self.updateOutbox(batchId, canvasId: canvasId) { entry in
-                        // Progress never overrides a final state that arrived first.
-                        guard case .uploading = entry.state else { return }
-                        entry.state = done >= total ? .sending : .uploading(done: done, total: total)
-                    }
+        let progress: @Sendable (Int, Int) -> Void = { done, _ in
+            Task { @MainActor in
+                self.updateOutbox(batchId, canvasId: canvasId) { entry in
+                    // Progress never overrides a final state that arrived first.
+                    guard case .uploading = entry.state else { return }
+                    entry.state = done >= total ? .sending : .uploading(done: done, total: total)
                 }
             }
-            markSent(batchId: batchId, canvasId: canvasId, receipt: DeliveryReceipt(
-                threadId: entry.thread.threadId, messageId: ack.messageId, acknowledgedAt: ack.acknowledgedAt,
-                attachmentCount: total, confirmation: .response
-            ))
+        }
+        do {
+            if let target = entry.newThread {
+                let launched = try await threads.launchThread(
+                    projectId: target.projectId, title: target.title, text: staged.text, attachments: staged.attachments,
+                    clientRequestId: target.clientRequestId, progress: progress
+                )
+                bindLaunchedThread(launched, target: target, hostURL: threads.hostURL, batchId: batchId, canvasId: canvasId)
+                markSent(batchId: batchId, canvasId: canvasId, receipt: DeliveryReceipt(
+                    threadId: launched.threadId, messageId: launched.messageId, acknowledgedAt: now(),
+                    attachmentCount: total, confirmation: .response
+                ))
+            } else {
+                let ack = try await threads.send(threadId: entry.thread.threadId, text: staged.text, attachments: staged.attachments, progress: progress)
+                markSent(batchId: batchId, canvasId: canvasId, receipt: DeliveryReceipt(
+                    threadId: entry.thread.threadId, messageId: ack.messageId, acknowledgedAt: ack.acknowledgedAt,
+                    attachmentCount: total, confirmation: .response
+                ))
+            }
         } catch {
             let ended = now()
             updateOutbox(batchId, canvasId: canvasId) { entry in
@@ -1147,6 +1222,22 @@ public final class Workspace {
             }
         }
         await saveNow()
+    }
+
+    /// The server returned the new thread: the entry targets it from now on, and the
+    /// canvas is bound to it unless the canvas got another thread meanwhile.
+    private func bindLaunchedThread(_ launched: LaunchedThread, target: NewThreadTarget, hostURL: URL, batchId: String, canvasId: UUID) {
+        let binding = ThreadBinding(
+            hostURL: hostURL, threadId: launched.threadId,
+            threadTitle: launched.title.isEmpty ? target.title : launched.title,
+            projectId: target.projectId, projectTitle: target.projectTitle
+        )
+        mutateCanvas(canvasId) { canvas in
+            if canvas.thread == nil { canvas.thread = binding }
+            guard let index = canvas.outbox.firstIndex(where: { $0.id == batchId }) else { return }
+            canvas.outbox[index].thread = binding
+            canvas.outbox[index].newThread = nil
+        }
     }
 
     private func markSent(batchId: String, canvasId: UUID, receipt: DeliveryReceipt) {
@@ -1175,10 +1266,30 @@ public final class Workspace {
     /// Delivery Unknown: ask the bound host for the outgoing message carrying the
     /// exact batch marker before any retry. Found is Sent; a definite "no such
     /// message" is Ready to Send; any error keeps Delivery Unknown.
+    ///
+    /// A new-thread entry has no thread to read: it repeats the launch with the same
+    /// `clientRequestId`, which returns the thread if the first launch created it.
+    /// Found is Sent; anything else keeps Delivery Unknown (never `.notFound`).
     public func reconcile(batchId: String, canvasId: UUID) async -> ReconcileResult {
         guard let entry = canvas(canvasId)?.outbox.first(where: { $0.id == batchId }),
               entry.state == .deliveryUnknown,
               let threads = service(for: entry.thread) else { return .unavailable }
+        if entry.newThread != nil {
+            guard stagedAttachments[batchId] != nil else { return .unavailable }
+            // In memory only: the delivery path below checkpoints Uploading durably before the launch.
+            updateOutbox(batchId, canvasId: canvasId) { $0.state = .readyToSend }
+            await deliver(batchId: batchId, canvasId: canvasId, resumingUnknownLaunch: true)
+            switch canvas(canvasId)?.outbox.first(where: { $0.id == batchId })?.state {
+            case .sent: return .found
+            case .failed:
+                // A refused repeat says nothing about the first launch (for example after
+                // re-pairing, when the server no longer matches the request id): keep it unconfirmed.
+                updateOutbox(batchId, canvasId: canvasId) { $0.state = .deliveryUnknown }
+                await saveNow()
+                return .unavailable
+            default: return .unavailable
+            }
+        }
         let ack: MessageAck?
         do {
             ack = try await threads.reconcile(threadId: entry.thread.threadId, batchId: batchId)
@@ -1245,23 +1356,27 @@ public final class Workspace {
         }
         var imported = 0
         var issues: [String] = []
+        var diagnoses: [String] = []
         for message in messages where message.role != "user" {
             guard !(self.canvas(canvasId)?.pulledMessageIds.contains(message.id) ?? true) else { continue }
-            let bundle = TextBundleParser.parse(message.text)
-            guard let manifestData = bundle.manifest else { continue }
-            guard let manifest = try? ReviewManifest.decode(manifestData) else {
-                issues.append("A reply contains a manifest that could not be read")
-                mutateCanvas(canvasId) { $0.pulledMessageIds.append(message.id) }
+            guard let current = self.canvas(canvasId) else { break }
+            // Tolerant reader: strict bundles, manifest + plain html blocks, or html blocks alone.
+            let bundle = PulledBundleReader.read(message.text, canvas: current)
+            issues.append(contentsOf: bundle.issues.map { issue in
+                issue.snapshotId.map { "\($0): \(issue.message)" } ?? issue.message
+            })
+            guard !bundle.entries.isEmpty else {
+                if let diagnosis = bundle.diagnosis { diagnoses.append(diagnosis) }
                 continue
             }
-            guard let current = self.canvas(canvasId) else { break }
-            let result = ManifestValidator.validate(manifest, files: bundle.files, canvas: current)
-            issues.append(contentsOf: result.issues.map { "\($0.snapshotId ?? manifest.reviewId): \($0.message)" })
-            let outcome = await importManifestEntries(result.valid, manifest: manifest, files: bundle.files, canvasId: canvasId, messageId: message.id, captureHTML: captureHTML, issues: &issues)
+            let outcome = await importPulledEntries(bundle.entries, canvasId: canvasId, messageId: message.id, captureHTML: captureHTML, issues: &issues)
             imported += outcome.imported
             if outcome.complete {
                 mutateCanvas(canvasId) { $0.pulledMessageIds.append(message.id) }
             }
+        }
+        if imported == 0, issues.isEmpty, let last = diagnoses.last {
+            issues.append(last)
         }
         await saveNow()
         return PullReport(importedSnapshots: imported, issues: issues, messagesChecked: messages.count)
@@ -1278,10 +1393,8 @@ public final class Workspace {
 
     /// Returns how many new snapshots were stored and whether every entry is now
     /// present on the canvas (stored now or before).
-    private func importManifestEntries(
-        _ entries: [ReviewManifest.Entry],
-        manifest: ReviewManifest,
-        files: [String: Data],
+    private func importPulledEntries(
+        _ entries: [PulledBundle.Entry],
         canvasId: UUID,
         messageId: String,
         captureHTML: HTMLCapturer,
@@ -1289,58 +1402,42 @@ public final class Workspace {
     ) async -> (imported: Int, complete: Bool) {
         var count = 0
         var complete = true
-        // Baselines first, then iterations in order, so parent chains resolve.
         let ordered = entries.sorted { ($0.role == .baseline ? 0 : 1, $0.iteration) < ($1.role == .baseline ? 0 : 1, $1.iteration) }
         for entry in ordered {
             if canvas(canvasId)?.snapshots.contains(where: { $0.id == entry.snapshotId }) == true { continue }
-            let image = entry.imagePath.flatMap { ManifestValidator.file($0, in: files) }
-            let html = (entry.htmlPath ?? entry.prototypePath).flatMap { ManifestValidator.file($0, in: files) }
-            let isHTML = entry.artifactKind == .html && html != nil
-            guard let bytes = isHTML ? html : image else {
-                issues.append("\(entry.snapshotId): the reply has no file for this version")
-                continue
-            }
-            let policy = entry.renderPolicy ?? .staticNoScript
             var capture: (data: Data, contentType: String)?
             var pixelSize = (entry.widthPx, entry.heightPx)
-            if isHTML, let html {
-                if let image {
-                    capture = (image, "image/png")
-                } else if let rendered = try? await captureHTML(html, policy, entry.viewport) {
-                    capture = (rendered.png, "image/png")
-                    pixelSize = (rendered.width, rendered.height)
-                } else {
-                    issues.append("\(entry.snapshotId): HTML capture failed; the version was imported without a capture")
-                }
+            if let rendered = try? await captureHTML(entry.html, entry.renderPolicy, entry.viewport) {
+                capture = (rendered.png, "image/png")
+                pixelSize = (rendered.width, rendered.height)
+            } else {
+                issues.append("\(entry.snapshotId): preview image could not be created; it will be made when shown")
             }
-            let screenId = ensureScreen(id: entry.screenId, title: entry.screenTitle ?? entry.screenId, canvasId: canvasId)
+            let screenId = ensureScreen(id: entry.screenId, title: entry.screenTitle, canvasId: canvasId)
             let target: ImportTarget = entry.role == .baseline
                 ? .baseline(screenId: screenId)
                 : .proposal(screenId: screenId, proposalId: entry.proposalId ?? "a")
-            // A returned baseline becomes Now only for a screen without one.
             let promote = canvas(canvasId).map { CanvasLayout.now(in: $0, screenId: screenId) == nil } ?? false
-            let name = ((isHTML ? (entry.htmlPath ?? entry.prototypePath) : entry.imagePath) ?? entry.snapshotId) as NSString
             do {
                 try storeArtifact(
                     into: canvasId,
-                    data: bytes,
-                    kind: isHTML ? .html : .image,
-                    contentType: isHTML ? "text/html" : "image/png",
-                    fileName: name.lastPathComponent,
+                    data: entry.html,
+                    kind: .html,
+                    contentType: "text/html",
+                    fileName: entry.snapshotId + ".html",
                     pixelSize: pixelSize,
                     viewport: entry.viewport,
                     target: target,
-                    origin: .t3Pull(messageId: messageId, manifestReviewId: manifest.reviewId),
+                    origin: .t3Pull(messageId: messageId, manifestReviewId: nil),
                     snapshotId: entry.snapshotId,
                     changeSummary: entry.changeSummary,
-                    addressedNoteIds: entry.addressedNoteIds ?? [],
+                    addressedNoteIds: entry.addressedNoteIds,
                     parentSnapshotId: entry.parentSnapshotId,
-                    capturedAt: entry.capturedAt,
+                    capturedAt: nil,
                     captureImage: capture,
-                    renderPolicy: policy,
+                    renderPolicy: entry.renderPolicy,
                     promoteBaseline: promote
                 )
-                // Keep the manifest's iteration number rather than the derived one.
                 mutateCanvas(canvasId) { canvas in
                     if let index = canvas.snapshots.firstIndex(where: { $0.id == entry.snapshotId }) {
                         canvas.snapshots[index].iteration = entry.iteration
@@ -1348,7 +1445,6 @@ public final class Workspace {
                 }
                 count += 1
             } catch let error as ImportError {
-                // Rejected for good (too large, invalid viewport): retrying cannot help.
                 issues.append("\(entry.snapshotId): could not be imported (\(error))")
             } catch {
                 complete = false

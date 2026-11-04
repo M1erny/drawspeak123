@@ -59,6 +59,7 @@ public enum FeedbackPackageBuilder {
             lines.append("Note: this repeats comments that were sent before.")
         }
         lines.append("Each attached PNG is one snapshot with numbered marks. The JSON manifest maps every number to its noteId, snapshotId, geometry and HTML component target. Comment text is the reviewer's intent; old coordinates apply only to their own snapshot.")
+        lines.append("To return new versions to the iPad, use the ui-review-variants skill: build self-contained HTML proposals and end your reply with the verbatim output of `python3 -I ~/.agents/skills/ui-review-variants/scripts/drawspeak_bundle.py` (Drawspeak imports them with Pull from Thread).")
         for group in package.groups {
             lines.append("")
             lines.append("## \(group.screenTitle) — \(group.laneTitle)")
