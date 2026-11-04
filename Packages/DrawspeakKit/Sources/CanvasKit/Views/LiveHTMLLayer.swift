@@ -49,6 +49,10 @@ struct LiveHTMLLayer: View {
                 )
                 .frame(width: size.width, height: size.height)
                 .scaleEffect(width / size.width, anchor: .topLeading)
+                // scaleEffect does not change layout: without this frame the
+                // card lays out a viewport-wide view (1440 pt for a desktop
+                // board), centers it, and clips the capture image out of sight.
+                .frame(width: width, height: size.height * width / size.width, alignment: .topLeading)
                 .opacity(isLoaded ? 1 : 0)
             }
         }
