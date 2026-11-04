@@ -14,6 +14,7 @@ Produce reviewable alternatives before implementation. Respect the requested num
 3. Build clickable proposals with fixture data in a location isolated from production routes and services. Demonstrate the requested behavior, including relevant empty, error and success states. Never connect payment, messaging or other external mutations merely to simulate a feature.
 4. Give each alternative a stable `proposalId`. New iterations get a new `snapshotId` and `iteration`, preserving the same `proposalId` and linking to the preceding snapshot through `parentSnapshotId`. Alternatives are siblings; iterations form a chain within a proposal.
 5. Export PNG screenshots at a matching viewport for each reviewed screen. Use distinct `screenId` values for distinct routes/states. Record SHA-256 over the exact image bytes. Do not overwrite earlier snapshots.
+   For HTML proposals, export the self-contained HTML/bundle too. Put stable, unique `data-review-id` values on meaningful components and containers. Record source hash, viewport, captured state and render policy alongside the screenshot. The static inspector disables scripts/external resources; a scripted clickable prototype requires the separately supported isolated native runtime. Report which mode was actually verified.
 6. Export `review-manifest.json` using [the manifest contract](references/manifest.md), alongside accessible images and the clickable prototype. Describe material changes and map addressed notes in `addressedNoteIds`. Report actual checks and limitations.
 7. Return the manifest and artifact references in the T3 Code thread when the invocation authorizes that delivery and tools support it. Creating files locally is not proof of delivery. If the attachment budget is exceeded, report this and offer a bundle; do not silently split one review into several agent messages.
 
@@ -22,6 +23,10 @@ Selecting an alternative permits further prototyping of that alternative. Implem
 ## Incoming review batch
 
 Each note needs its own `noteId`, source `snapshotId`, region/path coordinates and coordinate space, comment text, and optional audio reference. Keep grouping and ordering when one message contains many screenshots and notes. Include numbered annotated composites for readability; retain source images and editable annotations in the review data.
+
+HTML notes add `domTarget`: source/render hashes, viewport, locator, component label, hit-to-root chain, selected depth and captured bounds. Use that exact artifact version. A parent and an underlying sibling/layer are different targets. If a locator no longer resolves in its source version, report the missing target; never rebind the note to a nearby element or new iteration.
+
+Transcription provider is ElevenLabs Scribe v2. Audio capture, cloud transcription and edited comments are distinct artifacts. Keep original audio and raw transcript references; never fabricate a transcript or treat a demo result as a provider response. Credentials stay outside generated HTML and the review bundle.
 
 ## Delivery boundaries
 

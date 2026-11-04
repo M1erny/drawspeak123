@@ -1,6 +1,6 @@
 # Review Canvas
 
-Nowy projekt aplikacji iPad do review UI: screenshoty na canvasie, zaznaczenia Apple Pencilem, komentarze głosowe i wymiana wersji z T3 Code przez Tailscale. Nazwa robocza.
+Nowy projekt aplikacji iPad do review UI: obrazy i makiety HTML na canvasie, zaznaczenia Apple Pencilem, komentarze głosowe i wymiana wersji z T3 Code przez Tailscale. Nazwa robocza.
 
 Pierwszy etap: specyfikacja i interaktywny prototyp kluczowej interakcji. Aplikacja SwiftUI, rzeczywisty Pencil Pro, nagrywanie/transkrypcja oraz połączenie T3 Code to kolejne etapy opisane w specyfikacji.
 
@@ -12,9 +12,9 @@ Pierwszy etap: specyfikacja i interaktywny prototyp kluczowej interakcji. Aplika
 - [Kierunek wizualny](docs/DESIGN.md).
 - [Skill ui-review-variants](.agents/skills/ui-review-variants/SKILL.md) — źródło skilla projektu; kontrakt manifestu w podkatalogu `references`. Nie instalowano globalnie.
 
-## Prototyp v2
+## Prototyp v3 — obrazy i HTML
 
-Pełnoekranowy canvas z pływającymi paletami, pan/zoom i Fit All. `Now`, `Proposal A` i `Proposal B` są obok siebie. Każda propozycja ma osobny wybór iteracji. Przycisk Canvases otwiera inne review, z osobnym wątkiem, uwagami, stash i kamerą.
+Pełnoekranowy canvas z pływającymi paletami, pan/zoom i Fit All. `Now` jest obrazem, `Proposal A` i `Proposal B` makietami HTML obok siebie. Każda propozycja ma osobny wybór iteracji. Przycisk Canvases otwiera inne review, z osobnym wątkiem, uwagami, stash i kamerą.
 
 1. Zakreśl region myszą/Pencilem. Automatycznie otworzy się panel symulowanego nagrania. Palec domyślnie przesuwa canvas; rysowanie palcem można włączyć.
 2. `Stop` tworzy przykładową transkrypcję PL/EN; popraw tekst i `Save Comment`. `Discard` odrzuca bieżące nagranie i pusty region; wpisany tekst oraz wcześniejsze nagrania pozostają. Usunięty region można przywrócić przez Undo. Przerwanie lub zmiana canvasu zachowuje wpisany tekst, bez dopisywania przykładowej transkrypcji.
@@ -31,10 +31,16 @@ Kontrolki wersji i piny mają stały rozmiar ekranowy przy zoomie. `Notes → Ad
 
 To HTML na fixture data. Nie otwiera mikrofonu, nie przechowuje prawdziwego audio i nie kontaktuje się z T3 Code. Pencil Pro squeeze, trwałe zasoby, speech/OAuth/Tailscale i promocja baseline wymagają natywnego MVP. Rzeczywiste gesty iPad i dostępność wymagają weryfikacji na urządzeniu.
 
-Uwagi, ustawienia i stash są zapisywane w browser localStorage v2; nie migrujemy danych prototypu v1. Import obsługuje PNG/JPEG/WebP do 10 MB. Bajty importu pozostają wyłącznie w bieżącej sesji i nie trafiają do eksportu; po odświeżeniu widać placeholder, a nowe adnotacje na brakującym obrazie są zablokowane. Proporcje obrazów i znormalizowane kotwice są niezależne od transformacji canvasu.
+Uwagi, ustawienia i stash są zapisywane w browser localStorage v3; nie migrujemy danych prototypów v1/v2. Import obsługuje PNG/JPEG/WebP do 10 MiB oraz statyczny, samodzielny HTML do 2 MiB. Bajty importu pozostają wyłącznie w bieżącej sesji i nie trafiają do eksportu; po odświeżeniu widać placeholder, a nowe adnotacje na brakującym obrazie są zablokowane. Proporcje obrazów i znormalizowane kotwice są niezależne od transformacji canvasu.
+
+HTML: narzędzie Select HTML Component wybiera element pod końcówką. Nacisk Pencila przechodzi do rodziców; mysz/klawiatura mają drzewo i pressure preview. Osobny wybór Layers rozróżnia element pod nakładką od rodzica. Zatwierdzenie zapisuje locator, hashe źródła/renderu i obrys, a potem startuje demo głosu. Zmienny nacisk wymaga testu fizycznego iPada; import HTML w tym prototypie nie wykonuje JS ani zasobów zewnętrznych.
+
+Transkrypcja docelowa: ElevenLabs Scribe v2 po Stop. Gotowy jest adapter hosta Node i testy mock; nie ma jeszcze realnego capture, wdrożonego hosta ani połączenia z dostawcą. Klucz nie trafia do HTML. Szczegóły: [HTML i DOM](docs/HTML-REVIEW.md), [ElevenLabs](docs/ELEVENLABS.md).
 
 Kierunek nowej wersji i uzasadnienie: [docs/DESIGN-V2.md](docs/DESIGN-V2.md). Krytyki osobnych modeli i decyzje po review: katalog `docs/reviews/`.
 
 ## Weryfikacja
 
 Wyniki i zakres faktycznie uruchomionych sprawdzeń: [docs/VALIDATION.md](docs/VALIDATION.md). Podgląd HTML nie jest dowodem działania natywnego iPada, Pencil Pro, speech ani Tailscale.
+
+Do sprawdzenia elementów pod nakładką: importuj prototype/fixtures/stacked-components.html, wybierz Select HTML Component, wskaż niebieską nakładkę, potem Views and Layers → warstwę pod spodem. Nacisk/suwak zmienia rodzica wybranej warstwy.

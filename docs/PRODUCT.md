@@ -2,7 +2,7 @@
 
 ## 0. Kontekst i granice dowodów
 
-Produkt docelowy to natywna aplikacja SwiftUI na iPad, dla jednej osoby, do przeglądania UI i przekazywania agentowi precyzyjnych uwag. Użytkownik pracuje nad projektem w T3 Code, otwiera jego screenshoty na canvasie, oznacza problemy Pencil lub palcem i zbiera je w jedną wiadomość. Zakładany kontekst to skupiona praca przerywana przełączaniem między kodem i porównywaniem wariantów; aplikacja ma ograniczać pamiętanie kontekstu (**Cognitive Load**, **Recognition Over Recall**).
+Produkt docelowy to natywna aplikacja SwiftUI na iPad, dla jednej osoby, do przeglądania UI i przekazywania agentowi precyzyjnych uwag. Użytkownik pracuje nad projektem w T3 Code, otwiera jego obrazy i makiety HTML na canvasie, oznacza problemy Pencil lub palcem i zbiera je w jedną wiadomość. Zakładany kontekst to skupiona praca przerywana przełączaniem między kodem i porównywaniem wariantów; aplikacja ma ograniczać pamiętanie kontekstu (**Cognitive Load**, **Recognition Over Recall**).
 
 Pierwszy kamień milowy obejmuje tę specyfikację oraz interaktywny prototyp HTML na danych fixture. Natywna aplikacja powstaje później. Zachowanie przycisków w prototypie nie stanowi dowodu integracji z T3 Code, Tailscale, mikrofonem, rozpoznawaniem mowy ani Apple Pencil. Każda symulacja połączenia, transkrypcji, wysyłki lub odpowiedzi musi mieć oznaczenie `Demo / fixture` (**Expectations Bias**, **Feedback Loop**).
 
@@ -30,7 +30,8 @@ Priorytety zadań: 1) oznaczyć UI, 2) zebrać i przejrzeć uwagi, 3) wysłać l
 | `Project` | `id`, nazwa, kolekcja canvasów; pojedynczy lokalny właściciel. |
 | `ReviewCanvas` | `id`, `projectId`, jedno `threadId`, położenia elementów, zoom/pan, bieżący baseline. Brak mieszania wątków w jednej paczce. |
 | `T3Thread` | Tożsamość z adaptera T3, etykieta i stan synchronizacji; transport i uprawnienia wymagają weryfikacji. |
-| `Snapshot` | Niezmienny `id`, zasób obrazu, hash, wymiary, źródło `manual` lub `T3`, czas importu; commit/build ID tylko gdy rzeczywiście dostępny. |
+| `Snapshot` | Niezmienny `id`, artifactKind image/html, zasób źródła i capture, hashe, viewport, stan i polityka renderowania, źródło manual/T3; commit/build ID tylko gdy dostępny. |
+| `DOMTarget` | snapshotId, hash źródła i renderu, locator, łańcuch trafienie→korzeń, głębokość/warstwa, obrys; bez remapowania między wersjami. |
 | `ViewVersion` | Logiczny widok UI, `snapshotId`, wersja, lineage, informacja o viewport; nie nadpisuje obrazu poprzedniej wersji. |
 | `Annotation` | `id`, `snapshotId`, typ `region / arrow / freehand`, geometria znormalizowana, opcjonalny `commentId`. |
 | `Comment` | Edytowalny tekst, oryginalna transkrypcja, język `pl / en`, opcjonalny `audioAssetId`, stan zapisu. |
@@ -124,7 +125,7 @@ Kryteria akceptacji:
 
 ## 11. Otwarte decyzje i plan walidacji
 
-Domyślne propozycje do spike: ręczny pull zamiast background sync; własny lokalny draft/stash iPada; jedna jawnie wybrana instancja T3 na canvas; audio przechowywane lokalnie i opcjonalnie wysyłane jako archiwum po potwierdzeniu obsługi. Dostawca rozpoznawania PL/EN, ewentualne przetwarzanie poza urządzeniem i retencja wymagają decyzji po sprawdzeniu jakości oraz prywatności. Nie blokuje to prototypu.
+Domyślne propozycje do spike: ręczny pull zamiast background sync; własny lokalny draft/stash iPada; jedna jawnie wybrana instancja T3 na canvas; audio przechowywane lokalnie i opcjonalnie wysyłane jako archiwum po potwierdzeniu obsługi. Dostawcą PL/EN jest ElevenLabs. Jakość, retencja i wdrożenie przetwarzania poza urządzeniem wymagają walidacji przed live MVP. Nie blokuje to prototypu.
 
 Hipoteza przed testem: użytkownik rozróżni zapis lokalny od wysyłki i wskaże snapshot każdej uwagi bez otwierania historii. Scenariusz neutralny: „Oznacz dwa problemy, odłóż uwagi, potem wyślij je i porównaj wynik”. Mierzymy ukończenie etapów, pomyłki w adresowaniu, czas do pierwszej paczki, odzyskanie po przerwaniu oraz subiektywną łatwość. Rejestrujemy również przerwane próby (**Observer-Expectancy Effect**, **Survivorship Bias**).
 
@@ -151,3 +152,11 @@ Po review nagłówki, wybór iteracji i kotwice są w warstwie nieskalowanej, a 
 Nagrywanie ma wąski pasek i REC przy kotwicy. Wyłącznie jawne Stop generuje przykład transkrypcji, przechowywany oddzielnie jako audio.transcript. Tekst użytkownika nie jest nadpisywany; można dołączyć transkrypcję. Przerwanie nie fabrykuje wypowiedzi, a pusta przerwana uwaga jest odznaczana. Discard usuwa pusty region odwracalnie. Natywne audio nie jest jeszcze implementowane.
 
 Load Copies tworzy nowe uwagi z zachowaniem snapshotId i sourceNoteId; nie nadpisuje aktualnego tekstu. Undo obejmuje tworzenie/usuwanie anotacji i odtwarzanie kopii, ale nie pełną historię edycji tekstu ani Redo. Wysyłka demo ma miniatury, kontrolę brakujących obrazów i trwałe potwierdzenie; po symulacji odznacza uwagi.
+
+## 13. Obrazy i HTML; ElevenLabs (v3)
+
+Zakres artefaktów obejmuje obrazy i wersjonowane HTML. HTML ma źródłowy bundle, hash, viewport, stan renderowania oraz screenshot referencyjny; domTarget przypina anotację do elementu w dokładnie tej wersji. Lekki nacisk wybiera trafiony element, silniejszy jego rodziców. Wybór elementu spod nakładki jest osobną operacją Layers. Zatwierdzenie po podniesieniu Pencila zachowuje ostatnią stabilną głębokość i uruchamia auto-głos przy ON. Mysz/klawiatura mają równoważną ścieżkę. Kontrakt i ograniczenia: HTML-REVIEW.md.
+
+Wybrany dostawca transkrypcji: ElevenLabs Scribe v2, batch po Stop. Głos zapisujemy lokalnie przed wysyłką. Surowy wynik z identyfikatorami pierwotnego canvasu/uwagi/nagrania pozostaje osobny od edytowanego tekstu. Klucz wyłącznie na zaufanym hoście; przeglądanie HTML nie daje dostępu do sekretu. Gotowy adapter nie jest endpointem T3 ani działającą integracją urządzeń. Kontrakt: ELEVENLABS.md.
+
+HTML demonstrator v3 obsługuje statyczne iframe, inspekcję DOM i lokalny batch schemaVersion 3. Scripted HTML/JS pozostaje wymaganiem docelowego izolowanego runtime natywnego, nie capability prototypu. Importowane bajty nie przetrwają reloadu; brak źródła blokuje wysyłkę demo. localStorage v3 nie migruje prototypów v1/v2.

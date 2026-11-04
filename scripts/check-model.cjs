@@ -6,7 +6,7 @@ const crypto = require('node:crypto');
 const html = fs.readFileSync(process.argv[2] || path.join(__dirname, '../prototype/index.html'), 'utf8');
 const script = html.match(/<script>([\s\S]*?)<\/script>/)[1];
 const pure = script.slice(script.indexOf('const KEY='), script.indexOf('const $='));
-const {Store, regionIntent, sampleTranscript} = new Function('crypto', pure + '\nreturn {Store:ReviewStore,regionIntent,sampleTranscript};')(crypto);
+const {Store, regionIntent, sampleTranscript, PressureDepth} = new Function('crypto', pure + '\nreturn {Store:ReviewStore,regionIntent,sampleTranscript,PressureDepth};')(crypto);
 const store = new Store();
 assert.equal(store.settings.autoVoice, true, 'auto voice is on by default');
 assert.equal(store.settings.drawWithFinger, false, 'finger defaults to navigation');
@@ -112,10 +112,56 @@ assert.equal(regionIntent([{x: .1, y: .2}, {x: .7, y: .8}], 330, 480), true, 'de
 assert.equal(regionIntent([{x: .2, y: .5}, {x: .5, y: .2}, {x: .8, y: .5}, {x: .5, y: .8}, {x: .2, y: .5}], 330, 480), true, 'closed circle');
 const assets = new Map();
 const missingSource = script.slice(script.indexOf('function missingSnapshots('), script.indexOf('function fixtureMarkup('));
-const missingSnapshots = new Function('sessionImages', missingSource + '\nreturn missingSnapshots;')(assets);
+const htmlAssets = new Map();
+const missingSnapshots = new Function('sessionImages', 'sessionHTML', missingSource + '\nreturn missingSnapshots;')(assets, htmlAssets);
 const importedBatch = {notes: [{snapshotId: 'checkout:import-example'}, {snapshotId: 'checkout:current'}]};
 assert.deepEqual(missingSnapshots(importedBatch), ['checkout:import-example']);
 assets.set('checkout:import-example', 'fixture-image-bytes');
 assert.deepEqual(missingSnapshots(importedBatch), []);
+assert.deepEqual(missingSnapshots({notes:[{snapshotId:'checkout:import-html-demo'}]}), ['checkout:import-html-demo']);
+htmlAssets.set('checkout:import-html-demo', '<main>Fixture</main>');
+assert.deepEqual(missingSnapshots({notes:[{snapshotId:'checkout:import-html-demo'}]}), []);
+const pressure = new PressureDepth(5);
+assert.equal(pressure.update(.1), 0);
+assert.equal(pressure.update(.25), 1);
+assert.equal(pressure.update(.22), 1, 'hysteresis keeps the current parent near a boundary');
+assert.equal(pressure.update(.15), 0);
+assert.equal(pressure.update(.9), 4);
+assert.equal(pressure.update(0), 4, 'release pressure does not snap back to the leaf');
+assert.equal(pressure.update(.1, {release:true}), 4);
+assert.equal(pressure.update(.5), 2);
+assert.equal(pressure.update(NaN), 2);
+assert.equal(new PressureDepth(1).update(1), 0);
+const htmlStore = new Store();
+const domTarget = {artifactKind:'html',snapshotId:'checkout:html-a2',sourceHash:'a'.repeat(64),renderHash:'b'.repeat(64),locator:{strategy:'data-review-id',value:'pay-action'},selectedDepth:1};
+const component = htmlStore.addComponentNote(domTarget.snapshotId, shape, domTarget);
+component.text = 'Make this component clearer.';
+domTarget.locator.value = 'changed-later';
+assert.equal(component.domTarget.locator.value, 'pay-action');
+const htmlBatch = htmlStore.batch();
+assert.equal(htmlBatch.schemaVersion, 3);
+assert.equal(htmlBatch.transcription.provider, 'elevenlabs');
+assert.equal(htmlBatch.notes[0].domTarget.snapshotId, component.snapshotId);
+htmlBatch.notes[0].domTarget.selectedDepth = 3;
+assert.equal(component.domTarget.selectedDepth, 1);
+assert.throws(()=>htmlStore.addComponentNote('checkout:html-b1',shape,domTarget), /valid component/);
+assert.throws(()=>htmlStore.addComponentNote('onboarding:html-a2',shape,{...domTarget,snapshotId:'onboarding:html-a2'}), /valid component/);
+component.domTarget.snapshotId = 'checkout:html-b1';
+assert.throws(()=>htmlStore.batch(), /another HTML version/);
+// Exercise the actual view-change handler: an unready B must invalidate A.
+const pickerElements = new Map([
+  ['html-view', {}], ['html-elements', {_elements:[]}],
+  ['confirm-component', {disabled:false}], ['component-status', {textContent:''}]
+]);
+const pickerContext = vm.createContext({
+  $: id => pickerElements.get(id), renderInks() {}, populateHTMLElements() {},
+  setComponentAnchor() { throw Error('An unready view must not retain an anchor'); }
+});
+vm.runInContext("let componentPick={snapshotId:'checkout:html-a2'};" +
+  script.slice(script.indexOf("$('html-view').onchange="),script.indexOf("$('html-elements').onchange=")) +
+  ";globalThis.readPick=()=>componentPick;",pickerContext);
+pickerElements.get('html-view').onchange();
+assert.equal(pickerContext.readPick(), null);
+assert.equal(pickerElements.get('confirm-component').disabled, true);
 new Function(script); // syntax-check the complete UI script, without executing DOM code
-console.log('PASS: settings, immutable anchors/stash copies, grouping, thread isolation, stable note/undo identity, intentional region threshold, voice stop ownership/raw transcript, missing image guard, persistence and UI syntax.');
+console.log('PASS: image/HTML notes, version-bound DOM targets, pressure hierarchy/hysteresis/release, settings, stash copies, thread isolation, stable undo, voice ownership, missing assets, persistence and UI syntax.');

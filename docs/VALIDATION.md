@@ -39,3 +39,19 @@ Końcowy HTML po poprawkach: SHA-256 c5d564cb3adb1940520214c2b6755d5531369dfef17
 Nie wykonano ponownego niezależnego review po poprawkach ani nie nadano nowego score HIG/UX. Oceny z raportów dotyczą wyłącznie kandydata. Podstawowa wersja dark była sprawdzona na wcześniejszej kopii poprawek; nie jest to akceptacja wszystkich końcowych stanów w dark/increased contrast.
 
 Nadal pending: fizyczny iPad, próg intencji/palm rejection, Pencil Pro squeeze, VoiceOver/Switch Control, Dynamic Type i klawiatura ekranowa, realne audio/przerwania/odsłuch/transkrypcja, trwałe zasoby natywne, OAuth/Tailscale/upload/push/pull. Nie uruchomiono usług, zdalnej wysyłki ani publikacji.
+
+## V3 — HTML/DOM i ElevenLabs
+
+Końcowy HTML SHA-256: 2ebe7b1f560f1eaa90d3748dffb4243930b63759ac064bbcd6d823e43ca46674.
+Adapter ElevenLabs SHA-256: 71a380e7e9ad40410274e124e976128cf23dddffb78f72635c4eb309572c6560.
+
+- heavy-check node scripts/check-model.cjs: exit 0. Obejmuje regresje v2 i nowe: wersję HTML w celu DOM, kopiowanie locatora, izolację canvasu/źródła, pressure depth/histerezę/release, brak zasobu HTML, jawnego providera oraz rzeczywisty handler zmiany na niegotowy widok (czyści poprzedni cel i blokuje Confirm).
+- heavy-check node scripts/check-elevenlabs.mjs: 13/13 grup mock, exit 0. Pierwsza próba zakończyła się exit 75 bez wykonania; ponowienie z AGENT_GATE_LOCK_TIMEOUT=600 wykonało sprawdzenia. Brak realnego ruchu do API.
+- Skill quick_validate.py: exit 0, Skill is valid. Zaktualizowano kontrakt HTML i domTarget.
+- Osobny read-only przegląd poprawności Sol wykrył viewport 328×478 vs 330×480 oraz zachowanie starego celu przy ładowaniu nowego HTML. Oba miejsca poprawiono; zakres w reviews/HTML-CORRECTNESS.md. Bez ponownego niezależnego audytu końcowego kodu.
+- html_preview: początkowy canvas przy 1194, końcowy przy 728 i 390 CSS px, bez błędów konsoli. Rzeczywiste iframe HTML są renderowane obok obrazu.
+- Inscenizowane QA w html_preview używało rzeczywistych funkcji aplikacji po gotowości iframe: pomiar live 330×480; elementsFromPoint trafia w etykietę przycisku, pressure preview 0,5 wybiera Payment Section na poziomie 2. Konsola potwierdziła wynik, bez błędów.
+- Druga ścieżka QA użyła File i importHTML na fixtures/stacked-components.html: parsowanie, hashe, ramka, hit-test nakładki, wybór warstwy pod nią, nacisk do rodzica Pay Button, commit domTarget do właściwej wersji i auto-start voice fixture. Konsola potwierdziła cały łańcuch. Nie był to ręczny gest ani pomiar sprzętu.
+- Zrzuty stanów w reviews/: v3-dom-selection.png, v3-import-layer-comment.png, v3-canvas-728.png. QA dodaje wyłącznie skrypt inscenizacji do kopii podglądu; plik aplikacji go nie zawiera.
+
+Pozostaje niezweryfikowane: nacisk i release na fizycznym Pencil, palm rejection, pełna izolacja niezaufanych scripted bundli, capture screenshotu HTML jako bajtów do rzeczywistej paczki, trwałe źródła i audio, mikrofon/ElevenLabs na koncie użytkownika, wdrożony host i T3/Tailscale. Statyczny HTML nie potwierdza wykonywania React/JS. Testy providera są mock, nie akceptacją jakości/retencji/kosztu konta.
