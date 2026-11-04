@@ -17,6 +17,11 @@ struct CommentMoreMenu: View {
                     Text("Discard", bundle: .module)
                 }
             }
+            if note.hasText {
+                Button(action: refine) {
+                    Label { Text("Refine with Claude", bundle: .module) } icon: { Image(systemName: "sparkles") }
+                }
+            }
             ForEach(note.recordings.filter { $0.transcript != nil }) { recording in
                 Menu {
                     Button { showTranscript(recording) } label: { Text("Transcript", bundle: .module) }
@@ -41,6 +46,7 @@ struct CommentMoreMenu: View {
         .frame(minWidth: Theme.minTarget, minHeight: Theme.minTarget)
     }
 
+    private func refine() { workspace.refine(noteId: note.id) }
     private func showTranscript(_ recording: Recording) { transcriptRecording = recording }
     private func append(_ recording: Recording) { workspace.appendTranscript(noteId: note.id, recordingId: recording.id) }
     private func showSource() { onShowSource(note.id) }

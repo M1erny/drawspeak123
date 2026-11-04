@@ -70,7 +70,8 @@ struct LiveTranscriptionTests {
         #expect(ws.note(id)?.textSource == .transcript)
 
         voice.emit(.partial("powinien być"))
-        #expect(ws.liveText(for: id) == "Ten przycisk. powinien być")
+        // Committed text is already in the note: the live text shows only what is not.
+        #expect(ws.liveText(for: id) == "powinien być")
         voice.emit(.committed("Powinien być niebieski."))
         #expect(ws.note(id)?.text == "Ten przycisk. Powinien być niebieski.")
         #expect(ws.note(id)?.recordings.first?.transcript?.text == "Ten przycisk. Powinien być niebieski.")
@@ -91,6 +92,38 @@ struct LiveTranscriptionTests {
         #expect(!ws.isTranscriptionInFlight(scope))
         try await Task.sleep(for: .milliseconds(80))
         #expect(transcriber.calls == 0)
+    }
+
+    /// Device report (0.2.0): the comment showed "Są ręce… Bardzo źle to wygląda." twice.
+    /// The editor shows `liveText(for:)` above the note text, so committed segments that
+    /// were already added to the text must not be part of the live text.
+    @Test func liveTextNeverRepeatsWhatIsAlreadyInTheNoteText() throws {
+        let (ws, voice, _) = try recordingWorkspace()
+        let id = try #require(ws.addNote(snapshotId: "s1", shape: regionShape, autoVoice: true))
+        voice.emit(.committed("Są ręce."))
+        voice.emit(.committed("Bardzo źle to wygląda."))
+        let text = try #require(ws.note(id)?.text)
+        #expect(text == "Są ręce. Bardzo źle to wygląda.")
+        // What the person sees: the live block, then the editor.
+        let shown = [ws.liveText(for: id) ?? "", text].filter { !$0.isEmpty }.joined(separator: "\n")
+        #expect(shown.components(separatedBy: "Bardzo źle to wygląda.").count == 2)
+        #expect(ws.liveText(for: id) == nil)
+
+        // Stopped, waiting for `finished`: still no repeat.
+        ws.stopRecording()
+        #expect(ws.liveText(for: id) == nil)
+        voice.emit(.finished("Są ręce. Bardzo źle to wygląda."))
+        #expect(ws.note(id)?.text == "Są ręce. Bardzo źle to wygląda.")
+    }
+
+    @Test func segmentsKeptOutOfTypedTextStayVisibleAsLiveText() throws {
+        let (ws, voice, _) = try recordingWorkspace()
+        let second = try #require(ws.addNote(snapshotId: "s1", shape: regionShape, autoVoice: true))
+        ws.updateNoteText(second, text: "Mine")
+        voice.emit(.committed("Heard this."))
+        voice.emit(.partial("and"))
+        #expect(ws.note(second)?.text == "Mine")
+        #expect(ws.liveText(for: second) == "Heard this. and")
     }
 
     @Test func typingDuringRecordingKeepsTheTypedTextAndStoresSegmentsOnTheRecording() async throws {

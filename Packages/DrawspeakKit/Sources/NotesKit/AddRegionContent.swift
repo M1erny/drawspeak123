@@ -32,7 +32,7 @@ struct AddRegionContent: View {
                     } header: { Text("Position", bundle: .module) }
                     if let snapshot = canvas.snapshots.first(where: { $0.id == snapshotId }) {
                         Section {
-                            SnapshotMarkPreview(workspace: workspace, snapshot: snapshot, shape: shape, maximumHeight: NotesMetrics.previewHeight)
+                            SnapshotMarkPreview(workspace: workspace, snapshot: snapshot, shape: shape, displayNumber: workspace.visibleNotes().count + 1, maximumHeight: NotesMetrics.previewHeight)
                         }
                     }
                 } else {

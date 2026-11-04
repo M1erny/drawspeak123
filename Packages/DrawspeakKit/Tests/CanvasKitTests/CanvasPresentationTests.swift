@@ -1,10 +1,35 @@
 @testable import CanvasKit
 import DrawspeakCore
+import Foundation
 import Testing
 
 @MainActor
 @Suite("Canvas presentation invalidation")
 struct CanvasPresentationTests {
+    @Test func presentationUsesVisibleNotesAndContinuousPinNumbers() throws {
+        let source = makeWorkspace()
+        let snapshot = try addScreen(source, id: "portrait", title: "iPad")
+        var document = source.document
+        let notes = [1, 3, 9].map { ordinal in
+            Note(ordinal: ordinal, snapshotId: snapshot.id, shape: regionShape,
+                 lastSentRevision: ordinal == 1 ? 1 : nil, createdAt: fixedDate, updatedAt: fixedDate)
+        }
+        document.canvases[0].notes = notes
+        let root = FileManager.default.temporaryDirectory.appending(path: UUID().uuidString)
+        let ws = Workspace(document: document, blobs: source.blobs, store: LibraryStore(fileURL: root.appending(path: "library.json")))
+        ws.showsSentNotes = false
+        let presentation = CanvasPresentation()
+        presentation.update(canvas: ws.currentCanvas, drag: nil, visibleNotes: ws.visibleNotes())
+        #expect(presentation.marks.map(\.noteId) == [notes[1].id, notes[2].id])
+        #expect(presentation.commentCounts[snapshot.id] == 2)
+        #expect(presentation.marks.map { ws.displayNumber(for: $0.noteId) } == [1, 2])
+        ws.showsSentNotes = true
+        presentation.update(canvas: ws.currentCanvas, drag: nil, visibleNotes: ws.visibleNotes())
+        #expect(presentation.marks.count == 3)
+        #expect(ws.displayNumber(for: notes[2].id) == 3)
+        ws.showsSentNotes = false
+    }
+
     @Test func dragPreservesCountsAndMovesMarks() throws {
         let ws = makeWorkspace()
         let snapshot = try addScreen(ws, id: "now", title: "Checkout")

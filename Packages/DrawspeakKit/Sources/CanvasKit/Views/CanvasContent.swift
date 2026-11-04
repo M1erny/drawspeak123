@@ -3,6 +3,7 @@ import DrawspeakCore
 import SwiftUI
 
 struct CanvasContent: View {
+    let bubbleInsets: EdgeInsets
     let workspace: Workspace
     let tool: CanvasTool
     let interaction: CanvasInteraction
@@ -31,6 +32,7 @@ struct CanvasContent: View {
             }
             CanvasInputLayer(interaction: interaction)
             ScreenOverlay(
+                bubbleInsets: bubbleInsets,
                 rows: presentation.layout?.rows ?? [],
                 marks: presentation.marks,
                 focusedNoteId: workspace.focusedNoteId,

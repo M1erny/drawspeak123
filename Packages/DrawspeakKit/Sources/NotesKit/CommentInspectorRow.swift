@@ -12,7 +12,9 @@ struct CommentInspectorRow: View {
             HStack {
                 Button(action: select) {
                     HStack {
-                        PinBadge(number: note.ordinal, isActive: selected)
+                        if let number = workspace.displayNumber(for: note.id) {
+                            PinBadge(number: number, isActive: selected)
+                        }
                         if selected {
                             // The editor below shows the full text.
                             EmptyView()

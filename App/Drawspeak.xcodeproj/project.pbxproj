@@ -24,6 +24,7 @@
 		4CC0188F1E668AA6B38355DC /* NoCanvasView.swift in Sources */ = {isa = PBXBuildFile; fileRef = FB80BFFE4CE9FC9CB04178FB /* NoCanvasView.swift */; };
 		51FFCB81CA55822BF1F42B84 /* CanvasAlert.swift in Sources */ = {isa = PBXBuildFile; fileRef = D529415A94A9F46E65BB1493 /* CanvasAlert.swift */; };
 		5B021807825BAE0C6D792AA7 /* CanvasSidebarRow.swift in Sources */ = {isa = PBXBuildFile; fileRef = DD359A1C4533863AC9CDFF85 /* CanvasSidebarRow.swift */; };
+		5C5706C8B6C77569CA8CCF63 /* RefineKit in Frameworks */ = {isa = PBXBuildFile; productRef = F075803C1E81434965C49627 /* RefineKit */; };
 		6140A784E80F839E16411004 /* CanvasKit in Frameworks */ = {isa = PBXBuildFile; productRef = 6236E16418C85716B1AF964E /* CanvasKit */; };
 		617FC67605B3009248A414C5 /* VoiceKit in Frameworks */ = {isa = PBXBuildFile; productRef = 593BF5E24A85D58317CD5871 /* VoiceKit */; };
 		64456860912D7C6D5539834E /* CanvasToolbar.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8B8EFAA1B90983F882ABC170 /* CanvasToolbar.swift */; };
@@ -58,6 +59,7 @@
 		DA4AB67A6D33D171DF14EB19 /* EmptyCanvasView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 152B148FD406395E55F0D4C5 /* EmptyCanvasView.swift */; };
 		DA84CBB847E4BCF794B910A0 /* T3Kit in Frameworks */ = {isa = PBXBuildFile; productRef = 5ACE654C782A8816BD7ED19A /* T3Kit */; };
 		DFF077FC684D9D37D614ED54 /* FramingKey.swift in Sources */ = {isa = PBXBuildFile; fileRef = B5C355A74C21BA542846994D /* FramingKey.swift */; };
+		E1EC705B3E6890CDC67DEDC7 /* RegionCropper.swift in Sources */ = {isa = PBXBuildFile; fileRef = B4BE7B31D139FE4C6A7D1418 /* RegionCropper.swift */; };
 		E5F48F5E844C9A4C4BDC3B66 /* LibraryRecoveryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 778EC139143303642812FC52 /* LibraryRecoveryView.swift */; };
 		E98DA9D13CAB504ED457F10C /* MainSplitView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E4AE16034F7E7E65797CF428 /* MainSplitView.swift */; };
 		EF9FD73DACB8D6FAE4F2FC19 /* DebugEndToEnd.swift in Sources */ = {isa = PBXBuildFile; fileRef = 316AB0722C72FACC26D723A6 /* DebugEndToEnd.swift */; };
@@ -108,6 +110,7 @@
 		A720C7339CA875A4C1A344F2 /* CanvasAlerts.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CanvasAlerts.swift; sourceTree = "<group>"; };
 		ABBE68682557957D3887C2D2 /* CommentsColumn.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CommentsColumn.swift; sourceTree = "<group>"; };
 		ABF128E331AC2E83CFCFE69D /* ThreadBindingSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ThreadBindingSheet.swift; sourceTree = "<group>"; };
+		B4BE7B31D139FE4C6A7D1418 /* RegionCropper.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RegionCropper.swift; sourceTree = "<group>"; };
 		B5C355A74C21BA542846994D /* FramingKey.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FramingKey.swift; sourceTree = "<group>"; };
 		C9B77FC9FD1460ACF9B9A977 /* FeedbackPopover.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FeedbackPopover.swift; sourceTree = "<group>"; };
 		CABC2C10280A573285CB9F3A /* UndoRedoButtons.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UndoRedoButtons.swift; sourceTree = "<group>"; };
@@ -141,6 +144,7 @@
 				6140A784E80F839E16411004 /* CanvasKit in Frameworks */,
 				28C52762E9A128F38E84568E /* NotesKit in Frameworks */,
 				F78BF837D9E59E831B52B8D2 /* FeedbackKit in Frameworks */,
+				5C5706C8B6C77569CA8CCF63 /* RefineKit in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -190,6 +194,14 @@
 				D3E65FDFF3AC7940DF4DEAFD /* Assets.xcassets */,
 			);
 			path = Resources;
+			sourceTree = "<group>";
+		};
+		5B733F83392FD5C1871D49F0 /* Refine */ = {
+			isa = PBXGroup;
+			children = (
+				B4BE7B31D139FE4C6A7D1418 /* RegionCropper.swift */,
+			);
+			path = Refine;
 			sourceTree = "<group>";
 		};
 		5F1760B9977FE3E93D550FF1 /* Debug */ = {
@@ -250,6 +262,7 @@
 				62BE68D8F3FB9803F2B604CE /* Canvas */,
 				5F1760B9977FE3E93D550FF1 /* Debug */,
 				888401B936172E4DE02D3873 /* Import */,
+				5B733F83392FD5C1871D49F0 /* Refine */,
 				4F61B59B8FAD9A70AE105300 /* Resources */,
 				6C810DDCA5C593808D4995F3 /* Settings */,
 				F95682F119F2BB6B1C57AA48 /* Shell */,
@@ -330,6 +343,7 @@
 				6236E16418C85716B1AF964E /* CanvasKit */,
 				59A3B96DD10EAE9F6E085949 /* NotesKit */,
 				8FCF199F604702A8FEDB0E83 /* FeedbackKit */,
+				F075803C1E81434965C49627 /* RefineKit */,
 			);
 			productName = Drawspeak;
 			productReference = 98769D420DEA9CD4F7CE2DC5 /* Drawspeak.app */;
@@ -426,6 +440,7 @@
 				E98DA9D13CAB504ED457F10C /* MainSplitView.swift in Sources */,
 				4CC0188F1E668AA6B38355DC /* NoCanvasView.swift in Sources */,
 				7B8469FE647F9B00151682C3 /* PendingImport.swift in Sources */,
+				E1EC705B3E6890CDC67DEDC7 /* RegionCropper.swift in Sources */,
 				CAC845EA711AC6E8FCF46878 /* RenameCanvasAlert.swift in Sources */,
 				4BC1867C16B29F452EDA85E1 /* RootView.swift in Sources */,
 				C76A68EB89BF04563FA0E559 /* ScreenTargetModel.swift in Sources */,
@@ -501,7 +516,7 @@
 				GCC_WARN_UNUSED_VARIABLE = YES;
 				IPHONEOS_DEPLOYMENT_TARGET = 27.0;
 				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
-				MARKETING_VERSION = 0.2.0;
+				MARKETING_VERSION = 0.3.0;
 				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
 				MTL_FAST_MATH = YES;
 				ONLY_ACTIVE_ARCH = YES;
@@ -587,7 +602,7 @@
 				GCC_WARN_UNUSED_VARIABLE = YES;
 				IPHONEOS_DEPLOYMENT_TARGET = 27.0;
 				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
-				MARKETING_VERSION = 0.2.0;
+				MARKETING_VERSION = 0.3.0;
 				MTL_ENABLE_DEBUG_INFO = NO;
 				MTL_FAST_MATH = YES;
 				PRODUCT_NAME = "$(TARGET_NAME)";
@@ -681,6 +696,10 @@
 		E112867C26FB283C9CB750CD /* HTMLKit */ = {
 			isa = XCSwiftPackageProductDependency;
 			productName = HTMLKit;
+		};
+		F075803C1E81434965C49627 /* RefineKit */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = RefineKit;
 		};
 /* End XCSwiftPackageProductDependency section */
 	};

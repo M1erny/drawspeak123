@@ -758,6 +758,28 @@
         }
       },
       "comment": "Interpolated values identify a screen, proposal, version, comment, recipient, or attachment count as shown in the English key."
+    },
+    "Change Thread…": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Change Thread…"
+          }
+        }
+      }
+    },
+    "This canvas will continue in the new thread.": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "This canvas will continue in the new thread."
+          }
+        }
+      }
     }
   },
   "version": "1.0"

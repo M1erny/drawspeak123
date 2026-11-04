@@ -55,14 +55,15 @@ public struct CanvasView: View {
         let canvas = workspace.currentCanvas
         @Bindable var pick = interaction.pick
 
-        CanvasContent(workspace: workspace, tool: tool, interaction: interaction,
+        CanvasContent(bubbleInsets: overlayInsets, workspace: workspace, tool: tool, interaction: interaction,
                       presentation: presentation, dragState: dragState, actions: cardActions,
                       interactingSnapshotId: $interactingSnapshotId)
         .background { Theme.canvas.ignoresSafeArea() }
         .safeAreaInset(edge: .top, spacing: 0) {
             StatusBanner(status: interaction.status).padding(.top, overlayInsets.top)
         }
-        .onChange(of: canvas, initial: true) { presentation.update(canvas: canvas, drag: dragState.drag) }
+        .onChange(of: canvas, initial: true) { presentation.update(canvas: canvas, drag: dragState.drag, visibleNotes: workspace.visibleNotes()) }
+        .onChange(of: workspace.showsSentNotes) { presentation.update(canvas: canvas, drag: dragState.drag, visibleNotes: workspace.visibleNotes()) }
         .onChange(of: dragState.drag) { presentation.move(canvas: canvas, drag: dragState.drag) }
         .onGeometryChange(for: CGSize.self) { proxy in
             proxy.size

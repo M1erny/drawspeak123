@@ -36,10 +36,23 @@ func makeWorkspace(thread: ThreadBinding? = testThread, root: URL = makeTempRoot
     let workspace = Workspace(
         document: document,
         blobs: BlobStore(root: locations.blobs),
-        store: LibraryStore(fileURL: locations.libraryFile)
+        store: LibraryStore(fileURL: locations.libraryFile),
+        defaults: makeTestDefaults()
     )
     workspace.now = { fixedDate }
     return workspace
+}
+
+/// An empty defaults suite per call, so preferences never leak between tests.
+func makeTestDefaults() -> UserDefaults {
+    UserDefaults(suiteName: "drawspeak.tests.\(UUID().uuidString)")!
+}
+
+/// A settable time source for `Workspace.now`.
+@MainActor
+final class TestClock {
+    var date = fixedDate
+    func advance(_ seconds: TimeInterval) { date += seconds }
 }
 
 /// Decodes the library file as saved on disk.
@@ -120,6 +133,8 @@ struct FakeThreadService: ThreadService {
     var log = CallLog()
     /// Runs when `send` starts, before any upload.
     var onSend: @Sendable () -> Void = {}
+    /// Keeps `send` in flight this long before answering.
+    var sendDelay: Duration?
 
     var projects: [ProjectSummary] = [ProjectSummary(id: "proj-1", title: "Shop")]
     var launchFailure: DeliveryFailure?
@@ -144,6 +159,7 @@ struct FakeThreadService: ThreadService {
     ) async throws(DeliveryFailure) -> MessageAck {
         log.record("send")
         onSend()
+        if let sendDelay { try? await Task.sleep(for: sendDelay) }
         progress(attachments.count, attachments.count)
         if let sendFailure { throw sendFailure }
         return MessageAck(messageId: "msg-1", acknowledgedAt: fixedDate)
@@ -205,8 +221,10 @@ final class FakeVoice: VoiceCapturing {
         onEvent = nil
         discardCount += 1
     }
-    var isRecording: Bool { scope != nil }
-    var level: Double { 0 }
+    /// True after an interruption halted capture (the person decides Stop or Discard).
+    var halted = false
+    var isRecording: Bool { scope != nil && !halted }
+    var level: Double = 0
     var elapsed: TimeInterval { 0 }
 }
 
@@ -249,4 +267,33 @@ func sendNotes(
     let attachments = [OutgoingAttachment(fileName: "01.png", contentType: "image/png", data: Data("png".utf8))]
     let entry = await workspace.send(package: package, attachments: attachments, canvasId: canvas.id)
     return (package, entry)
+}
+
+/// Returns `result` after `delay` and records every request.
+final class FakeRefiner: TranscriptRefining, Sendable {
+    struct Request: Sendable {
+        var transcript: String
+        var regionPNG: Data?
+        var context: RefineContext
+    }
+
+    let result: Result<String, RefineFailure>
+    let delay: Duration
+    let isConfigured: Bool
+    private let log = Mutex<[Request]>([])
+
+    init(result: Result<String, RefineFailure> = .success("Refined comment."), delay: Duration = .milliseconds(20), isConfigured: Bool = true) {
+        self.result = result
+        self.delay = delay
+        self.isConfigured = isConfigured
+    }
+
+    var requests: [Request] { log.withLock { $0 } }
+    var calls: Int { requests.count }
+
+    func refine(transcript: String, regionPNG: Data?, context: RefineContext) async throws(RefineFailure) -> String {
+        log.withLock { $0.append(Request(transcript: transcript, regionPNG: regionPNG, context: context)) }
+        try? await Task.sleep(for: delay)
+        return try result.get()
+    }
 }

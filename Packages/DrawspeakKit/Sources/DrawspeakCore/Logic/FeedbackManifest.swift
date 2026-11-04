@@ -3,6 +3,7 @@ import Foundation
 /// The JSON manifest attached to every feedback message (Drawspeak contract v1).
 public struct FeedbackManifest: Codable, Hashable, Sendable {
     public struct Item: Codable, Hashable, Sendable {
+        /// The number shown on the composite and in the message.
         public var number: Int
         public var noteId: String
         public var revision: Int
@@ -65,7 +66,7 @@ public struct FeedbackManifest: Codable, Hashable, Sendable {
                 heightPx: group.snapshot.heightPx,
                 compositeFileName: group.compositeFileName,
                 notes: group.items.map {
-                    Item(number: $0.ordinal, noteId: $0.noteId.uuidString, revision: $0.revision, text: $0.text, shape: $0.shape, domTarget: $0.domTarget)
+                    Item(number: $0.number, noteId: $0.noteId.uuidString, revision: $0.revision, text: $0.text, shape: $0.shape, domTarget: $0.domTarget)
                 }
             )
         }

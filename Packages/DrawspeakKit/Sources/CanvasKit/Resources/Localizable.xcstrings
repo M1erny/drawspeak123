@@ -265,6 +265,14 @@
       "extractionState": "manual",
       "generatesSymbol": false,
       "comment": "Number of an empty comment pin."
+    },
+    "Transcribing\u2026": {
+      "extractionState": "manual",
+      "comment": "Recording bubble after capture stops."
+    },
+    "Refining": {
+      "extractionState": "manual",
+      "comment": "VoiceOver status while refining a comment."
     }
   },
   "version": "1.0"

@@ -30,18 +30,45 @@ struct NewThreadDeliveryTests {
         #expect(note.lastSentRevision == note.revision)
     }
 
-    @Test func refusedWhenCanvasAlreadyHasThread() async throws {
+    @Test func canvasWithAThreadContinuesInTheNewThread() async throws {
         let ws = makeWorkspace()
         let service = FakeThreadService()
         ws.threads = service
         try addImage(ws, id: "s1")
+        let first = addTextNote(ws, snapshotId: "s1", text: "to the old thread")
+        _ = await sendNotes(ws, noteIds: [first], batchId: "ds-old")
+        let second = addTextNote(ws, snapshotId: "s1", text: "to a new thread")
+
+        let entry = try #require(await sendNotesToNewThread(ws, noteIds: [second], batchId: "ds-new-rebind"))
+
+        #expect(entry.state == .sent)
+        #expect(entry.thread.threadId == "new-thread-1")
+        #expect(ws.currentCanvas?.thread?.threadId == "new-thread-1")
+        #expect(ws.currentCanvas?.thread?.projectId == "proj-1")
+        // History keeps the old entry with its own recipient.
+        let old = try #require(ws.currentCanvas?.outbox.first { $0.id == "ds-old" })
+        #expect(old.thread == testThread)
+        #expect(old.state == .sent)
+        #expect(service.log.calls == ["send", "launch:proj-1:Review:ds-new-rebind"])
+        #expect(ws.note(second)?.isSentAtCurrentRevision == true)
+    }
+
+    @Test func refusedWhileASendIsInFlight() async throws {
+        let ws = makeWorkspace()
+        var service = FakeThreadService()
+        service.sendDelay = .milliseconds(150)
+        ws.threads = service
+        try addImage(ws, id: "s1")
         let id = addTextNote(ws, snapshotId: "s1", text: "x")
+        let canvasId = try #require(ws.currentCanvasId)
+        let sending = Task { await sendNotes(ws, noteIds: [id], batchId: "ds-slow") }
+        #expect(await waitUntil { ws.hasSendInFlight(canvasId: canvasId) })
 
-        let entry = await sendNotesToNewThread(ws, noteIds: [id])
-
-        #expect(entry == nil)
-        #expect(ws.currentCanvas?.outbox.isEmpty == true)
-        #expect(service.log.calls.isEmpty)
+        #expect(await sendNotesToNewThread(ws, noteIds: [id], batchId: "ds-new-blocked") == nil)
+        #expect(!service.log.calls.contains { $0.hasPrefix("launch") })
+        _ = await sending.value
+        #expect(!ws.hasSendInFlight(canvasId: canvasId))
+        #expect(ws.currentCanvas?.thread == testThread)
     }
 
     @Test func refusedWithoutConnectionOrTitle() async throws {

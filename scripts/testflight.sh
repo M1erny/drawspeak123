@@ -119,9 +119,10 @@ done
 # the archive and removed on exit. It is never printed.
 SECRETS="$APP_DIR/Config/Secrets.xcconfig"
 [ -n "${DRAWSPEAK_ELEVENLABS_API_KEY:-}" ] || die "DRAWSPEAK_ELEVENLABS_API_KEY is not set (run via Apassy)"
+[ -n "${DRAWSPEAK_ANTHROPIC_API_KEY:-}" ] || die "DRAWSPEAK_ANTHROPIC_API_KEY is not set (run via Apassy)"
 trap 'rm -f "$SECRETS"' EXIT
 umask 077
-printf 'ELEVENLABS_API_KEY = %s\n' "$DRAWSPEAK_ELEVENLABS_API_KEY" >"$SECRETS"
+printf 'ELEVENLABS_API_KEY = %s\nANTHROPIC_API_KEY = %s\n' "$DRAWSPEAK_ELEVENLABS_API_KEY" "$DRAWSPEAK_ANTHROPIC_API_KEY" >"$SECRETS"
 
 # ---------------------------------------------------------------- generate
 step "xcodegen generate"
@@ -166,6 +167,8 @@ echo "CFBundleIdentifier=$IPA_BUNDLE CFBundleShortVersionString=$IPA_VERSION CFB
 [ "$IPA_ENCRYPTION" = "false" ] || die "ITSAppUsesNonExemptEncryption must be false, got '$IPA_ENCRYPTION'"
 [ "$(plist_get DSElevenLabsAPIKey "$INFO")" = "$DRAWSPEAK_ELEVENLABS_API_KEY" ] \
   || die "built-in ElevenLabs key missing from the IPA Info.plist"
+[ "$(plist_get DSAnthropicAPIKey "$INFO")" = "$DRAWSPEAK_ANTHROPIC_API_KEY" ] \
+  || die "built-in Anthropic key missing from the IPA Info.plist"
 [ -n "$(plist_get 'CFBundleIcons~ipad.CFBundlePrimaryIcon.CFBundleIconName' "$INFO")" ] \
   || die "no compiled iPad app icon in Info.plist (CFBundleIcons~ipad)"
 security cms -D -i "$APP/embedded.mobileprovision" >"$WORK/embedded.plist"

@@ -6,10 +6,10 @@ struct CommentGroup: Identifiable {
     let title: String
     let notes: [Note]
 
-    static func make(_ canvas: ReviewCanvas?) -> [Self] {
+    static func make(_ canvas: ReviewCanvas?, notes: [Note]) -> [Self] {
         guard let canvas else { return [] }
         let snapshots = Dictionary(canvas.snapshots.map { ($0.id, $0.screenId) }, uniquingKeysWith: { first, _ in first })
-        let grouped = Dictionary(grouping: canvas.notes) { snapshots[$0.snapshotId] ?? "" }
+        let grouped = Dictionary(grouping: notes) { snapshots[$0.snapshotId] ?? "" }
         var result = canvas.screens.compactMap { screen -> Self? in
             guard let notes = grouped[screen.id], !notes.isEmpty else { return nil }
             return Self(id: screen.id, title: screen.title, notes: notes.sorted { $0.ordinal < $1.ordinal })

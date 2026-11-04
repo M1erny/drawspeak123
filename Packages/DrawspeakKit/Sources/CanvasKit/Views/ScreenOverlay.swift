@@ -5,6 +5,7 @@ import SwiftUI
 /// Screen-space chrome that keeps a constant size at every zoom: screen
 /// titles, lane headers and pins. Only items near the viewport are built.
 struct ScreenOverlay: View {
+    let bubbleInsets: EdgeInsets
     let rows: [ScreenRow]
     let marks: [PlacedMark]
     let focusedNoteId: UUID?
@@ -39,15 +40,21 @@ struct ScreenOverlay: View {
                     .offset(x: item.rect.minX, y: item.rect.minY - headerHeight - Self.gap)
             }
             ForEach(placements.pins) { item in
-                PinButton(
-                    ordinal: item.mark.ordinal,
-                    label: item.mark.pinLabel,
-                    isFocused: item.mark.noteId == focusedNoteId,
-                    isRecording: item.mark.noteId == recordingNoteId
-                ) {
-                    workspace.focusedNoteId = item.mark.noteId
+                if let number = workspace.displayNumber(for: item.mark.noteId) {
+                    PinButton(
+                        ordinal: number,
+                        label: CanvasLabels.pin(ordinal: number, text: workspace.note(item.mark.noteId)?.text ?? "", shape: item.mark.shape),
+                        isFocused: item.mark.noteId == focusedNoteId,
+                        isRecording: item.mark.noteId == recordingNoteId
+                    ) {
+                        workspace.focusedNoteId = item.mark.noteId
+                    }
+                    .offset(x: item.center.x - Theme.minTarget / 2, y: item.center.y - Theme.minTarget / 2)
+                    RecordingBubble(workspace: workspace, noteId: item.mark.noteId, pin: item.center,
+                                    bounds: CGRect(x: bubbleInsets.leading + 8, y: bubbleInsets.top + 8,
+                                                   width: max(1, interaction.camera.viewSize.width - bubbleInsets.leading - bubbleInsets.trailing - 16),
+                                                   height: max(1, interaction.camera.viewSize.height - bubbleInsets.top - bubbleInsets.bottom - 16)))
                 }
-                .offset(x: item.center.x - Theme.minTarget / 2, y: item.center.y - Theme.minTarget / 2)
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)

@@ -3,13 +3,19 @@ import Foundation
 public enum FeedbackPackageBuilder {
     /// Groups the chosen notes by their source snapshot, ordered by the first
     /// note number in each group. One snapshot appears once with all its marks.
+    ///
+    /// `displayNumbers` are the numbers shown to the person at send time
+    /// (`Workspace.displayNumbers`). When nil they are computed with sent notes
+    /// hidden, counting the chosen notes as visible.
     public static func build(
         canvas: ReviewCanvas,
         noteIds: Set<UUID>,
         thread: ThreadBinding,
         batchId: String,
-        now: Date
+        now: Date,
+        displayNumbers: [UUID: Int]? = nil
     ) -> FeedbackPackage {
+        let numbers = displayNumbers ?? NoteNumbering.displayNumbers(in: canvas, showsSentNotes: false, including: noteIds)
         let notes = canvas.notes
             .filter { noteIds.contains($0.id) }
             .sorted { $0.ordinal < $1.ordinal }
@@ -17,7 +23,7 @@ public enum FeedbackPackageBuilder {
         var bySnapshot: [String: [BatchItem]] = [:]
         for note in notes {
             if bySnapshot[note.snapshotId] == nil { order.append(note.snapshotId) }
-            bySnapshot[note.snapshotId, default: []].append(BatchItem(note: note))
+            bySnapshot[note.snapshotId, default: []].append(BatchItem(note: note, displayNumber: numbers[note.id]))
         }
         let groups: [FeedbackPackage.Group] = order.enumerated().compactMap { index, snapshotId in
             guard let snapshot = canvas.snapshots.first(where: { $0.id == snapshotId }) else { return nil }
@@ -68,7 +74,7 @@ public enum FeedbackPackageBuilder {
                 lines.append("Version summary: \(summary)")
             }
             for item in group.items {
-                var line = "\(item.ordinal). [\(item.shape.kindLabel)] \(item.text)"
+                var line = "\(item.number). [\(item.shape.kindLabel)] \(item.text)"
                 if let target = item.domTarget {
                     line += "\n   Component: \(target.label) <\(target.tagName)> \(target.locator.displayText)"
                 }

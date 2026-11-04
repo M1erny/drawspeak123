@@ -19,8 +19,12 @@ struct FeedbackPreviewContent: View {
                 List {
                     Section {
                         FeedbackRecipientRow(model: model, onChooseThread: onChooseThread)
-                        if model.recipient == nil && model.startsNewThread {
+                        if model.startsNewThread {
                             FeedbackNewThreadFields(model: model)
+                        }
+                    } footer: {
+                        if model.startsNewThread && model.workspace.canvas(model.canvasId)?.thread != nil {
+                            Text("This canvas will continue in the new thread.", bundle: .module)
                         }
                     }
                     if model.pendingCount > 0 {

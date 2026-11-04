@@ -14,6 +14,8 @@ public struct Note: Codable, Hashable, Identifiable, Sendable {
     public var revision: Int
     public var lastSentRevision: Int?
     public var recordings: [Recording]
+    /// The latest Claude refinement; nil for notes stored before refinement existed.
+    public var refinement: Refinement?
     public var createdAt: Date
     public var updatedAt: Date
 
@@ -28,6 +30,7 @@ public struct Note: Codable, Hashable, Identifiable, Sendable {
         revision: Int = 1,
         lastSentRevision: Int? = nil,
         recordings: [Recording] = [],
+        refinement: Refinement? = nil,
         createdAt: Date,
         updatedAt: Date
     ) {
@@ -41,6 +44,7 @@ public struct Note: Codable, Hashable, Identifiable, Sendable {
         self.revision = revision
         self.lastSentRevision = lastSentRevision
         self.recordings = recordings
+        self.refinement = refinement
         self.createdAt = createdAt
         self.updatedAt = updatedAt
     }
@@ -51,4 +55,10 @@ public struct Note: Codable, Hashable, Identifiable, Sendable {
     public var activeRecording: Recording? { recordings.last(where: { $0.state.isInFlight }) }
     public var isRecording: Bool { recordings.contains { $0.state == .recording } }
     public var isTranscribing: Bool { recordings.contains { $0.state == .transcribing } }
+    public var isRefining: Bool { refinement?.state == .refining }
+    /// A refined text the note does not show (the person typed meanwhile), for "Use Refined Text".
+    public var unusedRefinedText: String? {
+        guard refinement?.state == .refined, let text = refinement?.text, text != trimmedText else { return nil }
+        return text
+    }
 }

@@ -6,6 +6,7 @@ import SwiftUI
 struct SnapshotImage: View {
     let url: URL
     let maxPixelSize: Int
+    let size: CGSize
     var onFailure: (() -> Void)?
 
     @State private var image: DecodedImage?
@@ -16,11 +17,13 @@ struct SnapshotImage: View {
                 Image(decorative: image.cgImage, scale: 1)
                     .resizable()
                     .interpolation(.high)
+                    .scaledToFit()
+                    .frame(width: size.width, height: size.height)
             } else {
                 ProgressView()
             }
         }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .frame(width: size.width, height: size.height)
         .task(id: "\(url.lastPathComponent)#\(maxPixelSize)") {
             await load()
         }

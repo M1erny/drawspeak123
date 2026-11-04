@@ -20,7 +20,7 @@ struct CompositeCanvas: View {
                 let pin = Path(ellipseIn: CGRect(x: x - radius, y: y - radius, width: radius * 2, height: radius * 2))
                 context.fill(pin, with: .color(Theme.annotation))
                 context.stroke(pin, with: .color(Theme.annotationHalo), lineWidth: width)
-                context.draw(Text(item.ordinal, format: .number).font(.system(size: radius, weight: .bold)).foregroundStyle(.white), at: CGPoint(x: x, y: y))
+                context.draw(Text(item.displayNumber ?? item.ordinal, format: .number).font(.system(size: radius, weight: .bold)).foregroundStyle(.white), at: CGPoint(x: x, y: y))
             }
         }
     }

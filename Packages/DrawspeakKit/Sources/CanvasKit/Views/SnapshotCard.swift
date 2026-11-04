@@ -28,7 +28,7 @@ struct SnapshotCard: View {
                     MissingSourceCard(snapshot: snapshot)
                 } else {
                     if let capture = snapshot.image {
-                        SnapshotImage(url: workspace.blobs.url(for: capture), maxPixelSize: imageMaxPixel, onFailure: markMissing)
+                        SnapshotImage(url: workspace.blobs.url(for: capture), maxPixelSize: imageMaxPixel, size: slot.frame.size, onFailure: markMissing)
                     }
                     if snapshot.kind == .html, showsLiveHTML, let source = snapshot.html, let inspector {
                         LiveHTMLLayer(
@@ -52,7 +52,7 @@ struct SnapshotCard: View {
             }
         }
         .frame(width: slot.frame.width, height: slot.frame.height)
-        .background(Theme.surface, in: .rect(cornerRadius: Theme.cardCornerRadius))
+        .background(slot.snapshot?.kind == .image && !isMissing ? .clear : Theme.surface, in: .rect(cornerRadius: Theme.cardCornerRadius))
         .clipShape(.rect(cornerRadius: Theme.cardCornerRadius))
         .overlay {
             RoundedRectangle(cornerRadius: Theme.cardCornerRadius)

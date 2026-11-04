@@ -33,16 +33,44 @@ public final class Workspace {
     /// Preferences read at the moment of use.
     @ObservationIgnored public var autoVoiceEnabled: () -> Bool = { true }
     @ObservationIgnored public var transcriptionLanguage: () -> String? = { nil }
+    /// Rewrites final transcripts with Claude. Nil turns refinement off.
+    @ObservationIgnored public var refiner: (any TranscriptRefining)?
+    /// Recorded on each refinement; set by the app to the refiner's model.
+    @ObservationIgnored public var refinerModelId: String?
+    /// Read when a transcript becomes final; manual `refine(noteId:)` ignores it.
+    @ObservationIgnored public var refineEnabled: () -> Bool = { true }
+    /// Renders the marked region (with some context and the mark) as PNG for the refiner.
+    @ObservationIgnored public var regionImage: (@MainActor (Note, Snapshot) async -> Data?)?
+    /// The active recording stops after this long without speech.
+    @ObservationIgnored public var silenceTimeout: Duration = .seconds(10)
+    /// How often the input level and the silence deadline are checked while recording.
+    @ObservationIgnored public var silenceCheckInterval: Duration = .milliseconds(250)
+    /// Input level (0...1 from `VoiceCapturing.level`) that counts as speech.
+    /// `AudioRecorder` maps -50...0 dBFS to 0...1, so 0.2 is -40 dBFS RMS: above a
+    /// quiet room (about -50 dBFS) and below speech at arm's length (about -30...-20 dBFS).
+    public static let speechLevelThreshold = 0.2
 
-    public init(document: LibraryDocument, blobs: BlobStore, store: LibraryStore) {
+    /// Shows notes whose current revision was sent. Persisted in `showsSentNotesKey`.
+    public var showsSentNotes: Bool {
+        didSet { defaults.set(showsSentNotes, forKey: Self.showsSentNotesKey) }
+    }
+    public static let showsSentNotesKey = "drawspeak.showsSentNotes"
+    @ObservationIgnored private let defaults: UserDefaults
+
+    public init(document: LibraryDocument, blobs: BlobStore, store: LibraryStore, defaults: UserDefaults = .standard) {
         self.document = document
         self.blobs = blobs
         self.store = store
+        self.defaults = defaults
+        self.showsSentNotes = defaults.bool(forKey: Self.showsSentNotesKey)
         self.currentCanvasId = document.lastCanvasId ?? document.canvases.first?.id
         // Nothing resumes after a restart: no recording, no sending.
         for index in self.document.canvases.indices {
             self.document.canvases[index].outbox = self.document.canvases[index].outbox.map(OutboxRecovery.recover)
             for noteIndex in self.document.canvases[index].notes.indices {
+                if self.document.canvases[index].notes[noteIndex].refinement?.state == .refining {
+                    self.document.canvases[index].notes[noteIndex].refinement?.state = .failed(code: "interrupted")
+                }
                 for recIndex in self.document.canvases[index].notes[noteIndex].recordings.indices {
                     switch self.document.canvases[index].notes[noteIndex].recordings[recIndex].state {
                     case .recording:
@@ -555,6 +583,25 @@ public final class Workspace {
         return canvas?.notes.first { $0.id == id }
     }
 
+    /// Notes to show, ordered by `ordinal`: sent notes (at their current revision)
+    /// are hidden unless `showsSentNotes`. Editing a sent note shows it again.
+    public func visibleNotes(canvasId: UUID? = nil) -> [Note] {
+        guard let canvas = canvasId.flatMap(canvas) ?? currentCanvas else { return [] }
+        return NoteNumbering.visibleNotes(in: canvas, showsSentNotes: showsSentNotes)
+    }
+
+    /// The continuous number shown for a note: its 1-based position among
+    /// `visibleNotes`. Nil when the note is hidden or missing.
+    public func displayNumber(for noteId: UUID, canvasId: UUID? = nil) -> Int? {
+        visibleNotes(canvasId: canvasId).firstIndex { $0.id == noteId }.map { $0 + 1 }
+    }
+
+    /// Note id → shown number for every visible note, for building a package.
+    public func displayNumbers(canvasId: UUID? = nil) -> [UUID: Int] {
+        guard let canvas = canvasId.flatMap(canvas) ?? currentCanvas else { return [:] }
+        return NoteNumbering.displayNumbers(in: canvas, showsSentNotes: showsSentNotes)
+    }
+
     /// Typed edits are autosaved; each change is a new revision.
     public func updateNoteText(_ id: UUID, text: String) {
         guard let canvasId = currentCanvasId else { return }
@@ -607,6 +654,10 @@ public final class Workspace {
     private func restore(_ note: Note, at index: Int, canvasId: UUID) {
         guard let canvas = canvas(canvasId), !canvas.notes.contains(where: { $0.id == note.id }) else { return }
         var note = note
+        if note.refinement?.state == .refining, refineAttempts[note.id] == nil {
+            // Its result arrived while the note was deleted and was discarded.
+            note.refinement?.state = .failed(code: "interrupted")
+        }
         for recIndex in note.recordings.indices {
             let recording = note.recordings[recIndex]
             switch recording.state {
@@ -685,6 +736,39 @@ public final class Workspace {
             guard let index = canvas.notes.firstIndex(where: { $0.id == noteId }) else { return }
             canvas.notes[index].recordings.append(recording)
         }
+        startSilenceMonitor(scope)
+    }
+
+    /// Last moment the active recording heard speech (live text or input level).
+    @ObservationIgnored private var lastSpeechAt: Date?
+    @ObservationIgnored private var silenceTask: Task<Void, Never>?
+
+    private func noteSpeech(_ scope: RecordingScope) {
+        guard activeRecording == scope else { return }
+        lastSpeechAt = now()
+    }
+
+    /// Stops the active recording after `silenceTimeout` without speech. Live partial
+    /// and committed text count as speech, and so does an input level above
+    /// `speechLevelThreshold`. A capture halted by an interruption is left for the person.
+    private func startSilenceMonitor(_ scope: RecordingScope) {
+        silenceTask?.cancel()
+        lastSpeechAt = now()
+        silenceTask = Task { [weak self] in
+            while !Task.isCancelled {
+                guard let interval = self?.silenceCheckInterval else { return }
+                try? await Task.sleep(for: interval)
+                guard !Task.isCancelled, let self, self.activeRecording == scope else { return }
+                self.checkSilence(scope)
+            }
+        }
+    }
+
+    private func checkSilence(_ scope: RecordingScope) {
+        guard activeRecording == scope, let voice, voice.isRecording else { return }
+        if voice.level > Self.speechLevelThreshold { lastSpeechAt = now() }
+        let quiet = now().timeIntervalSince(lastSpeechAt ?? now())
+        if quiet >= silenceTimeout / .seconds(1) { stopRecording() }
     }
 
     /// Stop: the audio is saved locally first, then the live session finishes in the
@@ -704,6 +788,9 @@ public final class Workspace {
     private func endActiveRecording() {
         activeRecording = nil
         livePartialText = ""
+        silenceTask?.cancel()
+        silenceTask = nil
+        lastSpeechAt = nil
     }
 
     /// Retries moving a capture whose save failed (`RecordingState.saveFailed`) into
@@ -771,6 +858,8 @@ public final class Workspace {
         var sequence: Int
         var language: String?
         var committed = ""
+        /// Committed segments that were not added to the note text (the person typed).
+        var unplaced = ""
         var partial = ""
         var outcome: Outcome?
         var audioSaved = false
@@ -782,13 +871,16 @@ public final class Workspace {
     private var liveSessions: [UUID: LiveSession] = [:]
     @ObservationIgnored private var liveSequence = 0
 
-    /// What the newest still-streaming recording on this note heard so far
-    /// (committed segments plus the current partial); nil when none is streaming.
+    /// What the newest still-streaming recording on this note heard that the note
+    /// text does not show: committed segments kept out of typed text, plus the
+    /// current partial. Segments already added to the text are never repeated here.
+    /// Nil when nothing streams or nothing is left to show.
     public func liveText(for noteId: UUID) -> String? {
         guard let session = liveSessions.values
             .filter({ $0.noteId == noteId && $0.outcome == nil })
             .max(by: { $0.sequence < $1.sequence }) else { return nil }
-        return [session.committed, session.partial].filter { !$0.isEmpty }.joined(separator: " ")
+        let text = [session.unplaced, session.partial].filter { !$0.isEmpty }.joined(separator: " ")
+        return text.isEmpty ? nil : text
     }
 
     /// Applies one live event through the scope captured at start.
@@ -800,6 +892,7 @@ public final class Workspace {
             session.partial = text
             liveSessions[scope.recordingId] = session
             if isActive { livePartialText = text }
+            if !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty { noteSpeech(scope) }
         case .committed(let text):
             let segment = text.trimmingCharacters(in: .whitespacesAndNewlines)
             session.partial = ""
@@ -808,13 +901,17 @@ public final class Workspace {
                 liveSessions[scope.recordingId] = session
                 return
             }
+            noteSpeech(scope)
             session.committed = session.committed.isEmpty ? segment : session.committed + " " + segment
-            liveSessions[scope.recordingId] = session
             let transcript = liveTranscript(session.committed, language: session.language)
             if let index = document.canvases.firstIndex(where: { $0.id == scope.canvasId }) {
-                _ = TranscriptMerge.applyLiveSegment(segment, transcript: transcript, scope: scope, to: &document.canvases[index], now: now())
+                let outcome = TranscriptMerge.applyLiveSegment(segment, transcript: transcript, scope: scope, to: &document.canvases[index], now: now())
+                if outcome == .keptTypedText {
+                    session.unplaced = session.unplaced.isEmpty ? segment : session.unplaced + " " + segment
+                }
                 scheduleSave()
             }
+            liveSessions[scope.recordingId] = session
         case .finished(let text):
             session.partial = ""
             session.outcome = .finished(text)
@@ -844,8 +941,13 @@ public final class Workspace {
             return
         }
         guard let index = document.canvases.firstIndex(where: { $0.id == scope.canvasId }) else { return }
-        _ = TranscriptMerge.finishLive(liveTranscript(text, language: language), scope: scope, to: &document.canvases[index], now: now())
+        guard TranscriptMerge.finishLive(liveTranscript(text, language: language), scope: scope, to: &document.canvases[index], now: now()) else { return }
         scheduleSave()
+        // Live segments filled the text and no one edited it since.
+        if let note = note(scope.noteId, canvasId: scope.canvasId), let recording = recording(scope),
+           let liveRevision = recording.liveTextRevision, note.revision == liveRevision {
+            refineAfterTranscript(scope)
+        }
     }
 
     /// One batch transcription of the saved audio after live failed. Never repeated automatically.
@@ -933,8 +1035,144 @@ public final class Workspace {
     /// Late results land only on their own note and recording, on their own canvas.
     public func applyTranscript(_ transcript: Transcript, scope: RecordingScope) {
         guard let index = document.canvases.firstIndex(where: { $0.id == scope.canvasId }) else { return }
-        _ = TranscriptMerge.apply(transcript, scope: scope, to: &document.canvases[index], now: now())
+        let outcome = TranscriptMerge.apply(transcript, scope: scope, to: &document.canvases[index], now: now())
         scheduleSave()
+        if outcome == .filledText { refineAfterTranscript(scope) }
+    }
+
+    // MARK: - Refinement
+
+    /// The refinement attempt in flight per note id; older results are ignored.
+    @ObservationIgnored private var refineAttempts: [UUID: UUID] = [:]
+
+    /// A recording's transcript became final and filled the text: one automatic request,
+    /// when refinement is on and configured. Never retried automatically.
+    private func refineAfterTranscript(_ scope: RecordingScope) {
+        guard refineEnabled(), let refiner, refiner.isConfigured,
+              let note = note(scope.noteId, canvasId: scope.canvasId), note.hasText,
+              note.recordings.last?.id == scope.recordingId,
+              note.refinement?.recordingId != scope.recordingId,
+              refineAttempts[scope.noteId] == nil else { return }
+        startRefinement(noteId: scope.noteId, canvasId: scope.canvasId, recordingId: scope.recordingId, refiner: refiner)
+    }
+
+    /// Refines the note's current text on request (any note with text). The result
+    /// replaces the text only when it was not edited meanwhile; otherwise it is kept
+    /// for `useRefinedText(noteId:)`. A request already in flight is not repeated.
+    public func refine(noteId: UUID) {
+        guard let canvasId = currentCanvasId, let note = note(noteId, canvasId: canvasId), note.hasText,
+              refineAttempts[noteId] == nil else { return }
+        guard let refiner, refiner.isConfigured else {
+            let failed = Refinement(state: .failed(code: RefineFailure.Code.notConfigured.rawValue), rawText: note.trimmedText, at: now())
+            updateNote(noteId, canvasId: canvasId) { $0.refinement = failed }
+            return
+        }
+        startRefinement(noteId: noteId, canvasId: canvasId, recordingId: nil, refiner: refiner)
+    }
+
+    /// True while a refinement request for this note is in flight.
+    public func isRefinementInFlight(noteId: UUID) -> Bool { refineAttempts[noteId] != nil }
+
+    /// Replaces the text with a stored refinement the note does not show yet.
+    public func useRefinedText(noteId: UUID, canvasId: UUID? = nil) {
+        guard let canvasId = canvasId ?? currentCanvasId, let text = note(noteId, canvasId: canvasId)?.unusedRefinedText else { return }
+        updateNote(noteId, canvasId: canvasId) { note in
+            note.text = text
+            note.textSource = .transcript
+            note.revision += 1
+        }
+    }
+
+    private func startRefinement(noteId: UUID, canvasId: UUID, recordingId: UUID?, refiner: any TranscriptRefining) {
+        guard let canvas = canvas(canvasId), let note = canvas.notes.first(where: { $0.id == noteId }) else { return }
+        let attempt = UUID()
+        refineAttempts[noteId] = attempt
+        let rawText = note.trimmedText
+        let baseRevision = note.revision
+        let refinement = Refinement(state: .refining, rawText: rawText, modelId: refinerModelId, at: now(), recordingId: recordingId)
+        updateNote(noteId, canvasId: canvasId) { $0.refinement = refinement }
+        let snapshot = canvas.snapshots.first { $0.id == note.snapshotId }
+        let context = refineContext(for: note, snapshot: snapshot, in: canvas)
+        let regionImage = regionImage
+        Task {
+            var png: Data?
+            if let snapshot, let regionImage { png = await regionImage(note, snapshot) }
+            let result: Result<String, RefineFailure>
+            do throws(RefineFailure) {
+                result = .success(try await refiner.refine(transcript: rawText, regionPNG: png, context: context))
+            } catch {
+                result = .failure(error)
+            }
+            guard self.refineAttempts[noteId] == attempt else { return }
+            self.refineAttempts[noteId] = nil
+            self.finishRefinement(result, noteId: noteId, canvasId: canvasId, baseRevision: baseRevision, rawText: rawText)
+        }
+    }
+
+    /// Lands only on its own note. Replaces the text only while it is exactly what was
+    /// sent, unedited, and no newer recording is in flight on the note.
+    private func finishRefinement(_ result: Result<String, RefineFailure>, noteId: UUID, canvasId: UUID, baseRevision: Int, rawText: String) {
+        guard let current = note(noteId, canvasId: canvasId), current.refinement?.state == .refining else { return }
+        let finished = now()
+        updateNote(noteId, canvasId: canvasId) { note in
+            switch result {
+            case .failure(let failure):
+                note.refinement?.state = .failed(code: failure.code.rawValue)
+                note.refinement?.at = finished
+            case .success(let raw):
+                let text = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+                guard !text.isEmpty else {
+                    note.refinement?.state = .failed(code: RefineFailure.Code.invalidResponse.rawValue)
+                    note.refinement?.at = finished
+                    return
+                }
+                note.refinement?.state = .refined
+                note.refinement?.text = text
+                note.refinement?.at = finished
+                let untouched = note.revision == baseRevision && note.trimmedText == rawText
+                let recordingInFlight = note.recordings.contains { $0.state.isInFlight }
+                if untouched, !recordingInFlight {
+                    note.text = text
+                    note.textSource = .transcript
+                    note.revision += 1
+                }
+            }
+        }
+    }
+
+    private func refineContext(for note: Note, snapshot: Snapshot?, in canvas: ReviewCanvas) -> RefineContext {
+        let screenTitle = snapshot.flatMap { snapshot in canvas.screens.first { $0.id == snapshot.screenId }?.title }
+            ?? snapshot?.screenId ?? ""
+        let versionLabel: String
+        if let snapshot, snapshot.role == .proposal {
+            versionLabel = "\(CanvasLayout.proposalTitle(snapshot.proposalId ?? "?")) · Iteration \(snapshot.iteration)"
+        } else {
+            versionLabel = "Now"
+        }
+        let transcript = note.recordings.last { $0.transcript != nil }?.transcript
+        let language = Self.refineLanguage(transcript?.requestedLanguage)
+            ?? Self.refineLanguage(transcript?.detectedLanguage)
+            ?? Self.refineLanguage(transcriptionLanguage())
+        return RefineContext(
+            screenTitle: screenTitle, versionLabel: versionLabel, markKind: note.shape.kindLabel,
+            componentLabel: note.domTarget?.label, language: language
+        )
+    }
+
+    /// "pol", "eng" or nil from language codes such as "pl", "pol", "pl-PL" or "en".
+    static func refineLanguage(_ code: String?) -> String? {
+        guard let code = code?.lowercased() else { return nil }
+        if code.hasPrefix("pl") || code.hasPrefix("pol") { return "pol" }
+        if code.hasPrefix("en") { return "eng" }
+        return nil
+    }
+
+    private func updateNote(_ noteId: UUID, canvasId: UUID, _ body: (inout Note) -> Void) {
+        mutateCanvas(canvasId) { canvas in
+            guard let index = canvas.notes.firstIndex(where: { $0.id == noteId }) else { return }
+            body(&canvas.notes[index])
+            canvas.notes[index].updatedAt = now()
+        }
     }
 
     // MARK: - Feedback
@@ -953,7 +1191,9 @@ public final class Workspace {
     @discardableResult
     public func saveDraft(noteIds: Set<UUID>, canvasId: UUID) -> SavedDraft? {
         guard let canvas = canvas(canvasId) else { return nil }
-        let items = canvas.notes.filter { noteIds.contains($0.id) }.sorted { $0.ordinal < $1.ordinal }.map(BatchItem.init(note:))
+        let numbers = NoteNumbering.displayNumbers(in: canvas, showsSentNotes: showsSentNotes, including: noteIds)
+        let items = canvas.notes.filter { noteIds.contains($0.id) }.sorted { $0.ordinal < $1.ordinal }
+            .map { BatchItem(note: $0, displayNumber: numbers[$0.id]) }
         guard !items.isEmpty else { return nil }
         let draft = SavedDraft(createdAt: now(), thread: canvas.thread, items: items)
         mutateCanvas(canvasId) { $0.drafts.insert(draft, at: 0) }
@@ -1064,16 +1304,17 @@ public final class Workspace {
     }
 
     /// Freezes the shown package into the outbox and starts a new thread in `projectId`
-    /// whose first message carries it. Only for a canvas without a thread: on success the
-    /// canvas is bound to the new thread. Nil when the canvas already has a thread, a
-    /// new-thread batch is still unresolved, or no T3 connection exists.
+    /// whose first message carries it. On success the canvas continues in the new thread,
+    /// also when it already had one; earlier outbox entries keep their own recipient.
+    /// Nil while a send on this canvas is in flight, while a new-thread batch is still
+    /// unresolved, or when no T3 connection exists.
     @discardableResult
     public func sendToNewThread(
         package: FeedbackPackage, attachments: [OutgoingAttachment], canvasId: UUID,
         projectId: String, projectTitle: String?, threadTitle: String
     ) async -> OutboxEntry? {
         let title = threadTitle.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard let canvas = canvas(canvasId), canvas.thread == nil, let threads,
+        guard let canvas = canvas(canvasId), let threads,
               !projectId.isEmpty, !title.isEmpty else { return nil }
         if let existing = canvas.outbox.first(where: { $0.id == package.batchId }) {
             switch existing.state {
@@ -1083,6 +1324,7 @@ public final class Workspace {
         }
         // Another unresolved launch may already have created this canvas's thread.
         if let pending = pendingNewThreadEntry(canvasId: canvasId), pending.id != package.batchId { return nil }
+        if hasSendInFlight(canvasId: canvasId) { return nil }
         let entry = OutboxEntry(
             id: package.batchId,
             createdAt: now(),
@@ -1090,7 +1332,10 @@ public final class Workspace {
             items: package.items,
             isRepeat: package.isRepeat,
             state: .readyToSend,
-            newThread: NewThreadTarget(projectId: projectId, projectTitle: projectTitle, title: title, clientRequestId: package.batchId)
+            newThread: NewThreadTarget(
+                projectId: projectId, projectTitle: projectTitle, title: title, clientRequestId: package.batchId,
+                previousThread: canvas.thread
+            )
         )
         mutateCanvas(canvasId) { canvas in
             canvas.outbox.removeAll { $0.id == entry.id }
@@ -1099,6 +1344,16 @@ public final class Workspace {
         stagedAttachments[entry.id] = (FeedbackPackageBuilder.messageText(for: package), attachments)
         await deliver(batchId: entry.id, canvasId: canvasId)
         return self.canvas(canvasId)?.outbox.first { $0.id == entry.id }
+    }
+
+    /// True while an entry of this canvas is uploading or sending.
+    public func hasSendInFlight(canvasId: UUID) -> Bool {
+        canvas(canvasId)?.outbox.contains { entry in
+            switch entry.state {
+            case .uploading, .sending: true
+            case .readyToSend, .failed, .sent, .deliveryUnknown: false
+            }
+        } ?? false
     }
 
     /// A new-thread batch whose thread may exist but was not confirmed (not yet Sent).
@@ -1157,11 +1412,18 @@ public final class Workspace {
             updateOutbox(batchId, canvasId: canvasId) { $0.state = .failed(reason: issue) }
             return
         }
-        // One canvas, one thread: a launch that surely created nothing must not add a second thread.
+        // At most one unconfirmed launch per canvas: it may already have created a thread.
         // Repeating an unconfirmed launch is safe, because it can only return the same thread.
-        if entry.newThread != nil, !resumingUnknownLaunch, canvas(canvasId)?.thread != nil {
-            updateOutbox(batchId, canvasId: canvasId) { $0.state = .failed(reason: "This canvas already has a thread.") }
-            return
+        if let target = entry.newThread, !resumingUnknownLaunch {
+            if let pending = pendingNewThreadEntry(canvasId: canvasId), pending.id != batchId {
+                updateOutbox(batchId, canvasId: canvasId) { $0.state = .failed(reason: "Another new thread is still being confirmed.") }
+                return
+            }
+            // The canvas moved to another thread since this launch was requested: a retry must not fork it.
+            if !Self.isSameThread(canvas(canvasId)?.thread, target.previousThread) {
+                updateOutbox(batchId, canvasId: canvasId) { $0.state = .failed(reason: "This canvas already has a thread.") }
+                return
+            }
         }
         guard let threads else { return }
         guard let staged = stagedAttachments[batchId] else {
@@ -1225,7 +1487,8 @@ public final class Workspace {
     }
 
     /// The server returned the new thread: the entry targets it from now on, and the
-    /// canvas is bound to it unless the canvas got another thread meanwhile.
+    /// canvas continues in it while it is still on the thread it had when the launch
+    /// was requested (a thread bound by hand meanwhile is kept).
     private func bindLaunchedThread(_ launched: LaunchedThread, target: NewThreadTarget, hostURL: URL, batchId: String, canvasId: UUID) {
         let binding = ThreadBinding(
             hostURL: hostURL, threadId: launched.threadId,
@@ -1233,10 +1496,18 @@ public final class Workspace {
             projectId: target.projectId, projectTitle: target.projectTitle
         )
         mutateCanvas(canvasId) { canvas in
-            if canvas.thread == nil { canvas.thread = binding }
+            if Self.isSameThread(canvas.thread, target.previousThread) { canvas.thread = binding }
             guard let index = canvas.outbox.firstIndex(where: { $0.id == batchId }) else { return }
             canvas.outbox[index].thread = binding
             canvas.outbox[index].newThread = nil
+        }
+    }
+
+    private static func isSameThread(_ lhs: ThreadBinding?, _ rhs: ThreadBinding?) -> Bool {
+        switch (lhs, rhs) {
+        case (nil, nil): true
+        case (let lhs?, let rhs?): lhs.isSameRecipient(as: rhs)
+        default: false
         }
     }
 

@@ -18,7 +18,7 @@ struct FeedbackSnapshotGroup: View {
                 .frame(maxWidth: horizontal ? FeedbackLayout.thumbnailWidth : .infinity)
             VStack(alignment: .leading, spacing: FeedbackLayout.spacing) {
                 ForEach(group.notes) { note in
-                    FeedbackNoteRow(note: note, reason: model.reason(for: note), selection: $model.selection)
+                    FeedbackNoteRow(note: note, reason: model.reason(for: note), displayNumber: model.displayNumber(for: note), selection: $model.selection)
                 }
             }.frame(maxWidth: .infinity, alignment: .leading)
         }

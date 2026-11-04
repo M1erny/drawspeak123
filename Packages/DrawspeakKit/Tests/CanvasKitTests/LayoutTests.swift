@@ -7,6 +7,22 @@ import Testing
 @MainActor
 @Suite("CanvasWorldLayout and PlacedMark")
 struct LayoutTests {
+    @Test func portraitScreenshotCardMatchesIntrinsicAspect() throws {
+        let ws = makeWorkspace()
+        let snapshot = try ws.importArtifact(data: Data("portrait".utf8), kind: .image,
+            contentType: "image/png", fileName: "portrait.png", pixelSize: (width: 1653, height: 2400),
+            target: .newScreen(title: "iPad"), snapshotId: "portrait")
+        let canvas = try #require(ws.currentCanvas)
+        let layout = CanvasWorldLayout(canvas: canvas)
+        let frame = try #require(layout.frame(forSnapshot: snapshot.id))
+        #expect(frame.width == 420)
+        #expect(abs(frame.height - 420 * 2400 / 1653) < 1e-9)
+        #expect(abs(frame.width / frame.height - 1653.0 / 2400) < 1e-9)
+        let bottomRight = SnapshotSpace.world(NPoint(x: 1, y: 1), in: frame)
+        #expect(bottomRight == CGPoint(x: frame.maxX, y: frame.maxY))
+        #expect(layout.contentBounds == frame)
+    }
+
     @Test func slotsAreLaidOutLeftToRight() throws {
         let ws = makeWorkspace()
         let now = try addScreen(ws, id: "now", title: "Checkout")

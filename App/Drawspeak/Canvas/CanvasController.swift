@@ -104,8 +104,12 @@ final class CanvasController {
         feedbackAfterSheet = nil
     }
 
+    /// Selecting an existing comment opens the inspector. A mark that was just
+    /// drawn does not: its live text appears in the bubble on the canvas.
     func focusedNoteChanged(_ noteId: UUID?) {
-        guard noteId != nil else { return }
+        guard let noteId, let note = workspace.note(noteId) else { return }
+        let isNew = Date().timeIntervalSince(note.createdAt) < 2
+        guard !isNew, workspace.activeRecording?.noteId != noteId else { return }
         showsInspector = true
         keepFocusedMarkVisible()
     }

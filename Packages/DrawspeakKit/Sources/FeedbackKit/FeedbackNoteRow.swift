@@ -4,6 +4,7 @@ import DrawspeakCore
 struct FeedbackNoteRow: View {
     let note: Note
     let reason: String?
+    let displayNumber: Int?
     @Binding var selection: Set<UUID>
 
     var body: some View {
@@ -12,7 +13,7 @@ struct FeedbackNoteRow: View {
                 Image(systemName: selection.contains(note.id) ? "checkmark.circle.fill" : "circle").accessibilityHidden(true)
                 VStack(alignment: .leading) {
                     HStack(alignment: .firstTextBaseline) {
-                        Text(note.ordinal, format: .number).monospacedDigit()
+                        if let displayNumber { Text(displayNumber, format: .number).monospacedDigit() }
                         Text(note.trimmedText)
                     }
                     if note.lastSentRevision != nil {

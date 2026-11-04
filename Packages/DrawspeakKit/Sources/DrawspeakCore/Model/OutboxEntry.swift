@@ -38,12 +38,16 @@ public struct NewThreadTarget: Codable, Hashable, Sendable {
     public var title: String
     /// Sent with every launch attempt; the server returns the same thread for the same value.
     public var clientRequestId: String
+    /// The canvas's thread when the launch was requested (nil: none, or stored before
+    /// this existed). The canvas moves to the new thread only while it is still on this one.
+    public var previousThread: ThreadBinding?
 
-    public init(projectId: String, projectTitle: String?, title: String, clientRequestId: String) {
+    public init(projectId: String, projectTitle: String?, title: String, clientRequestId: String, previousThread: ThreadBinding? = nil) {
         self.projectId = projectId
         self.projectTitle = projectTitle
         self.title = title
         self.clientRequestId = clientRequestId
+        self.previousThread = previousThread
     }
 }
 

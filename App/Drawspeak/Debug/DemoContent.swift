@@ -6,6 +6,17 @@ import SwiftUI
 /// Sample content for simulator checks (launch argument -DrawspeakSeedDemo).
 @MainActor
 enum DemoContent {
+    /// Imports a host file given by DRAWSPEAK_IMPORT_FILE as a new screen (simulator checks).
+    static func importFromEnvironment(into workspace: Workspace) {
+        guard let path = ProcessInfo.processInfo.environment["DRAWSPEAK_IMPORT_FILE"],
+              let data = FileManager.default.contents(atPath: path),
+              let size = ImportCoordinator.pixelSize(of: data) else { return }
+        _ = try? workspace.importArtifact(
+            data: data, kind: .image, contentType: "image/png", fileName: (path as NSString).lastPathComponent,
+            pixelSize: size, target: .newScreen(title: "Imported")
+        )
+    }
+
     static func seed(into workspace: Workspace) {
         guard workspace.currentCanvas?.screens.isEmpty ?? false else { return }
         guard let now = png(title: "Checkout", accent: .gray, button: "Pay"),

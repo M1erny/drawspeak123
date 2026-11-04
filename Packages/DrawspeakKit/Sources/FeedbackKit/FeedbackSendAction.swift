@@ -17,7 +17,7 @@ struct FeedbackSendAction: View {
         .accessibilityHint(Text(model.sendBlock ?? ""))
     }
 
-    private var startsNewThread: Bool { model.recipient == nil && model.startsNewThread }
+    private var startsNewThread: Bool { model.startsNewThread }
 
     private var canSend: Bool {
         if startsNewThread { return model.newThreadReady }

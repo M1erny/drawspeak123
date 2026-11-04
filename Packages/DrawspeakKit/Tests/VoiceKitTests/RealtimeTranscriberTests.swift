@@ -147,6 +147,28 @@ struct RealtimeTranscriberTests {
         #expect(transport.isClosed)
     }
 
+    /// Device report (0.2.0): repeated comment text. Each segment arrives as
+    /// `committed_transcript` and again with timestamps; it must count once.
+    @Test func timestampedCommitsAreNotCountedTwice() async throws {
+        let transport = FakeRealtimeTransport { frame in
+            guard let chunk = try? decode(frame), chunk.commit else { return [] }
+            return [#"{"message_type":"committed_transcript","text":"Bardzo źle to wygląda."}"#,
+                    #"{"message_type":"committed_transcript_with_timestamps","text":"Bardzo źle to wygląda.","words":[]}"#]
+        }
+        transport.push([#"{"message_type":"committed_transcript","text":"Są ręce."}"#,
+                        #"{"message_type":"committed_transcript_with_timestamps","text":"Są ręce.","words":[]}"#])
+        let transcriber = RealtimeTranscriber(transport: transport)
+        let (audio, input) = AsyncStream.makeStream(of: AudioChunk.self)
+        input.yield(AudioChunk(data: Data(count: 3_200), isLast: false))
+        try await Task.sleep(for: .milliseconds(30))
+        input.yield(AudioChunk(data: Data(count: 320), isLast: true))
+        input.finish()
+        async let events = collect(transcriber.events)
+        await transcriber.run(audio: audio)
+        let received = await events
+        #expect(received == [.committed("Są ręce."), .committed("Bardzo źle to wygląda."), .finished("Są ręce. Bardzo źle to wygląda.")])
+    }
+
     @Test func finishWaitsAtMostTheTimeoutForTheFinalCommit() async {
         let transport = FakeRealtimeTransport()
         let transcriber = RealtimeTranscriber(transport: transport, finalCommitTimeout: .milliseconds(150))

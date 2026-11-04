@@ -2,7 +2,7 @@ import SwiftUI
 import DrawspeakCore
 
 public struct CommentsInspector: View {
-    private let workspace: Workspace
+    @Bindable private var workspace: Workspace
     private let onShowSource: (UUID) -> Void
     private let onAddRegion: () -> Void
     @State private var groups: [CommentGroup] = []
@@ -27,17 +27,20 @@ public struct CommentsInspector: View {
             }
             .listStyle(.insetGrouped)
             .overlay {
-                if workspace.currentCanvas?.notes.isEmpty != false {
+                if workspace.visibleNotes().isEmpty {
                     ContentUnavailableView {
                         Label { Text("No Comments", bundle: .module) } icon: { Image(systemName: "text.bubble") }
                     } description: { Text("Draw on a screen to add one.", bundle: .module) }
                 }
             }
             .onChange(of: workspace.currentCanvas, initial: true) { _, canvas in
-                groups = CommentGroup.make(canvas)
+                groups = CommentGroup.make(canvas, notes: workspace.visibleNotes())
                 if let id = workspace.focusedNoteId, canvas?.notes.contains(where: { $0.id == id }) != true {
                     workspace.focusedNoteId = nil
                 }
+            }
+            .onChange(of: workspace.showsSentNotes) {
+                groups = CommentGroup.make(workspace.currentCanvas, notes: workspace.visibleNotes())
             }
             .task(id: workspace.focusedNoteId) {
                 // Let the selected row expand before positioning it.
@@ -48,6 +51,13 @@ public struct CommentsInspector: View {
         }
         .navigationTitle(Text("Comments", bundle: .module))
         .toolbar {
+            ToolbarItem(placement: .secondaryAction) {
+                Menu {
+                    Toggle(isOn: $workspace.showsSentNotes) { Text("Show Sent", bundle: .module) }
+                } label: {
+                    Label { Text("Filter Comments", bundle: .module) } icon: { Image(systemName: "line.3.horizontal.decrease") }
+                }
+            }
             ToolbarItem(placement: .primaryAction) {
                 Button(action: onAddRegion) {
                     Label { Text("Add Region", bundle: .module) } icon: { Image(systemName: "plus") }

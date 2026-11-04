@@ -421,7 +421,7 @@ final class CanvasInteraction {
     /// Focuses the first comment on a snapshot.
     func showComments(onSnapshot snapshotId: String) {
         guard let workspace,
-              let note = workspace.currentCanvas?.notes.filter({ $0.snapshotId == snapshotId }).min(by: { $0.ordinal < $1.ordinal }) else { return }
+              let note = workspace.visibleNotes().filter({ $0.snapshotId == snapshotId }).min(by: { $0.ordinal < $1.ordinal }) else { return }
         workspace.focusedNoteId = note.id
     }
 }

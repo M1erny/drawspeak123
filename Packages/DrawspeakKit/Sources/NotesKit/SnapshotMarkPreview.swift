@@ -7,6 +7,7 @@ struct SnapshotMarkPreview: View {
     let workspace: Workspace
     let snapshot: Snapshot
     let shape: AnnotationShape
+    var displayNumber: Int?
     var croppedToMark = false
     var maximumHeight: CGFloat = 260
     @State private var availableWidth: CGFloat = 300
@@ -39,6 +40,11 @@ struct SnapshotMarkPreview: View {
                 }
                 AnnotationPreviewShape(annotation: shape, crop: crop)
                     .stroke(Theme.annotation, lineWidth: Theme.markLineWidth)
+                if let displayNumber {
+                    PinBadge(number: displayNumber)
+                        .position(x: min(max((shape.bounds.x - crop.x) / crop.width * fittedWidth, Theme.pinSize), fittedWidth - Theme.pinSize),
+                                  y: min(max((shape.bounds.y - crop.y) / crop.height * fittedWidth / previewAspect, Theme.pinSize), fittedWidth / previewAspect - Theme.pinSize))
+                }
             }
             .frame(width: fittedWidth, height: fittedWidth / previewAspect)
             .frame(maxWidth: .infinity, maxHeight: .infinity)

@@ -16,7 +16,7 @@ final class FeedbackPreviewModel {
     var preparationFailed = false
     var error: String?
     var reconciliationNotice: String?
-    /// The canvas has no thread and the To row chose New Thread.
+    /// The To row chose New Thread, including when replacing a bound thread.
     var startsNewThread = false
     var newThreadTitle = ""
     var newThreadProjectId: String?
@@ -42,10 +42,9 @@ final class FeedbackPreviewModel {
         }
     }
     var recipient: ThreadBinding? { entry?.thread ?? workspace.canvas(canvasId)?.thread }
-    /// One canvas belongs to one thread, so only a canvas without a thread can start one.
-    var canStartNewThread: Bool { workspace.canvas(canvasId)?.thread == nil && workspace.threads != nil }
+    var canStartNewThread: Bool { workspace.threads != nil }
     var newThreadReady: Bool {
-        startsNewThread && recipient == nil && canStartNewThread && newThreadProjectId != nil
+        startsNewThread && canStartNewThread && newThreadProjectId != nil
             && !newThreadTitle.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
     }
 
@@ -94,6 +93,16 @@ final class FeedbackPreviewModel {
         rebuild()
     }
 
+    func displayNumber(for note: Note) -> Int? {
+        workspace.displayNumber(for: note.id, canvasId: canvasId)
+    }
+
+    private func previewItem(for note: Note) -> BatchItem {
+        var item = BatchItem(note: note)
+        item.displayNumber = displayNumber(for: note)
+        return item
+    }
+
     func reason(for note: Note) -> String? { reasons[note.id] }
 
     private func readinessReason(_ note: Note, canvas: ReviewCanvas) -> String? {
@@ -126,7 +135,11 @@ final class FeedbackPreviewModel {
         })
         canvas.notes = selected
         let thread = recipient ?? ThreadBinding(hostURL: URL(filePath: "/"), threadId: "", threadTitle: "", projectId: nil, projectTitle: nil)
-        package = FeedbackPackageBuilder.build(canvas: canvas, noteIds: selection, thread: thread, batchId: batchId ?? "preview", now: workspace.now())
+        let numbers = Dictionary(uniqueKeysWithValues: candidates.compactMap { note in
+            displayNumber(for: note).map { (note.id, $0) }
+        })
+        package = FeedbackPackageBuilder.build(canvas: canvas, noteIds: selection, thread: thread,
+            batchId: batchId ?? "preview", now: workspace.now(), displayNumbers: numbers)
         sendBlock = nil
         if let package {
             do { try FeedbackPayloadBuilder.validate(package) }
@@ -140,7 +153,7 @@ final class FeedbackPreviewModel {
             let snapshot = canvas.snapshots.first { $0.id == id }
             let notes = candidates.filter { $0.snapshotId == id }
             return FeedbackPreviewGroup(id: id, snapshot: snapshot, title: groupTitle(snapshot, canvas: canvas), notes: notes,
-                items: notes.filter { selection.contains($0.id) }.map(BatchItem.init(note:)))
+                items: notes.filter { selection.contains($0.id) }.map(previewItem(for:)))
         }
     }
 
@@ -175,8 +188,8 @@ final class FeedbackPreviewModel {
     }
     func send() async {
         refresh()
-        let toNewThread = recipient == nil
-        guard !busy, !selection.isEmpty, sendBlock == nil, workspace.threads != nil, !toNewThread || newThreadReady else { return }
+        let toNewThread = startsNewThread
+        guard !busy, !selection.isEmpty, sendBlock == nil, workspace.threads != nil, toNewThread ? newThreadReady : recipient != nil else { return }
         if toNewThread, workspace.pendingNewThreadEntry(canvasId: canvasId) != nil {
             error = String(localized: "A new thread from this canvas isn't confirmed yet.", bundle: .module); return
         }

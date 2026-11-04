@@ -1,6 +1,7 @@
 import DrawspeakCore
 import Foundation
 import Observation
+import RefineKit
 import T3Kit
 import VoiceKit
 
@@ -36,6 +37,7 @@ final class AppModel {
             if ProcessInfo.processInfo.arguments.contains("-DrawspeakSeedDemo") {
                 DemoContent.seed(into: workspace)
             }
+            DemoContent.importFromEnvironment(into: workspace)
             #endif
         } catch {
             loadError = Self.storageError
@@ -98,6 +100,13 @@ final class AppModel {
             return TranscriptionLanguage(rawValue: raw)?.providerCode
         }
         recorder.onInterruption = { [weak workspace] in workspace?.stopRecording() }
+        let refiner = ClaudeRefiner()
+        workspace.refiner = refiner
+        workspace.refinerModelId = "claude-sonnet-5-5"
+        workspace.refineEnabled = { UserDefaults.standard.bool(forKey: AppPreferences.refineWithClaude) }
+        workspace.regionImage = { [blobs = workspace.blobs] note, snapshot in
+            await RegionCropper.png(for: note, snapshot: snapshot, blobs: blobs)
+        }
     }
 
     /// Called whenever the T3 connection changes.

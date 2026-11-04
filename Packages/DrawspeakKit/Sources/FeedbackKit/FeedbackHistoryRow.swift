@@ -57,7 +57,9 @@ struct FeedbackHistoryRow: View {
                          domTarget: item.domTarget, text: item.text, textSource: .typed, revision: item.revision,
                          lastSentRevision: entry.isRepeat ? item.revision : nil, createdAt: entry.createdAt, updatedAt: entry.createdAt)
                 }
-                let package = FeedbackPackageBuilder.build(canvas: canvas, noteIds: Set(entry.items.map(\.noteId)), thread: entry.thread, batchId: entry.id, now: entry.createdAt)
+                let numbers = Dictionary(uniqueKeysWithValues: entry.items.map { ($0.noteId, $0.displayNumber ?? $0.ordinal) })
+                let package = FeedbackPackageBuilder.build(canvas: canvas, noteIds: Set(entry.items.map(\.noteId)), thread: entry.thread,
+                    batchId: entry.id, now: entry.createdAt, displayNumbers: numbers)
                 let attachments = try await FeedbackPayloadBuilder.attachments(for: package, blobs: workspace.blobs)
                 workspace.stagePayload(batchId: entry.id, text: FeedbackPackageBuilder.messageText(for: package), attachments: attachments)
             }
