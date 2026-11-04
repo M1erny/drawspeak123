@@ -1,11 +1,13 @@
-import DrawspeakCore
 import SwiftUI
 
 @main
 struct DrawspeakApp: App {
+    @State private var model = AppModel()
+
     var body: some Scene {
         WindowGroup {
-            Text("Drawspeak")
+            RootView(model: model)
+                .task { await model.start() }
         }
     }
 }
