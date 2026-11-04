@@ -141,12 +141,18 @@ public struct ThreadSummary: Sendable, Hashable, Identifiable {
 
 /// The T3 Code thread operations the app needs. Implemented in T3Kit.
 public protocol ThreadService: Sendable {
+    /// The T3 host this service talks to; operations require it to match the canvas binding.
+    var hostURL: URL { get }
     func listThreads() async throws -> [ThreadSummary]
     func readMessages(threadId: String) async throws -> [ThreadMessage]
     /// Uploads every attachment, then sends exactly one message.
     /// Must throw `DeliveryFailure.outcomeUnknown` when the send request may have reached the server.
     func send(threadId: String, text: String, attachments: [OutgoingAttachment], progress: @Sendable (Int, Int) -> Void) async throws(DeliveryFailure) -> MessageAck
     func downloadAttachment(threadId: String, attachment: ThreadAttachment) async throws -> Data
+    /// Finds the outgoing user message (or accepted queue item) carrying the exact
+    /// batch marker `[drawspeak-batch:<batchId>]`. Nil when no such message exists.
+    /// Throws when the thread cannot be read, so uncertainty is preserved.
+    func reconcile(threadId: String, batchId: String) async throws -> MessageAck?
     /// Agent work status of the thread, for display only.
     func threadStatus(threadId: String) async throws -> String?
 }
