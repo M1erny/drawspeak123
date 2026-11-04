@@ -12,7 +12,10 @@ struct CanvasSidebarRow: View {
         CanvasRow(canvas: canvas)
             .tag(canvas.id)
             .swipeActions {
-                Button("Delete", systemImage: "trash", role: .destructive, action: requestDelete)
+                // Not `role: .destructive`: SwiftUI would remove the row at once while the
+                // canvas still exists until confirmed, and the list crashes on the count mismatch.
+                Button("Delete", systemImage: "trash", action: requestDelete)
+                    .tint(.red)
                 Button("Rename", systemImage: "pencil", action: rename)
             }
             .contextMenu {
