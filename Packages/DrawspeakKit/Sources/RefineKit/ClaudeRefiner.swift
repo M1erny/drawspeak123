@@ -10,13 +10,17 @@ public nonisolated struct ClaudeRefiner: TranscriptRefining {
     private let session: URLSession
     private let endpoint: URL
     private let model: String
+    /// The instructions sent as the system prompt; editable in Settings.
+    private let instructions: @Sendable () -> String
 
     public init(
         keyStore: AnthropicKeyStore = .init(),
         session: URLSession? = nil,
         endpoint: URL = URL(string: "https://api.anthropic.com/v1/messages")!,
-        model: String = "claude-sonnet-5-5"
+        model: String = "claude-sonnet-5-5",
+        instructions: @escaping @Sendable () -> String = { ClaudeRefiner.systemPrompt }
     ) {
+        self.instructions = instructions
         self.keyStore = keyStore
         self.session = session ?? .shared
         self.endpoint = endpoint
@@ -53,7 +57,7 @@ public nonisolated struct ClaudeRefiner: TranscriptRefining {
         let body: [String: Any] = [
             "model": model, "max_tokens": 1024,
             "output_config": ["effort": "low"], "fallbacks": "default",
-            "system": Self.systemPrompt,
+            "system": { let custom = instructions().trimmingCharacters(in: .whitespacesAndNewlines); return custom.isEmpty ? Self.systemPrompt : custom }(),
             "messages": [["role": "user", "content": content]],
         ]
         var request = URLRequest(url: endpoint, timeoutInterval: 30)

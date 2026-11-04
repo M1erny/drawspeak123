@@ -567,7 +567,7 @@ public final class Workspace {
         }
         registerUndo(name: "Add \(shape.kindLabel)") { workspace in workspace.deleteNote(note.id, canvasId: canvasId) }
         focusedNoteId = note.id
-        if shape.identifiesSubject, autoVoice ?? autoVoiceEnabled(), let voice {
+        if autoVoice ?? autoVoiceEnabled(), let voice {
             if voice.hasPermission {
                 // Same event as the mark: capture begins before the next frame.
                 beginRecording(noteId: note.id, canvasId: canvasId)
