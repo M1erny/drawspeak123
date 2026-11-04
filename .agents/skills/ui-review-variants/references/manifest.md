@@ -61,6 +61,10 @@ Use `static-no-script` for the current inspector. A future isolated scripted ren
 
 A note's `domTarget` references the snapshot and hashes, has a version-local locator (prefer unique data-review-id), human label, hit-to-root chain, depth/layer and normalized capture bounds. Pressure changes parent depth; a separate layer choice selects underneath stacked elements. Never carry a locator into a new iteration as stable identity.
 
+## Canvas layout
+
+Drawspeak makes one row per `screenId` (title `screenTitle`), with the baseline first and each `proposalId` as a column. Snapshots of one state in A and B share a `screenId`. A new `screenId` makes a new row. Each snapshot is one screen at its device viewport, not a board of many screens (`drawspeak_bundle.py` refuses images or viewports taller than 3× their width unless `--allow-tall` is passed).
+
 ## Bundles in a reply
 
 Drawspeak downloads files from the thread's workspace on the Mac (docs/T3-MCP-CONTRACT.md, "Workspace file access"), so a reply carries one of:
