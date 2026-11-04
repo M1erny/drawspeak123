@@ -2,6 +2,7 @@ import SwiftUI
 import DrawspeakCore
 
 public struct PinBadge: View {
+    @Environment(\.annotationStyle) private var annotationStyle
     public let number: Int
     public let isActive: Bool
 
@@ -11,10 +12,9 @@ public struct PinBadge: View {
     }
 
     public var body: some View {
-        Text(number.formatted()).font(.caption.bold()).monospacedDigit()
+        Text(number.formatted()).font(.system(size: annotationStyle.pinFontSize, weight: .bold)).monospacedDigit()
             .foregroundStyle(.white)
-            .frame(minWidth: Theme.pinSize, minHeight: Theme.pinSize)
-            .padding(NotesMetrics.pinPadding)
+            .frame(minWidth: annotationStyle.pinSize, minHeight: annotationStyle.pinSize)
             .background(Theme.annotation, in: .circle)
             .overlay { Circle().strokeBorder(.white, lineWidth: 1.5) }
             .accessibilityLabel(Text("Comment \(number)", bundle: .module))

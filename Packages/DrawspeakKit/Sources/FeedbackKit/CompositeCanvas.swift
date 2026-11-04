@@ -4,22 +4,24 @@ import DrawspeakCore
 struct CompositeCanvas: View {
     let image: CGImage
     let items: [BatchItem]
+    let style: AnnotationStyle
 
     var body: some View {
         Canvas { context, size in
             context.draw(Image(decorative: image, scale: 1), in: CGRect(origin: .zero, size: size))
-            let width = max(size.width, size.height) * 0.003
+            let scale = max(size.width, size.height) / 1000
+            let width = style.lineWidth * scale
             for item in items {
                 let path = mark(item.shape, size: size, width: width)
                 context.stroke(path, with: .color(Theme.annotationHalo), style: StrokeStyle(lineWidth: width * 2, lineCap: .round, lineJoin: .round))
                 context.stroke(path, with: .color(Theme.annotation), style: StrokeStyle(lineWidth: width, lineCap: .round, lineJoin: .round))
                 let bounds = item.shape.bounds.clamped()
-                let radius = width * 4.5
+                let radius = style.pinSize * scale / 2
                 let x = min(max(CGFloat(bounds.x) * size.width, radius + width), size.width - radius - width)
                 let y = min(max(CGFloat(bounds.y) * size.height, radius + width), size.height - radius - width)
                 let pin = Path(ellipseIn: CGRect(x: x - radius, y: y - radius, width: radius * 2, height: radius * 2))
                 context.fill(pin, with: .color(Theme.annotation))
-                context.stroke(pin, with: .color(Theme.annotationHalo), lineWidth: width)
+                context.stroke(pin, with: .color(Theme.annotationHalo), lineWidth: 2 * scale)
                 context.draw(Text(item.displayNumber ?? item.ordinal, format: .number).font(.system(size: radius, weight: .bold)).foregroundStyle(.white), at: CGPoint(x: x, y: y))
             }
         }

@@ -29,6 +29,7 @@
 		617FC67605B3009248A414C5 /* VoiceKit in Frameworks */ = {isa = PBXBuildFile; productRef = 593BF5E24A85D58317CD5871 /* VoiceKit */; };
 		64456860912D7C6D5539834E /* CanvasToolbar.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8B8EFAA1B90983F882ABC170 /* CanvasToolbar.swift */; };
 		6460C609E5EF367CEEA81DE5 /* ImportFailure.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9D78168E796EC993460609B2 /* ImportFailure.swift */; };
+		6496DAFF955F1675F83E12BD /* MarksSettingsSection.swift in Sources */ = {isa = PBXBuildFile; fileRef = 89574CB1BEA1A2146A3E9509 /* MarksSettingsSection.swift */; };
 		65A2A296B037CF574856D9E5 /* DemoContent.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2D7B1642E79DAEBCA66DE766 /* DemoContent.swift */; };
 		6E8AB394BFFFC3383AC4BBCE /* CanvasAlerts.swift in Sources */ = {isa = PBXBuildFile; fileRef = A720C7339CA875A4C1A344F2 /* CanvasAlerts.swift */; };
 		7433664504F1864508A01C1C /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = D3E65FDFF3AC7940DF4DEAFD /* Assets.xcassets */; };
@@ -62,7 +63,9 @@
 		E1EC705B3E6890CDC67DEDC7 /* RegionCropper.swift in Sources */ = {isa = PBXBuildFile; fileRef = B4BE7B31D139FE4C6A7D1418 /* RegionCropper.swift */; };
 		E5F48F5E844C9A4C4BDC3B66 /* LibraryRecoveryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 778EC139143303642812FC52 /* LibraryRecoveryView.swift */; };
 		E98DA9D13CAB504ED457F10C /* MainSplitView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E4AE16034F7E7E65797CF428 /* MainSplitView.swift */; };
+		EE19AC1C6474C6F57EB46FBD /* RefineInstructionsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 988D301BF1B18B9F16B44D3C /* RefineInstructionsView.swift */; };
 		EF9FD73DACB8D6FAE4F2FC19 /* DebugEndToEnd.swift in Sources */ = {isa = PBXBuildFile; fileRef = 316AB0722C72FACC26D723A6 /* DebugEndToEnd.swift */; };
+		F2F4E35131D6923C6237D5E8 /* MarkStylePreview.swift in Sources */ = {isa = PBXBuildFile; fileRef = EE848559F663F87DC7EE990F /* MarkStylePreview.swift */; };
 		F2F8001BA14FF766133CE331 /* ShellMetrics.swift in Sources */ = {isa = PBXBuildFile; fileRef = 64D060A5ADA4BFD77517FE6C /* ShellMetrics.swift */; };
 		F3DF9269E8CCB56518E89FA0 /* FeedbackPopover.swift in Sources */ = {isa = PBXBuildFile; fileRef = C9B77FC9FD1460ACF9B9A977 /* FeedbackPopover.swift */; };
 		F4A81BFB34974B833662D644 /* ImportChoice.swift in Sources */ = {isa = PBXBuildFile; fileRef = D8361ABB3067E5EF8A7FC90E /* ImportChoice.swift */; };
@@ -98,10 +101,12 @@
 		7BB63E2F7DB163A84815D3FF /* RenameCanvasAlert.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RenameCanvasAlert.swift; sourceTree = "<group>"; };
 		7E5CCA45EC340E0486EFA6F2 /* DebugLaunch.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DebugLaunch.swift; sourceTree = "<group>"; };
 		88CE793C2D8EDCE18CC09147 /* CanvasSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CanvasSheet.swift; sourceTree = "<group>"; };
+		89574CB1BEA1A2146A3E9509 /* MarksSettingsSection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MarksSettingsSection.swift; sourceTree = "<group>"; };
 		8B8EFAA1B90983F882ABC170 /* CanvasToolbar.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CanvasToolbar.swift; sourceTree = "<group>"; };
 		8E6CCBF7A5B67116BA620936 /* HTMLCaptureAdapter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HTMLCaptureAdapter.swift; sourceTree = "<group>"; };
 		9183AE035B7536C7BE18812F /* CanvasSheetContent.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CanvasSheetContent.swift; sourceTree = "<group>"; };
 		98769D420DEA9CD4F7CE2DC5 /* Drawspeak.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = Drawspeak.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		988D301BF1B18B9F16B44D3C /* RefineInstructionsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RefineInstructionsView.swift; sourceTree = "<group>"; };
 		9D78168E796EC993460609B2 /* ImportFailure.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ImportFailure.swift; sourceTree = "<group>"; };
 		A056EFAF56A26F062757B7F7 /* CanvasRow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CanvasRow.swift; sourceTree = "<group>"; };
 		A0B8921D039E34EE1D513E86 /* CanvasDetail.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CanvasDetail.swift; sourceTree = "<group>"; };
@@ -124,6 +129,7 @@
 		E6EE48432D8C8897F5CB7CFF /* ImportTargetRow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ImportTargetRow.swift; sourceTree = "<group>"; };
 		EB673C9598B69A84008C4B9A /* DrawspeakApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DrawspeakApp.swift; sourceTree = "<group>"; };
 		ED15DE6D6DE49DB5CBDDEEF1 /* CanvasTitleMenu.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CanvasTitleMenu.swift; sourceTree = "<group>"; };
+		EE848559F663F87DC7EE990F /* MarkStylePreview.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MarkStylePreview.swift; sourceTree = "<group>"; };
 		EEDAF1C1CFD010606BD2AAA6 /* CanvasController+DebugLaunch.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "CanvasController+DebugLaunch.swift"; sourceTree = "<group>"; };
 		F3DFEDB9713FF2DB560F14CE /* AppPreferences.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppPreferences.swift; sourceTree = "<group>"; };
 		FB018F887B0F2FABFB65771D /* T3PairingSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = T3PairingSheet.swift; sourceTree = "<group>"; };
@@ -246,6 +252,9 @@
 			isa = PBXGroup;
 			children = (
 				51F7DF0CA8B36C6A10608161 /* Bundle+Version.swift */,
+				89574CB1BEA1A2146A3E9509 /* MarksSettingsSection.swift */,
+				EE848559F663F87DC7EE990F /* MarkStylePreview.swift */,
+				988D301BF1B18B9F16B44D3C /* RefineInstructionsView.swift */,
 				52B3AB3A16038AFA32941F6E /* SettingsView.swift */,
 				73ABD0751107E9263C126BAF /* T3ConnectionSection.swift */,
 				FB018F887B0F2FABFB65771D /* T3PairingSheet.swift */,
@@ -438,8 +447,11 @@
 				AA4102C723A37E5AE93DA464 /* ImportTargetSheet.swift in Sources */,
 				E5F48F5E844C9A4C4BDC3B66 /* LibraryRecoveryView.swift in Sources */,
 				E98DA9D13CAB504ED457F10C /* MainSplitView.swift in Sources */,
+				F2F4E35131D6923C6237D5E8 /* MarkStylePreview.swift in Sources */,
+				6496DAFF955F1675F83E12BD /* MarksSettingsSection.swift in Sources */,
 				4CC0188F1E668AA6B38355DC /* NoCanvasView.swift in Sources */,
 				7B8469FE647F9B00151682C3 /* PendingImport.swift in Sources */,
+				EE19AC1C6474C6F57EB46FBD /* RefineInstructionsView.swift in Sources */,
 				E1EC705B3E6890CDC67DEDC7 /* RegionCropper.swift in Sources */,
 				CAC845EA711AC6E8FCF46878 /* RenameCanvasAlert.swift in Sources */,
 				4BC1867C16B29F452EDA85E1 /* RootView.swift in Sources */,

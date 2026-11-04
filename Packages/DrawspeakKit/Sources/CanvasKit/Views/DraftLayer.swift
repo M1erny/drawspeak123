@@ -8,9 +8,10 @@ struct DraftLayer: View {
     let draft: InkDraft
     let camera: CanvasCamera
 
+    @Environment(\.annotationStyle) private var annotationStyle
     var body: some View {
         let zoom = CGFloat(camera.zoom)
-        let lineWidth = Theme.markLineWidth / zoom
+        let lineWidth = annotationStyle.lineWidth / zoom
         let points = draft.points
         ZStack(alignment: .topLeading) {
             switch draft.kind {

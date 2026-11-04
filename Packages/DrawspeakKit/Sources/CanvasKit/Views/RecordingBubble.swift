@@ -12,6 +12,7 @@ struct RecordingBubble: View {
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
+    @State private var appeared = false
     @State private var followedRecording = false
     @State private var expired = false
     @State private var size = CGSize(width: 280, height: 72)
@@ -25,50 +26,58 @@ struct RecordingBubble: View {
         let text = live ?? note?.text ?? ""
         let partial = recording ? workspace.livePartialText : ""
         let busy = recording || transcribing || refining
-        let visible = busy || (followedRecording && !expired)
+        let visible = appeared && (busy || (followedRecording && !expired))
         let origin = RecordingBubblePlacement.origin(pin: pin, bubble: size, bounds: bounds)
 
-        Button {
-            workspace.focusedNoteId = noteId
-        } label: {
-            HStack(alignment: .top, spacing: 6) {
-                if refining {
-                    Image(systemName: "sparkles")
-                        .accessibilityLabel(Text("Refining", bundle: .module))
+        let anchor: UnitPoint = origin.x < pin.x ? .topTrailing : .topLeading
+        ZStack(alignment: .topLeading) {
+            if visible {
+                Button {
+                    workspace.focusedNoteId = noteId
+                } label: {
+                    HStack(alignment: .top, spacing: 6) {
+                        if refining {
+                            Image(systemName: "sparkles")
+                                .accessibilityLabel(Text("Refining", bundle: .module))
+                        }
+                        if !recording && transcribing {
+                            Text("Transcribing…", bundle: .module)
+                        } else if text.isEmpty {
+                            Text("Recording", bundle: .module)
+                        } else {
+                            styledText(text, partial: partial)
+                                .contentTransition(.opacity)
+                                .animation(reduceMotion ? nil : .easeOut(duration: 0.15), value: text)
+                                .lineLimit(3)
+                                .truncationMode(.head)
+                        }
+                    }
+                    .font(.caption)
+                    .foregroundStyle(.primary)
+                    .multilineTextAlignment(.leading)
+                    .padding(10)
+                    .frame(minHeight: 44, alignment: .leading)
+                    .frame(width: min(280, max(1, bounds.width)), alignment: .leading)
+                    .background {
+                        RoundedRectangle(cornerRadius: 12)
+                            .fill(reduceTransparency ? AnyShapeStyle(Theme.surface) : AnyShapeStyle(.regularMaterial))
+                    }
                 }
-                if !recording && transcribing {
-                    Text("Transcribing…", bundle: .module)
-                } else if text.isEmpty {
-                    Text("Recording", bundle: .module)
-                } else {
-                    styledText(text, partial: partial)
-                        .lineLimit(3)
-                        .truncationMode(.head)
-                }
-            }
-            .font(.caption)
-            .foregroundStyle(.primary)
-            .multilineTextAlignment(.leading)
-            .padding(10)
-            .frame(minHeight: 44, alignment: .leading)
-            .frame(width: min(280, max(1, bounds.width)), alignment: .leading)
-            .background {
-                RoundedRectangle(cornerRadius: 12)
-                    .fill(reduceTransparency ? AnyShapeStyle(Theme.surface) : AnyShapeStyle(.regularMaterial))
+                .buttonStyle(.plain)
+                .accessibilityElement(children: .ignore)
+                .accessibilityLabel(accessibilityText(text: text, recording: recording, transcribing: transcribing, refining: refining))
+                .onGeometryChange(for: CGSize.self) { $0.size } action: { size = $0 }
+                .transition(reduceMotion ? .opacity : .opacity.combined(with: .scale(scale: 0.9, anchor: anchor)))
             }
         }
-        .buttonStyle(.plain)
-        .accessibilityElement(children: .ignore)
-        .accessibilityLabel(accessibilityText(text: text, recording: recording, transcribing: transcribing, refining: refining))
+        .onAppear { appeared = true }
         .onChange(of: text) {
             guard visible, !text.isEmpty else { return }
             var announcement = AttributedString(text)
             announcement.accessibilitySpeechAnnouncementPriority = .low
             AccessibilityNotification.Announcement(announcement).post()
         }
-        .onGeometryChange(for: CGSize.self) { $0.size } action: { size = $0 }
         .offset(x: origin.x, y: origin.y)
-        .opacity(visible ? 1 : 0)
         .allowsHitTesting(visible)
         .accessibilityHidden(!visible)
         .animation(reduceMotion ? nil : .easeOut(duration: 0.25), value: visible)

@@ -5,6 +5,7 @@ public struct SendFeedbackButton: View {
     public let workspace: Workspace
     public let action: () -> Void
     @Environment(\.scenePhase) private var scenePhase
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var count = 0
 
     public init(workspace: Workspace, action: @escaping () -> Void) {
@@ -16,7 +17,10 @@ public struct SendFeedbackButton: View {
         Button(action: action) {
             Text(count > 0 ? "Send \(count)" : "Send", bundle: .module)
                 .monospacedDigit()
+                .foregroundStyle(.white)
+                .contentTransition(reduceMotion ? .identity : .numericText())
         }
+        .animation(reduceMotion ? nil : .easeInOut(duration: 0.2), value: count)
         .buttonStyle(.glassProminent)
         .tint(Theme.actionFill)
         .disabled(count == 0)

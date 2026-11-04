@@ -94,6 +94,18 @@ struct LayoutTests {
         #expect(approx(mark.anchor, CGPoint(x: mark.frame.minX + 210, y: mark.frame.minY + 210)))
     }
 
+    @Test func arrowAndStrokePinsAnchorToTheirStart() {
+        let frame = CGRect(x: 40, y: 80, width: 400, height: 800)
+        let start = NPoint(x: 0.8, y: 0.7)
+        let end = NPoint(x: 0.1, y: 0.2)
+        for shape in [AnnotationShape.arrow(from: start, to: end), .stroke([start, end])] {
+            let mark = PlacedMark(slotId: "slot", noteId: UUID(), ordinal: 1,
+                                  shape: shape, frame: frame, pinLabel: "1")
+            #expect(approx(mark.anchor, SnapshotSpace.world(start, in: frame)))
+            #expect(!approx(mark.anchor, SnapshotSpace.world(end, in: frame)))
+        }
+    }
+
     @Test func frameForNonSelectedVersionUsesItsLane() throws {
         let ws = makeWorkspace()
         let now = try addScreen(ws, id: "now", title: "Checkout")

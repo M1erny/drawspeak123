@@ -4,6 +4,8 @@ import DrawspeakCore
 
 /// ImageIO supports local content-addressed files without UIKit or URLSession's file URL limitations.
 struct SnapshotMarkPreview: View {
+    @Environment(\.colorScheme) private var colorScheme
+    @Environment(\.annotationStyle) private var annotationStyle
     let workspace: Workspace
     let snapshot: Snapshot
     let shape: AnnotationShape
@@ -35,15 +37,16 @@ struct SnapshotMarkPreview: View {
                 Rectangle().fill(Theme.surface)
                 if let croppedImage {
                     Image(decorative: croppedImage, scale: 1).resizable()
+                        .brightness(colorScheme == .dark ? -0.10 : 0)
                 } else {
                     Label { Text("Preview Unavailable", bundle: .module) } icon: { Image(systemName: "photo") }.font(.caption)
                 }
                 AnnotationPreviewShape(annotation: shape, crop: crop)
-                    .stroke(Theme.annotation, lineWidth: Theme.markLineWidth)
+                    .stroke(Theme.annotation, lineWidth: annotationStyle.lineWidth)
                 if let displayNumber {
                     PinBadge(number: displayNumber)
-                        .position(x: min(max((shape.bounds.x - crop.x) / crop.width * fittedWidth, Theme.pinSize), fittedWidth - Theme.pinSize),
-                                  y: min(max((shape.bounds.y - crop.y) / crop.height * fittedWidth / previewAspect, Theme.pinSize), fittedWidth / previewAspect - Theme.pinSize))
+                        .position(x: min(max((shape.bounds.x - crop.x) / crop.width * fittedWidth, annotationStyle.pinSize), fittedWidth - annotationStyle.pinSize),
+                                  y: min(max((shape.bounds.y - crop.y) / crop.height * fittedWidth / previewAspect, annotationStyle.pinSize), fittedWidth / previewAspect - annotationStyle.pinSize))
                 }
             }
             .frame(width: fittedWidth, height: fittedWidth / previewAspect)

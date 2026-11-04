@@ -7,10 +7,11 @@ import SwiftUI
 struct RecordingRing: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
+    @Environment(\.annotationStyle) private var annotationStyle
     var body: some View {
         Circle()
-            .stroke(Theme.annotation, lineWidth: 3)
-            .frame(width: Theme.pinSize + 12, height: Theme.pinSize + 12)
+            .stroke(Theme.annotation, lineWidth: annotationStyle.lineWidth)
+            .frame(width: annotationStyle.pinSize + 12, height: annotationStyle.pinSize + 12)
             .phaseAnimator(reduceMotion ? [1.0] : [1.0, 1.3]) { ring, scale in
                 ring
                     .scaleEffect(scale)

@@ -14,8 +14,16 @@ nonisolated struct PlacedMark: Identifiable, Equatable, Sendable {
 
     var id: String { "\(slotId)#\(noteId.uuidString)" }
 
-    /// World position of the pin: the top-left corner of the mark's bounds.
+    /// Start of an arrow or stroke; otherwise the top-left of the mark bounds.
     var anchor: CGPoint {
+        switch shape {
+        case .arrow(let start, _):
+            return SnapshotSpace.world(start, in: frame)
+        case .stroke(let points):
+            if let first = points.first { return SnapshotSpace.world(first, in: frame) }
+        default:
+            break
+        }
         let bounds = shape.bounds.clamped()
         return SnapshotSpace.world(NPoint(x: bounds.x, y: bounds.y), in: frame)
     }

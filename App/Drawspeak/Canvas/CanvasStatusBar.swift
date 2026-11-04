@@ -20,12 +20,12 @@ struct CanvasStatusBar: View {
                     .font(.footnote)
                     .foregroundStyle(.secondary)
                     .lineLimit(1)
-                    .transition(reduceMotion ? .opacity : .opacity.combined(with: .move(edge: .leading)))
+                    .transition(.opacity)
                     .task(id: status.id) { await expire(status) }
             }
         }
         .padding()
-        .animation(reduceMotion ? .easeInOut : .snappy, value: controller.status)
+        .animation(.easeInOut(duration: reduceMotion ? 0.1 : 0.2), value: controller.status)
     }
 
     private func expire(_ status: CanvasStatus) async {

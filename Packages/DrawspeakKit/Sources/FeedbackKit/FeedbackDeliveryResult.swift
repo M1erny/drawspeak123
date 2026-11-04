@@ -2,6 +2,7 @@ import SwiftUI
 import DrawspeakCore
 
 struct FeedbackDeliveryResult: View {
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     let model: FeedbackPreviewModel
     let entry: OutboxEntry
     var body: some View {
@@ -9,6 +10,8 @@ struct FeedbackDeliveryResult: View {
             VStack(spacing: FeedbackLayout.sectionSpacing) {
                 Text(title)
                     .font(.title2).accessibilityAddTraits(.isHeader)
+                    .id(entry.state)
+                    .transition(reduceMotion ? .opacity : .opacity.combined(with: .offset(y: 8)))
                 switch entry.state {
                 case .sent:
                     if let receipt = entry.receipt { Text(receipt.acknowledgedAt, format: .dateTime.hour().minute()).foregroundStyle(.secondary) }
@@ -20,7 +23,7 @@ struct FeedbackDeliveryResult: View {
                     Button(action: retry) { Text("Try Again", bundle: .module) }.disabled(model.busy)
                 case .readyToSend:
                     Text("May send twice.", bundle: .module).font(.footnote)
-                    Button(action: retry) { Text("Send", bundle: .module) }
+                    Button(action: retry) { Text("Send", bundle: .module).foregroundStyle(.white) }
                         .buttonStyle(.glassProminent).tint(Theme.actionFill).disabled(model.busy)
                 }
                 if let notice = model.reconciliationNotice { Text(notice).font(.subheadline) }

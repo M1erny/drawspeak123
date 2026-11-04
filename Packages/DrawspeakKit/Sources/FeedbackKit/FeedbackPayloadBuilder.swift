@@ -17,11 +17,11 @@ public enum FeedbackPayloadBuilder {
         guard FeedbackPackageBuilder.messageText(for: package).count <= 120_000 else { throw FeedbackLimitError.textTooLong }
     }
 
-    public static func attachments(for package: FeedbackPackage, blobs: BlobStore) async throws -> [OutgoingAttachment] {
+    public static func attachments(for package: FeedbackPackage, blobs: BlobStore, style: AnnotationStyle = .standard) async throws -> [OutgoingAttachment] {
         try validate(package)
         var result: [OutgoingAttachment] = []
         for group in package.groups {
-            let png = try await CompositeRenderer.render(snapshot: group.snapshot, items: group.items, blobs: blobs)
+            let png = try await CompositeRenderer.render(snapshot: group.snapshot, items: group.items, blobs: blobs, style: style)
             result.append(OutgoingAttachment(fileName: group.compositeFileName, contentType: "image/png", data: png))
         }
         for group in package.groups where group.snapshot.kind == .html {

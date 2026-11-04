@@ -19,6 +19,7 @@ struct ScreenOverlay: View {
     @State private var placements = ScreenOverlayPlacements()
     static let gap: CGFloat = 2
 
+    @Environment(\.annotationStyle) private var annotationStyle
     var body: some View {
         let camera = interaction.camera.state
 
@@ -45,11 +46,12 @@ struct ScreenOverlay: View {
                         ordinal: number,
                         label: CanvasLabels.pin(ordinal: number, text: workspace.note(item.mark.noteId)?.text ?? "", shape: item.mark.shape),
                         isFocused: item.mark.noteId == focusedNoteId,
-                        isRecording: item.mark.noteId == recordingNoteId
+                        isRecording: item.mark.noteId == recordingNoteId,
+                        isNewCommit: item.mark.noteId == interaction.commitFeedback.noteId
                     ) {
                         workspace.focusedNoteId = item.mark.noteId
                     }
-                    .offset(x: item.center.x - Theme.minTarget / 2, y: item.center.y - Theme.minTarget / 2)
+                    .offset(x: item.center.x - max(44, annotationStyle.pinSize) / 2, y: item.center.y - max(44, annotationStyle.pinSize) / 2)
                     RecordingBubble(workspace: workspace, noteId: item.mark.noteId, pin: item.center,
                                     bounds: CGRect(x: bubbleInsets.leading + 8, y: bubbleInsets.top + 8,
                                                    width: max(1, interaction.camera.viewSize.width - bubbleInsets.leading - bubbleInsets.trailing - 16),

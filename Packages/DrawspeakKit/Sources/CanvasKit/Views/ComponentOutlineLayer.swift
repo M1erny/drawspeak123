@@ -8,9 +8,10 @@ struct ComponentOutlineLayer: View {
     let pick: ComponentPick
     let camera: CanvasCamera
 
+    @Environment(\.annotationStyle) private var annotationStyle
     var body: some View {
         let zoom = CGFloat(camera.zoom)
-        let lineWidth = 2 / zoom
+        let lineWidth = annotationStyle.lineWidth / zoom
         ZStack(alignment: .topLeading) {
             if let selection = pick.selection, let element = selection.element {
                 let rect = SnapshotSpace.worldRect(element.bounds.clamped(), in: selection.frame)

@@ -9,9 +9,10 @@ struct MarksLayer: View {
     let focusedNoteId: UUID?
     let camera: CanvasCamera
 
+    @Environment(\.annotationStyle) private var annotationStyle
     var body: some View {
         let zoom = CGFloat(camera.zoom)
-        let lineWidth = Theme.markLineWidth / zoom
+        let lineWidth = annotationStyle.lineWidth / zoom
         ZStack(alignment: .topLeading) {
             ForEach(marks) { mark in
                 let isFocused = mark.noteId == focusedNoteId

@@ -13,6 +13,7 @@ final class CanvasInteraction {
     let draft = InkDraft()
     let pick = ComponentPick()
     let status = CanvasStatus()
+    let commitFeedback = CanvasCommitFeedback()
     let inspectors = InspectorRegistry()
 
     var tool: CanvasTool = .hand {
@@ -170,7 +171,7 @@ final class CanvasInteraction {
             }
             return
         }
-        workspace.addNote(snapshotId: snapshotId, shape: shape)
+        commitFeedback.noteId = workspace.addNote(snapshotId: snapshotId, shape: shape)
     }
 
     func markCancelled() {
@@ -360,7 +361,7 @@ final class CanvasInteraction {
             guard let workspace, workspace.currentCanvasId == canvasId,
                   let snapshot = workspace.currentCanvas?.snapshots.first(where: { $0.id == selection.snapshotId }),
                   let target = ComponentTargetBuilder.target(for: selection, snapshot: snapshot, renderHash: renderHash) else { return }
-            workspace.addNote(snapshotId: snapshot.id, shape: .component(target.bounds), domTarget: target)
+            commitFeedback.noteId = workspace.addNote(snapshotId: snapshot.id, shape: .component(target.bounds), domTarget: target)
         }
     }
 

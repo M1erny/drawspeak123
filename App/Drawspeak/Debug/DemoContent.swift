@@ -57,7 +57,7 @@ enum DemoContent {
         .padding(32)
         .frame(width: 390, height: 844)
         .background(.white)
-        let renderer = ImageRenderer(content: view)
+        let renderer = ImageRenderer(content: view.environment(\.colorScheme, .light))
         renderer.scale = 2
         guard let image = renderer.uiImage else { return nil }
         return image.pngData()

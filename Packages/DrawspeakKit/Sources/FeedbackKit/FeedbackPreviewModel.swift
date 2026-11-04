@@ -25,6 +25,16 @@ final class FeedbackPreviewModel {
     private(set) var projectsError: String?
 
     init(workspace: Workspace, canvasId: UUID) { self.workspace = workspace; self.canvasId = canvasId }
+    var annotationStyle: AnnotationStyle { Self.storedAnnotationStyle }
+
+    static var storedAnnotationStyle: AnnotationStyle {
+        let defaults = UserDefaults.standard
+        return AnnotationStyle(
+            lineWidth: defaults.object(forKey: "drawspeak.markLineWidth") == nil ? AnnotationStyle.standard.lineWidth : defaults.double(forKey: "drawspeak.markLineWidth"),
+            pinSize: defaults.object(forKey: "drawspeak.pinSize") == nil ? AnnotationStyle.standard.pinSize : defaults.double(forKey: "drawspeak.pinSize")
+        )
+    }
+
     var entry: OutboxEntry? { workspace.canvas(canvasId)?.outbox.first { $0.id == batchId } }
     private(set) var pendingCount = 0
     private(set) var newNotes: [Note] = []
@@ -199,7 +209,7 @@ final class FeedbackPreviewModel {
         busy = true; error = nil; preparationFailed = false
         defer { busy = false }
         do {
-            let attachments = try await FeedbackPayloadBuilder.attachments(for: package, blobs: workspace.blobs)
+            let attachments = try await FeedbackPayloadBuilder.attachments(for: package, blobs: workspace.blobs, style: annotationStyle)
             let entry: OutboxEntry?
             if toNewThread, let projectId = newThreadProjectId {
                 entry = await workspace.sendToNewThread(

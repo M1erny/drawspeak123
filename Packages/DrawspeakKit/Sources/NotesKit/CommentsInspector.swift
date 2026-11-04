@@ -5,6 +5,8 @@ public struct CommentsInspector: View {
     @Bindable private var workspace: Workspace
     private let onShowSource: (UUID) -> Void
     private let onAddRegion: () -> Void
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @State private var deletionFeedback = 0
     @State private var groups: [CommentGroup] = []
 
     public init(workspace: Workspace, onShowSource: @escaping (UUID) -> Void, onAddRegion: @escaping () -> Void) {
@@ -19,13 +21,20 @@ public struct CommentsInspector: View {
                 ForEach(groups) { group in
                     Section {
                         ForEach(group.notes) { note in
-                            CommentInspectorRow(workspace: workspace, note: note, onShowSource: onShowSource)
+                            CommentInspectorRow(workspace: workspace, note: note, onShowSource: onShowSource) {
+                                deletionFeedback += 1
+                            }
                                 .id(note.id)
+                                .transition(reduceMotion ? .identity : .opacity)
                         }
                     } header: { Text(group.title) }
                 }
             }
             .listStyle(.insetGrouped)
+            .animation(reduceMotion ? nil : .snappy(duration: 0.22), value: groups.map { $0.notes.map(\.id) })
+            // HIG: “Make sure all feedback is accessible.” Status text remains visible without effects.
+            .sensoryFeedback(.selection, trigger: workspace.activeRecording?.recordingId) { _, _ in !reduceMotion }
+            .sensoryFeedback(.impact(weight: .light), trigger: deletionFeedback) { _, _ in !reduceMotion }
             .overlay {
                 if workspace.visibleNotes().isEmpty {
                     ContentUnavailableView {

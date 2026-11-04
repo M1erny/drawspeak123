@@ -9,7 +9,7 @@ import UniformTypeIdentifiers
 enum RegionCropper {
     /// Fraction of the mark's size added around it, so the model sees context.
     static let contextMargin = 0.6
-    static let minimumSide = 0.25
+    static let minimumSide = 0.35
 
     static func png(for note: Note, snapshot: Snapshot, blobs: BlobStore) async -> Data? {
         guard let composite = try? await CompositeRenderer.render(
@@ -18,11 +18,15 @@ enum RegionCropper {
         return crop(composite, to: cropRect(for: note.shape.bounds))
     }
 
-    /// The normalized crop: the mark grown by the margin, at least `minimumSide` wide and tall.
+    /// All dimensions are fractions of the snapshot: add context on each side, then enforce a minimum extent.
     static func cropRect(for bounds: NRect) -> NRect {
-        let width = max(bounds.width * (1 + contextMargin * 2), minimumSide)
-        let height = max(bounds.height * (1 + contextMargin * 2), minimumSide)
-        return NRect(x: bounds.midX - width / 2, y: bounds.midY - height / 2, width: width, height: height).clamped()
+        let width = min(1, max(bounds.width + 2 * max(bounds.width * contextMargin, 0.12), minimumSide))
+        let height = min(1, max(bounds.height + 2 * max(bounds.height * contextMargin, 0.12), minimumSide))
+        return NRect(
+            x: min(max(bounds.midX - width / 2, 0), 1 - width),
+            y: min(max(bounds.midY - height / 2, 0), 1 - height),
+            width: width, height: height
+        )
     }
 
     private static func crop(_ png: Data, to rect: NRect) -> Data? {

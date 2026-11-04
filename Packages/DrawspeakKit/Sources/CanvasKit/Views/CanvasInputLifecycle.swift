@@ -18,6 +18,10 @@ struct CanvasInputLifecycle: ViewModifier {
     func body(content: Content) -> some View {
         let canvas = workspace.currentCanvas
         content
+        .sensoryFeedback(.selection, trigger: tool) { _, _ in !reduceMotion }
+        .sensoryFeedback(.impact, trigger: interaction.commitFeedback.noteId) { _, noteId in
+            !reduceMotion && noteId != nil
+        }
         .onPencilSqueeze(perform: handleSqueeze)
         .onPencilDoubleTap(perform: handleDoubleTap)
         .onChange(of: tool, initial: true) { oldTool, newTool in
@@ -54,7 +58,7 @@ struct CanvasInputLifecycle: ViewModifier {
         if reduceMotion {
             interaction.adoptCamera(camera)
         } else {
-            withAnimation(.smooth(duration: 0.3)) {
+            withAnimation(.spring(response: 0.3, dampingFraction: 0.9)) {
                 _ = interaction.adoptCamera(camera)
             }
         }

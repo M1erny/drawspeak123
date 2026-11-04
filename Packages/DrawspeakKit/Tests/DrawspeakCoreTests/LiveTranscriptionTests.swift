@@ -26,11 +26,12 @@ struct LiveTranscriptionTests {
         #expect(ws.note(id)?.recordings.map(\.state) == [.recording])
     }
 
-    @Test func arrowDoesNotStartVoice() throws {
+    /// Owner decision (2026-11-04): every mark starts voice, arrows and strokes included.
+    @Test func arrowStartsVoiceToo() throws {
         let (ws, voice, _) = try recordingWorkspace()
-        _ = try #require(ws.addNote(snapshotId: "s1", shape: arrowShape, autoVoice: true))
-        #expect(voice.startCount == 0)
-        #expect(ws.activeRecording == nil)
+        let id = try #require(ws.addNote(snapshotId: "s1", shape: arrowShape, autoVoice: true))
+        #expect(voice.startCount == 1)
+        #expect(ws.activeRecording?.noteId == id)
     }
 
     @Test func firstUseAsksForPermissionThenStarts() async throws {

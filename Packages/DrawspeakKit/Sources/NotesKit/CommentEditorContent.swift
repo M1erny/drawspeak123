@@ -4,7 +4,6 @@ import DrawspeakCore
 struct CommentEditorContent: View {
     let workspace: Workspace
     let note: Note
-    @State private var starting = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: NotesMetrics.sectionSpacing) {
@@ -17,14 +16,7 @@ struct CommentEditorContent: View {
             }
             CommentRefinementStatus(workspace: workspace, note: note)
             if workspace.activeRecording?.noteId == note.id {
-                CompactRecordingRow(workspace: workspace)
-            } else {
-                Button(action: record) {
-                    Label { Text("Record", bundle: .module) } icon: { Image(systemName: "mic") }
-                }
-                .labelStyle(.iconOnly)
-                .frame(minWidth: Theme.minTarget, minHeight: Theme.minTarget)
-                .disabled(starting || workspace.activeRecording != nil)
+                RecordingStatus(workspace: workspace)
             }
             if let canvasId = workspace.currentCanvasId {
                 ForEach(note.recordings) { recording in
@@ -34,11 +26,4 @@ struct CommentEditorContent: View {
         }
     }
 
-    private func record() {
-        starting = true
-        Task {
-            await workspace.startRecording(noteId: note.id)
-            starting = false
-        }
-    }
 }

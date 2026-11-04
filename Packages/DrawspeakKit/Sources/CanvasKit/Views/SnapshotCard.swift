@@ -27,24 +27,28 @@ struct SnapshotCard: View {
                 if isMissing {
                     MissingSourceCard(snapshot: snapshot)
                 } else {
-                    if let capture = snapshot.image {
-                        SnapshotImage(url: workspace.blobs.url(for: capture), maxPixelSize: imageMaxPixel, size: slot.frame.size, onFailure: markMissing)
+                    ZStack(alignment: .topLeading) {
+                        if let capture = snapshot.image {
+                            SnapshotImage(url: workspace.blobs.url(for: capture), maxPixelSize: imageMaxPixel, size: slot.frame.size, onFailure: markMissing)
+                        }
+                        if snapshot.kind == .html, showsLiveHTML, let source = snapshot.html, let inspector {
+                            LiveHTMLLayer(
+                                source: source,
+                                blobs: workspace.blobs,
+                                policy: snapshot.renderPolicy ?? .staticNoScript,
+                                viewport: snapshot.viewport,
+                                inspector: inspector,
+                                width: slot.frame.width,
+                                allowsInteraction: allowsInteraction,
+                                snapshot: snapshot,
+                                workspace: workspace,
+                                canvasId: workspace.currentCanvasId
+                            )
+                            .id("\(snapshot.id)-\(allowsInteraction)")
+                        }
                     }
-                    if snapshot.kind == .html, showsLiveHTML, let source = snapshot.html, let inspector {
-                        LiveHTMLLayer(
-                            source: source,
-                            blobs: workspace.blobs,
-                            policy: snapshot.renderPolicy ?? .staticNoScript,
-                            viewport: snapshot.viewport,
-                            inspector: inspector,
-                            width: slot.frame.width,
-                            allowsInteraction: allowsInteraction,
-                            snapshot: snapshot,
-                            workspace: workspace,
-                            canvasId: workspace.currentCanvasId
-                        )
-                        .id("\(snapshot.id)-\(allowsInteraction)")
-                    }
+                    // Presentation only: stored captures and exported source colors stay intact.
+                    .brightness(colorScheme == .dark ? -0.10 : 0)
                 }
             } else {
                 ContentUnavailableView(String(localized: "No Version", bundle: .module), systemImage: "square.dashed")
@@ -56,7 +60,7 @@ struct SnapshotCard: View {
         .clipShape(.rect(cornerRadius: Theme.cardCornerRadius))
         .overlay {
             RoundedRectangle(cornerRadius: Theme.cardCornerRadius)
-                .strokeBorder(CanvasMetrics.separator.opacity(colorScheme == .dark ? 1 : 0), lineWidth: 0.5)
+                .strokeBorder(colorScheme == .dark ? Theme.secondaryInk : .clear, lineWidth: 1)
                 .allowsHitTesting(false)
         }
         .shadow(color: .black.opacity(colorScheme == .dark ? 0.2 : 0.08), radius: 8, y: 2)

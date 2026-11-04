@@ -6,6 +6,28 @@ import Testing
 @MainActor
 @Suite("Prototype annotation isolation")
 struct CanvasInteractionTests {
+    @Test func commitFeedbackTracksArrowAndPenButIgnoresCancellation() throws {
+        for tool in [CanvasTool.arrow, .pen] {
+            let ws = makeWorkspace()
+            let snapshot = try addScreen(ws, id: "screen", title: "Review")
+            let layout = CanvasWorldLayout(canvas: try #require(ws.currentCanvas))
+            let frame = try #require(layout.frame(forSnapshot: snapshot.id))
+            let input = CanvasInteraction()
+            input.workspace = ws
+            input.tool = tool
+            let start = CGPoint(x: frame.midX, y: frame.midY)
+            let end = CGPoint(x: start.x + 80, y: start.y + 80)
+            #expect(input.markBegan(at: start, kind: .pencil, force: nil, time: 0))
+            input.markCancelled()
+            #expect(input.commitFeedback.noteId == nil)
+            #expect(input.markBegan(at: start, kind: .pencil, force: nil, time: 1))
+            input.markMoved(to: end, force: nil, time: 2)
+            input.markEnded(at: end)
+            let note = try #require(ws.currentCanvas?.notes.first)
+            #expect(input.commitFeedback.noteId == note.id)
+        }
+    }
+
     @Test func tryingOneCardBlocksItsMarksAndLeavesOtherCardsAvailable() throws {
         let fixture = try TwoScreenFixture()
         let html = try addHTMLProposal(fixture.ws, screenId: fixture.s1, proposal: "A", id: "prototype")

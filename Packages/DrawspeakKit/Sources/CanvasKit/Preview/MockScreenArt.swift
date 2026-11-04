@@ -32,11 +32,12 @@ struct MockScreenArt: View {
         .padding(24)
         .frame(width: 390, height: 844)
         .background(.white)
+        .environment(\.colorScheme, .light)
     }
 
     /// PNG bytes at 1× scale.
     func pngData() -> Data? {
-        let renderer = ImageRenderer(content: self)
+        let renderer = ImageRenderer(content: self.environment(\.colorScheme, .light))
         renderer.scale = 1
         return renderer.uiImage?.pngData()
     }

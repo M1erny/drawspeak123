@@ -13,8 +13,9 @@ struct SettingsView: View {
         NavigationStack {
             Form {
                 Section {
-                    Toggle("Record After Marking", isOn: $autoVoice)
-                    Toggle("Refine with Claude", isOn: $refineWithClaude)
+                    Toggle("Record After Marking", isOn: $autoVoice).tint(Theme.actionFill)
+                    Toggle("Refine with Claude", isOn: $refineWithClaude).tint(Theme.actionFill)
+                    NavigationLink("Refine Instructions") { RefineInstructionsView() }
                     Picker("Language", selection: $language) {
                         ForEach(TranscriptionLanguage.allCases) { option in
                             Text(option.title).tag(option.rawValue)
@@ -26,8 +27,10 @@ struct SettingsView: View {
                     Text("Audio goes to ElevenLabs; refining sends the marked area and its text to Anthropic.")
                 }
 
+                MarksSettingsSection()
+
                 Section("Apple Pencil") {
-                    Toggle("Draw with Finger", isOn: $drawWithFinger)
+                    Toggle("Draw with Finger", isOn: $drawWithFinger).tint(Theme.actionFill)
                 }
 
                 T3ConnectionSection(connection: model.connection)

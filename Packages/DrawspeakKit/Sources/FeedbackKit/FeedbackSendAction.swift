@@ -9,7 +9,7 @@ struct FeedbackSendAction: View {
         Button(action: send) {
             HStack {
                 if model.busy { ProgressView().tint(.white) }
-                Text("Send", bundle: .module)
+                Text("Send", bundle: .module).foregroundStyle(.white)
             }
         }
         .buttonStyle(.glassProminent).tint(Theme.actionFill)

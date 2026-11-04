@@ -34,7 +34,7 @@ struct FeedbackSnapshotGroup: View {
             return
         }
         do {
-            let png = try await CompositeRenderer.render(snapshot: snapshot, items: group.items, blobs: model.workspace.blobs, maxLongSide: 900)
+            let png = try await CompositeRenderer.render(snapshot: snapshot, items: group.items, blobs: model.workspace.blobs, maxLongSide: 900, style: model.annotationStyle)
             let decoded = try await FeedbackImageWorker.decode(png)
             try Task.checkCancellation()
             thumbnail = decoded

@@ -100,7 +100,9 @@ final class AppModel {
             return TranscriptionLanguage(rawValue: raw)?.providerCode
         }
         recorder.onInterruption = { [weak workspace] in workspace?.stopRecording() }
-        let refiner = ClaudeRefiner()
+        let refiner = ClaudeRefiner(instructions: {
+            UserDefaults.standard.string(forKey: "drawspeak.refineInstructions") ?? ""
+        })
         workspace.refiner = refiner
         workspace.refinerModelId = "claude-sonnet-5-5"
         workspace.refineEnabled = { UserDefaults.standard.bool(forKey: AppPreferences.refineWithClaude) }
