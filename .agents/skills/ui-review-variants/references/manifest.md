@@ -60,3 +60,23 @@ For an HTML snapshot add `artifactKind: "html"`, `htmlPath` (or bundled entrypoi
 Use `static-no-script` for the current inspector. A future isolated scripted renderer needs a distinct supported policy identifier; never label its output as verified by the static inspector. Resolve assets inside the bundle and exclude credentials.
 
 A note's `domTarget` references the snapshot and hashes, has a version-local locator (prefer unique data-review-id), human label, hit-to-root chain, depth/layer and normalized capture bounds. Pressure changes parent depth; a separate layer choice selects underneath stacked elements. Never carry a locator into a new iteration as stable identity.
+
+## Text bundle in a reply
+
+T3 Code does not let the app download thread attachments over MCP (see docs/T3-MCP-CONTRACT.md section 10). The skill therefore returns HTML proposals inline. Example:
+
+`````text
+````drawspeak-manifest
+{"schemaVersion":1,"reviewId":"review-checkout","threadId":null,"runId":null,"status":"ready_for_review",
+ "snapshots":[{"snapshotId":"checkout-a-002","screenId":"checkout-default","screenTitle":"Checkout","role":"proposal",
+  "proposalId":"a","iteration":2,"parentSnapshotId":"checkout-a-001","artifactKind":"html",
+  "htmlPath":"prototypes/a/index.html","htmlSha256":"<sha256 of the file text>","renderPolicy":"static-no-script",
+  "widthPx":780,"heightPx":1688,"viewport":{"width":390,"height":844,"deviceScaleFactor":2},
+  "changeSummary":"Total shown on the pay button.","addressedNoteIds":["<noteId>"]}]}
+````
+````drawspeak-file path="prototypes/a/index.html"
+<!doctype html>...
+````
+`````
+
+Rules: the file text between the fence lines is hashed as UTF-8, without the newline before the closing fence. Paths are relative and inside the bundle. `imagePath`/`sha256` are optional for HTML entries; when present the image must be in the same message as an attachment the app can read (not available over MCP today), so omit them. Each reply is imported once. Use `screenId` values that already exist on the canvas to add iterations next to Now; a new `screenId` creates a new row.

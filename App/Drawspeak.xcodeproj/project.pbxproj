@@ -35,11 +35,13 @@
 		B3DA028751E353ED82B317E6 /* DrawspeakCore in Frameworks */ = {isa = PBXBuildFile; productRef = 89DF02360DDD4852B034BE3D /* DrawspeakCore */; };
 		BC157EFCB01BA67986C58282 /* ScreenTargetSection.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5E185A29C9B4EEA0B5BCDD91 /* ScreenTargetSection.swift */; };
 		BE9CC8A59724B825E1574F7F /* ThreadLabel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 099FD2F15675489393ECD7C8 /* ThreadLabel.swift */; };
+		C9A3AFEC5CD2321136204459 /* DebugLaunch.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7E5CCA45EC340E0486EFA6F2 /* DebugLaunch.swift */; };
 		D02F7D030760D7A21F3EADCE /* DrawspeakApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = EB673C9598B69A84008C4B9A /* DrawspeakApp.swift */; };
 		DA4AB67A6D33D171DF14EB19 /* EmptyCanvasView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 152B148FD406395E55F0D4C5 /* EmptyCanvasView.swift */; };
 		DA84CBB847E4BCF794B910A0 /* T3Kit in Frameworks */ = {isa = PBXBuildFile; productRef = 5ACE654C782A8816BD7ED19A /* T3Kit */; };
 		E0B728AB84B8598E26F2B3BB /* CanvasRow.swift in Sources */ = {isa = PBXBuildFile; fileRef = 99F3EF3432FF138945429BB5 /* CanvasRow.swift */; };
 		E2B8529089705EA304100F22 /* CanvasChrome.swift in Sources */ = {isa = PBXBuildFile; fileRef = B3D1059689919325CC4F21DC /* CanvasChrome.swift */; };
+		EF9FD73DACB8D6FAE4F2FC19 /* DebugEndToEnd.swift in Sources */ = {isa = PBXBuildFile; fileRef = 316AB0722C72FACC26D723A6 /* DebugEndToEnd.swift */; };
 		F78BF837D9E59E831B52B8D2 /* FeedbackKit in Frameworks */ = {isa = PBXBuildFile; productRef = 8FCF199F604702A8FEDB0E83 /* FeedbackKit */; };
 		FBCBEE1E6C6AF13BD011E94A /* TranscriptionLanguage.swift in Sources */ = {isa = PBXBuildFile; fileRef = A0F095C8880D083ED10D4967 /* TranscriptionLanguage.swift */; };
 		FCF10E406461F183B4081512 /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 52B3AB3A16038AFA32941F6E /* SettingsView.swift */; };
@@ -52,6 +54,7 @@
 		152B148FD406395E55F0D4C5 /* EmptyCanvasView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EmptyCanvasView.swift; sourceTree = "<group>"; };
 		1A9A4FE4E4D0A26B777D9590 /* ImportCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ImportCoordinator.swift; sourceTree = "<group>"; };
 		2D7B1642E79DAEBCA66DE766 /* DemoContent.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DemoContent.swift; sourceTree = "<group>"; };
+		316AB0722C72FACC26D723A6 /* DebugEndToEnd.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DebugEndToEnd.swift; sourceTree = "<group>"; };
 		38B48378852355DDB7CB242F /* PendingImport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PendingImport.swift; sourceTree = "<group>"; };
 		41044AF6133EF776196EC92B /* CanvasTitlePalette.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CanvasTitlePalette.swift; sourceTree = "<group>"; };
 		47C1A23D5CFEB9A13558B99C /* RootView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RootView.swift; sourceTree = "<group>"; };
@@ -61,6 +64,7 @@
 		60E11822E76DD16155CED702 /* CanvasScreen.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CanvasScreen.swift; sourceTree = "<group>"; };
 		73ABD0751107E9263C126BAF /* T3ConnectionSection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = T3ConnectionSection.swift; sourceTree = "<group>"; };
 		743FEDA952252E2177EBB3BB /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
+		7E5CCA45EC340E0486EFA6F2 /* DebugLaunch.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DebugLaunch.swift; sourceTree = "<group>"; };
 		88CE793C2D8EDCE18CC09147 /* CanvasSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CanvasSheet.swift; sourceTree = "<group>"; };
 		8E2C0723DB21282E955398FD /* ElevenLabsKeySection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ElevenLabsKeySection.swift; sourceTree = "<group>"; };
 		8E6CCBF7A5B67116BA620936 /* HTMLCaptureAdapter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HTMLCaptureAdapter.swift; sourceTree = "<group>"; };
@@ -137,6 +141,8 @@
 		5F1760B9977FE3E93D550FF1 /* Debug */ = {
 			isa = PBXGroup;
 			children = (
+				316AB0722C72FACC26D723A6 /* DebugEndToEnd.swift */,
+				7E5CCA45EC340E0486EFA6F2 /* DebugLaunch.swift */,
 				2D7B1642E79DAEBCA66DE766 /* DemoContent.swift */,
 			);
 			path = Debug;
@@ -301,6 +307,8 @@
 				02862C3532C18B769C96C400 /* CanvasSheet.swift in Sources */,
 				7060DD7FF06FFB6FDBB3F121 /* CanvasSidePanels.swift in Sources */,
 				9ED2B05ED20235C3B876D49B /* CanvasTitlePalette.swift in Sources */,
+				EF9FD73DACB8D6FAE4F2FC19 /* DebugEndToEnd.swift in Sources */,
+				C9A3AFEC5CD2321136204459 /* DebugLaunch.swift in Sources */,
 				65A2A296B037CF574856D9E5 /* DemoContent.swift in Sources */,
 				D02F7D030760D7A21F3EADCE /* DrawspeakApp.swift in Sources */,
 				9205A3DCADC83A0C5E9E87B3 /* ElevenLabsKeySection.swift in Sources */,

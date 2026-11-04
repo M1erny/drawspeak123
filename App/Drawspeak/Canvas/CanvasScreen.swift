@@ -77,7 +77,18 @@ struct CanvasScreen: View {
         .sheet(item: $sheet) { sheet in
             sheetContent(sheet)
         }
-        .onAppear { workspace.undoManager = undoManager }
+        .onAppear {
+            workspace.undoManager = undoManager
+            #if DEBUG
+            DebugLaunch.apply(workspace: workspace, sheet: &sheet, tool: &tool)
+            #endif
+        }
+        .task(id: TaskKey(canvasId: workspace.currentCanvasId, hasSize: viewSize != .zero)) {
+            // A canvas that was never framed opens with everything visible.
+            guard let canvas = workspace.currentCanvas, viewSize != .zero,
+                  canvas.camera == CameraState(), !canvas.screens.isEmpty else { return }
+            fitAll()
+        }
         .onChange(of: undoManager) { workspace.undoManager = undoManager }
         .onChange(of: model.connection.state) { model.connectionChanged() }
         .onChange(of: scenePhase) { _, phase in
@@ -89,6 +100,11 @@ struct CanvasScreen: View {
         .onReceive(NotificationCenter.default.publisher(for: .NSUndoManagerDidCloseUndoGroup)) { _ in undoTick += 1 }
         .onReceive(NotificationCenter.default.publisher(for: .NSUndoManagerDidUndoChange)) { _ in undoTick += 1 }
         .onReceive(NotificationCenter.default.publisher(for: .NSUndoManagerDidRedoChange)) { _ in undoTick += 1 }
+    }
+
+    private struct TaskKey: Equatable {
+        var canvasId: UUID?
+        var hasSize: Bool
     }
 
     private var canUndo: Bool { _ = undoTick; return undoManager?.canUndo ?? false }

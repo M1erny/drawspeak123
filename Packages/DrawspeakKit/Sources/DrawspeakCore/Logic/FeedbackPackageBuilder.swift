@@ -54,7 +54,7 @@ public enum FeedbackPackageBuilder {
     public static func messageText(for package: FeedbackPackage) -> String {
         let count = package.items.count
         var lines: [String] = []
-        lines.append("Drawspeak feedback for review \"\(package.canvasTitle)\": \(count) comment\(count == 1 ? "" : "s") on \(package.groups.count) snapshot\(package.groups.count == 1 ? "" : "s").")
+        lines.append("Drawspeak feedback for review \"\(package.canvasTitle)\" [\(package.marker)]: \(count) comment\(count == 1 ? "" : "s") on \(package.groups.count) snapshot\(package.groups.count == 1 ? "" : "s").")
         if package.isRepeat {
             lines.append("Note: this repeats comments that were sent before.")
         }

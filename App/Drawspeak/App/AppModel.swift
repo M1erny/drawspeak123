@@ -40,6 +40,9 @@ final class AppModel {
         }
         #endif
         workspace?.threads = connection.threadService
+        #if DEBUG && targetEnvironment(simulator)
+        if let workspace { await DebugEndToEnd.runIfRequested(workspace: workspace, connection: connection) }
+        #endif
     }
 
     private func configure(_ workspace: Workspace) {
