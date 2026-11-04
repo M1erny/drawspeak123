@@ -1,5 +1,7 @@
 # Transkrypcja ElevenLabs
 
+Aktualny zakres i UX określa [PRD](PRD.md) oraz [ADR-0006](adr/0006-auto-voice-and-elevenlabs.md). Ten dokument zachowuje szczegóły techniczne i datowane granice dowodów; nie oznacza wdrożenia wszystkich wymagań.
+
 Decyzja: ElevenLabs, batch Scribe v2 po `Stop`. Stan na 2026-11-04: istnieje adapter funkcji Node 22 i testy z mockowanym `fetch`; HTML nadal symuluje nagranie/transkrypcję. Nie uruchomiono mikrofonu, API ElevenLabs, provisioningu ani połączenia z T3. Adapter nie jest serwerem HTTP ani endpointem T3.
 
 ## Przebieg docelowy
@@ -7,7 +9,7 @@ Decyzja: ElevenLabs, batch Scribe v2 po `Stop`. Stan na 2026-11-04: istnieje ada
 1. Przy rozpoczęciu nagrania przechwyć `canvasId`, `noteId`, `recordingId`. Automatyczny start po anotacji podlega ustawieniu użytkownika; ponowne otwarcie uwagi nie zaczyna nagrania.
 2. Po `Stop` trwale zapisz audio na iPadzie pod tymi identyfikatorami **przed uploadem**. Zmiana canvasu i przerwanie zapisują dostępną część przy pierwotnej uwadze. Adapter nie implementuje zapisu plików.
 3. Zaufany host pobiera zapisany plik i wywołuje adapter. W tej wersji całe audio wysyłamy po zakończeniu nagrania. Realtime wymaga osobnego transportu i walidacji; nie jest częścią adaptera.
-4. Wynik zapisz jako oryginalną transkrypcję nagrania, oddzielnie od edytowalnego tekstu komentarza. Użytkownik może jawnie dołączyć wynik do tekstu. Późna odpowiedź musi trafić do identyfikatorów z `result.scope`, niezależnie od aktualnego canvasu.
+4. Wynik zapisz automatycznie jako oryginalną transkrypcję nagrania, oddzielnie od edytowalnego tekstu. Gdy tekst nie był edytowany, gotowa transkrypcja zasila komentarz bez osobnego Save Comment. Istniejący tekst użytkownika zachowujemy; wynik można do niego jawnie dołączyć. Późna odpowiedź musi trafić do identyfikatorów z `result.scope`, niezależnie od aktualnego canvasu.
 
 Przed zapisem sprawdź nadal istniejącą uwagę i tożsamość nagrania. Usunięta uwaga, nowe nagranie lub nowszy wynik nie mogą zostać odtworzone/nadpisane przez spóźnioną odpowiedź. Nie wiąż wyniku z „aktualnie zaznaczoną uwagą”.
 

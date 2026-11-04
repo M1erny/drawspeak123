@@ -6,13 +6,24 @@ Pierwszy etap: specyfikacja i interaktywny prototyp kluczowej interakcji. Aplika
 
 ## Pliki
 
-- [Specyfikacja produktu](docs/PRODUCT.md) — wymagania, model, przepływy i kryteria akceptacji.
+- [PRD produktu](docs/PRD.md) — aktualne wymagania całej aplikacji, model, flow i kryteria akceptacji.
+- [Rejestr ADR](docs/adr/README.md) — sześć przyjętych decyzji produktu i architektury.
 - [Prototyp interakcji](prototype/index.html) — samodzielny HTML; otwórz plik w przeglądarce, bez instalacji i serwera.
 - [Integracja T3 Code](docs/T3-INTEGRATION.md) — możliwości potwierdzone w zainstalowanym buildzie i brakujące dowody.
 - [Kierunek wizualny](docs/DESIGN.md).
 - [Skill ui-review-variants](.agents/skills/ui-review-variants/SKILL.md) — źródło skilla projektu; kontrakt manifestu w podkatalogu `references`. Nie instalowano globalnie.
 
+## Docelowy przepływ feedbacku
+
+Zaznaczenie → auto-głos przy ON → Stop → transkrypcja i autosave. Następnie Feedback (N) → podgląd → Send to Agent / Save Draft → Sent / Draft Saved. Po zebraniu gotowych uwag są dwa tapnięcia, bez osobnego Save Comment i dodatkowego potwierdzenia.
+
+Paczka domyślnie obejmuje gotowe, niewysłane uwagi bieżącego canvasu i wyłącznie ich snapshoty. Jeden snapshot występuje raz z wieloma oznaczeniami; różne wersje są osobne. Puste regiony i trwające transkrypcje zostają w szkicu, bez blokowania gotowych uwag. Można odznaczyć uwagi w podglądzie. Draft jest lokalny; Sent wymaga ACK serwera.
+
+Decyzja: [ADR-0004](docs/adr/0004-feedback-package-and-two-tap-delivery.md). Ten najnowszy flow nie jest jeszcze wdrożony w v3.
+
 ## Prototyp v3 — obrazy i HTML
+
+Poniżej opis aktualnego kodu 08bd0da, z wcześniejszym Save Comment / Notes / Review Batch. To instrukcja demonstratora, nie źródło wymagań docelowych. Stan implementacji i różnice opisuje PRD, sekcja 12.
 
 Pełnoekranowy canvas z pływającymi paletami, pan/zoom i Fit All. `Now` jest obrazem, `Proposal A` i `Proposal B` makietami HTML obok siebie. Każda propozycja ma osobny wybór iteracji. Przycisk Canvases otwiera inne review, z osobnym wątkiem, uwagami, stash i kamerą.
 

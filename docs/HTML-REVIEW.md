@@ -1,5 +1,7 @@
 # Obrazy, HTML i wybór komponentu
 
+Aktualny zakres i UX określa [PRD](PRD.md) oraz [ADR-0003](adr/0003-html-component-selection.md). Ten dokument zachowuje szczegóły techniczne i datowane granice dowodów; nie oznacza wdrożenia wszystkich wymagań.
+
 Ten sam canvas przyjmuje obrazy i wersjonowane makiety HTML. Obraz ma anotacje geometryczne. HTML oprócz geometrii ma wskazanie konkretnego elementu DOM i jego wersji.
 
 ## Wybór

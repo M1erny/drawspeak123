@@ -1,5 +1,7 @@
 # T3 Code przez Tailscale
 
+Aktualny zakres i UX określa [PRD](PRD.md) oraz [ADR-0005](adr/0005-t3-transport-and-outbox.md). Ten dokument zachowuje szczegóły techniczne i datowane granice dowodów; nie oznacza wdrożenia wszystkich wymagań.
+
 Stan badania: 2026-11-04. Inspekcja kodu lokalnie zainstalowanego T3 Code Nightly, bez uruchamiania połączenia, zmieniania konfiguracji lub odczytywania sekretów.
 
 Build: `0.1.7-nightly.20261101.4016`, commit `7195b699547b`.
@@ -29,7 +31,7 @@ Natywny klient MCP przez wybrany adres HTTPS T3 Code w tailnecie. Aplikacja korz
 
 Draft/stash jest trwałym zapisem lokalnym na iPadzie. Nie korzysta z `send`, `queue` ani localStorage desktopu. Widoczność stash na desktopie wymagałaby osobnego, obsługiwanego rozszerzenia T3 Code.
 
-Przy wysyłce aplikacja przygotowuje plan załączników i wyświetla odbiorcę oraz liczbę uwag. Wiele uwag na tym samym screenshotcie może być zebranych na jednym kompozycie z numerami; opis zachowuje mapowanie numer → noteId → snapshotId → tekst. Proponowany budżet: do 6 kompozytów, manifest i opcjonalne archiwum audio; razem maksymalnie 8 plików. Oryginały, warstwy Pencil i nagrania pozostają w lokalnym review. Obsługa archiwum przez agenta jest do zweryfikowania. Przekroczenie budżetu zatrzymuje wysłanie i pokazuje sposób ograniczenia paczki; aplikacja nie rozdziela jej automatycznie na wiadomości.
+Przy wysyłce aplikacja przygotowuje plan załączników i wyświetla odbiorcę oraz liczbę uwag. Wiele uwag na tym samym screenshotcie może być zebranych na jednym kompozycie z numerami; opis zachowuje mapowanie numer → noteId → snapshotId → tekst. Przykładowy budżet z wcześniejszego etapu: do 6 kompozytów, manifest i opcjonalne archiwum audio; razem maksymalnie 8 plików. Nie jest to produktowy limit sześciu ekranów. Format większego bundla HTML/obrazów/audio pozostaje do ustalenia według PRD. Oryginały, warstwy Pencil i nagrania pozostają w lokalnym review. Obsługa archiwum przez agenta jest do zweryfikowania. Przekroczenie budżetu zatrzymuje wysłanie i pokazuje sposób ograniczenia paczki; aplikacja nie rozdziela jej automatycznie na wiadomości.
 
 Po przygotowaniu uploadów wykonywana jest jedna operacja wysłania. ACK i identyfikatory serwera zapisujemy lokalnie. Brak odpowiedzi po wysłaniu daje stan `deliveryUnknown`. Nie ponawiamy automatycznie wysłania: najpierw odczyt wątku i uzgodnienie batchId umieszczonego w treści. Lokalny batchId nie zapewnia idempotencji serwera.
 
