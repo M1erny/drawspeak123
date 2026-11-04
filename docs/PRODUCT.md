@@ -19,7 +19,7 @@ Sukces użytkownika: „Przekazałem jeden spójny zestaw uwag i porównałem pr
 
 Hierarchia: `Project → ReviewCanvas → T3Thread`. Projekt zawiera wiele canvasów, każdy związany z dokładnie jednym wątkiem T3 Code. Powiązanie jest widoczne w nagłówku; utworzenie kolejnego canvasu jest domyślną drogą do pracy z innym wątkiem (**Mental Model**, **Recognition Over Recall**).
 
-Na canvasie stale widoczne są `Now`, propozycje, status połączenia, `Import`, `Pull` i licznik uwag. Panel szczegółów pokazuje komentarz oraz metadane wybranego obrazu. Historia wersji i ustawienia połączenia są o jeden krok dalej (**Progressive Disclosure**, **Method of Loci**).
+Canvas zajmuje całe okno na wzór Freeform. `Now`, `Proposal A` i `Proposal B` są obok siebie w tej samej przestrzeni, a iteracje wybiera się osobno dla każdej propozycji. Pływające palety zawierają nawigację canvas/wątek, narzędzia i licznik uwag. Uwagi, ustawienia i szczegóły otwierają się jako czasowe panele nad canvasem; brak stałego sidebaru. Historia wersji i ustawienia połączenia są o jeden krok dalej (**Progressive Disclosure**, **Method of Loci**).
 
 Priorytety zadań: 1) oznaczyć UI, 2) zebrać i przejrzeć uwagi, 3) wysłać lub odłożyć paczkę, 4) pobrać i porównać wynik. W danym kontekście tylko jedna akcja ma najsilniejszą wagę wizualną (**Pareto Principle**, **Hick's Law**).
 
@@ -73,9 +73,9 @@ Canvas jest nieskończoną przestrzenią z pan/zoom i obrazami jako kartami; MVP
 
 Paleta zawiera `Region`, `Arrow`, `Freehand`, `Select`, `Undo`. Pencil Pro squeeze otwiera ją przy narzędziu, a widoczny przycisk daje tę samą drogę na innych urządzeniach. Zamknięty obrys regionu tworzy kotwicę komentarza i otwiera panel `Add comment`; strzałka i freehand mogą istnieć bez komentarza. `Undo` dotyczy lokalnych zmian, a nie odwołania wysłanej wiadomości (**Fitts's Law**, **Feedforward**).
 
-Sekwencja głosowa: `Select region → Record comment → Stop → Review transcript → Save comment`. Użytkownik wybiera PL/EN, poprawia tekst i może odsłuchać audio. Zapis obejmuje audio oraz zatwierdzony tekst; transkrypcja źródłowa jest zachowana osobno. Nie nagrywamy automatycznie po zaznaczeniu (**Default Bias**, **Feedforward**).
+Sekwencja głosowa: `Select region → Auto-start recording → Stop → Review transcript → Save comment`. Po wyłączeniu auto-startu dostępne są tekst i ręczny `Record comment`. Użytkownik wybiera PL/EN, poprawia tekst i może odsłuchać audio. Zapis obejmuje audio oraz zatwierdzony tekst; transkrypcja źródłowa jest zachowana osobno. Domyślnie nagrywamy automatycznie po zakończeniu nowego zaznaczenia; ustawienie `Auto-start voice after selection` wyłącza auto-start. To jawne wymaganie użytkownika, zastępujące wcześniejszy ręczny start (**Default Bias**, **Feedforward**).
 
-Zgoda na mikrofon i ewentualne rozpoznawanie mowy jest proszona dopiero po `Record comment`, z wyjaśnieniem zastosowania. Odmowa daje edycję tekstową i link do ustawień, bez ponawiania próśb w pętli. Błąd transkrypcji zachowuje już zapisane audio; przerwanie nagrania zapisuje dostępną część z jawnym statusem. Brak miejsca blokuje nowe nagranie z czytelną naprawą. Wymagany lokalny zapis audio przed rozpoczęciem transkrypcji (**Reactance**, **Negativity Bias**).
+Zgoda na mikrofon i ewentualne rozpoznawanie mowy jest proszona w kontekście pierwszego nowego zaznaczenia uruchamiającego głos albo ręcznego `Record comment`, z wyjaśnieniem zastosowania. Odmowa daje edycję tekstową i link do ustawień, bez ponawiania próśb w pętli. Błąd transkrypcji zachowuje już zapisane audio; przerwanie nagrania zapisuje dostępną część z jawnym statusem. Brak miejsca blokuje nowe nagranie z czytelną naprawą. Wymagany lokalny zapis audio przed rozpoczęciem transkrypcji (**Reactance**, **Negativity Bias**).
 
 ## 7. Cykl paczki i bezpieczne dostarczanie
 
@@ -107,7 +107,7 @@ UI odróżnia lokalny zapis, stan tailnet, dostępność usługi i świeżość 
 
 ## 10. Etapy i kryteria akceptacji
 
-**M1 — specyfikacja i HTML:** interaktywny canvas, fixture screenshoty, oznaczanie regionu/strzałki/freehand, edytowalne komentarze, podgląd jednej paczki, lokalny draft/stash, symulowana odpowiedź i porównanie. Swobodny pan/zoom, promotion baseline oraz zarządzanie wieloma projektami/canvasami pozostają w specyfikacji natywnego MVP; nie są zaimplementowane w demonstratorze M1. Nagranie/transkrypcja i squeeze mogą mieć opisany demonstrator; etykieta informuje o symulacji. Trwałość przeglądarkowego szkicu wymaga osobnego sprawdzenia i nie dowodzi natywnej trwałości.
+**M1 — specyfikacja i HTML (v1):** interaktywny canvas, fixture screenshoty, oznaczanie regionu/strzałki/freehand, edytowalne komentarze, podgląd jednej paczki, lokalny draft/stash, symulowana odpowiedź i porównanie. Swobodny pan/zoom, promotion baseline oraz zarządzanie wieloma projektami/canvasami pozostają w specyfikacji natywnego MVP; nie są zaimplementowane w demonstratorze M1. Nagranie/transkrypcja i squeeze mogą mieć opisany demonstrator; etykieta informuje o symulacji. Trwałość przeglądarkowego szkicu wymaga osobnego sprawdzenia i nie dowodzi natywnej trwałości.
 
 **M2 — spike integracji:** walidacja odkrytego kontraktu T3 na uruchomionym hoście, manifestu screenshotów/statusów, uploadów i jednej wiadomości z załącznikami, potwierdzeń oraz uzgadniania niepewnej wysyłki. Decyzja oraz dowody dla natywnego Tailscale i speech PL/EN. Brak potwierdzonej funkcji pozostaje oznaczony jako niedostępny.
 
@@ -131,3 +131,13 @@ Hipoteza przed testem: użytkownik rozróżni zapis lokalny od wysyłki i wskaż
 Zakładana krzywa emocji: import 0 → anotacja +1 → kompletna paczka +2 → niepewna wysyłka −2 → wyjaśniony stan i zachowany szkic 0 → porównanie +1. To hipoteza do obserwacji, nie wynik badań. Brak wymuszonego zakończenia i brak fikcyjnych sukcesów łagodzą najgorszy moment (**Peak-End Rule**, **Negativity Bias**).
 
 Sprawdzenie etyczne: jawne domyślne `Save draft` pomaga zachować kontrolę; `Send to agent` pozostaje bezpośrednio dostępne. Spełnia transparency, symmetry, reversibility lokalnej edycji i alignment. Zdalne wykonanie może być nieodwracalne, więc jego skutki są widoczne przed akcją. Brak presji, manipulacyjnych liczników, nagabywania o zgody i ukrytego uruchamiania agenta. Nie projektujemy conversion moves; pierwszeństwo ma ukończenie zadania użytkownika.
+
+## 12. Aktualizacja v2 — wymagania użytkownika
+
+Cztery zmiany mają pierwszeństwo nad opisem v1: pełnoekranowa przestrzeń jak Freeform; propozycje obok siebie; automatyczny komentarz głosowy po zaznaczeniu z ustawieniem wyłączenia; osobne wątki na osobnych canvasach.
+
+Prototyp v2 realizuje pan, zoom/Fit All, trzy widoki równocześnie, niezależne iteracje A/B, przełączanie fixture canvasów z izolacją uwag i stash, panel komentarza oraz automatyczny start jawnie symulowanego głosu. Palec domyślnie przesuwa canvas; ustawienie Draw with finger pozwala rysować. Region uruchamia głos; strzałka/freehand są dodatkowymi narzędziami i nie rozpoczynają go samoczynnie. Otwarcie istniejącej uwagi, restart i zmiana canvasu nie rozpoczynają nagrania.
+
+Aktywne nagranie zawsze należy do canvasId/noteId, przy których się rozpoczęło. Zmiana canvasu lub ukrycie aplikacji kończy je, zapisując dostępną część do pierwotnej uwagi. Mikrofon, permission flow, transkrypcja i fizyczny Pencil Pro pozostają do implementacji natywnej. Nie wolno utożsamiać widocznego demo timera z działającym audio.
+
+HTML ma własny magazyn localStorage v2; nie migruje prototypowych danych v1. Importy mają niezmienny snapshotId, lecz bajty są dostępne wyłącznie w bieżącej sesji; brakujące obrazy są oznaczone, a dodawanie nowych uwag na nich zablokowane. Natywne MVP ma trwały zapis całych zasobów. Jawna promocja baseline i adapter T3 nadal nie są zaimplementowane.
