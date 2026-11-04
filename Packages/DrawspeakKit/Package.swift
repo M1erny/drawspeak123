@@ -19,6 +19,7 @@ let package = Package(
         .library(name: "CanvasKit", targets: ["CanvasKit"]),
         .library(name: "FeedbackKit", targets: ["FeedbackKit"]),
         .library(name: "NotesKit", targets: ["NotesKit"]),
+        .library(name: "RefineKit", targets: ["RefineKit"]),
     ],
     targets: [
         .target(
@@ -34,12 +35,14 @@ let package = Package(
             swiftSettings: mainActorDefault
         ),
         .target(name: "CanvasKit", dependencies: ["DrawspeakCore", "HTMLKit"], resources: [.process("Resources")], swiftSettings: mainActorDefault),
+        .target(name: "RefineKit", dependencies: ["DrawspeakCore"], resources: [.process("Resources")], swiftSettings: mainActorDefault),
         .target(name: "NotesKit", dependencies: ["DrawspeakCore"], resources: [.process("Resources")], swiftSettings: mainActorDefault),
         .target(name: "FeedbackKit", dependencies: ["DrawspeakCore", "HTMLKit"], resources: [.process("Resources")], swiftSettings: mainActorDefault),
         .testTarget(name: "DrawspeakCoreTests", dependencies: ["DrawspeakCore"]),
         .testTarget(name: "T3KitTests", dependencies: ["T3Kit", "DrawspeakCore"]),
         .testTarget(name: "VoiceKitTests", dependencies: ["VoiceKit", "DrawspeakCore"]),
         .testTarget(name: "CanvasKitTests", dependencies: ["CanvasKit", "HTMLKit", "DrawspeakCore"]),
+        .testTarget(name: "RefineKitTests", dependencies: ["RefineKit", "DrawspeakCore"]),
         .testTarget(name: "HTMLKitTests", dependencies: ["HTMLKit", "DrawspeakCore"]),
     ]
 )

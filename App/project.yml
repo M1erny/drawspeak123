@@ -44,6 +44,8 @@ targets:
         product: NotesKit
       - package: DrawspeakKit
         product: FeedbackKit
+      - package: DrawspeakKit
+        product: RefineKit
     info:
       path: Drawspeak/Info.plist
       properties:
@@ -53,6 +55,7 @@ targets:
         ITSAppUsesNonExemptEncryption: false
         LSApplicationCategoryType: public.app-category.developer-tools
         DSElevenLabsAPIKey: $(ELEVENLABS_API_KEY)
+        DSAnthropicAPIKey: $(ANTHROPIC_API_KEY)
         NSMicrophoneUsageDescription: Drawspeak records your spoken comment about the part of the screen you marked.
         UILaunchScreen:
           UIColorName: LaunchBackground

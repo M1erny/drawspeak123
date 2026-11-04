@@ -1,3 +1,4 @@
 // Shared build settings. Secrets.xcconfig is generated at release time and never committed.
 ELEVENLABS_API_KEY =
+ANTHROPIC_API_KEY =
 #include? "Secrets.xcconfig"
