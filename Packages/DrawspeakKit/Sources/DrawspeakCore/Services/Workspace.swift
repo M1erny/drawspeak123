@@ -637,6 +637,20 @@ public final class Workspace {
         removeNote(id, canvasId: canvasId)
     }
 
+    /// Deletes several comments as one step: a single Undo brings them all back.
+    public func deleteNotes(_ ids: Set<UUID>, canvasId: UUID? = nil) {
+        guard !ids.isEmpty else { return }
+        let grouped = undoManager.map { manager -> Bool in
+            manager.beginUndoGrouping()
+            return true
+        } ?? false
+        for id in ids { deleteNote(id, canvasId: canvasId) }
+        if grouped, let undoManager {
+            undoManager.endUndoGrouping()
+            undoManager.setActionName(ids.count == 1 ? "Delete Comment" : "Delete \(ids.count) Comments")
+        }
+    }
+
     /// Removes a note and registers exactly one undo action. Never touches capture.
     private func removeNote(_ id: UUID, canvasId: UUID) {
         guard let canvas = canvas(canvasId), let index = canvas.notes.firstIndex(where: { $0.id == id }) else { return }
