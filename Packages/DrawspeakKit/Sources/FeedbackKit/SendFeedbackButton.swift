@@ -19,6 +19,7 @@ public struct SendFeedbackButton: View {
         }
         .buttonStyle(.glassProminent)
         .tint(Theme.actionFill)
+        .disabled(count == 0)
         .frame(minHeight: Theme.minTarget)
         .accessibilityValue(Text("^[\(count) comment](inflect: true)", bundle: .module))
         .accessibilityHint(Text("Reviews comments before sending.", bundle: .module))
