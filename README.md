@@ -17,11 +17,15 @@ Pierwszy etap: specyfikacja i interaktywny prototyp kluczowej interakcji. Aplika
 Pełnoekranowy canvas z pływającymi paletami, pan/zoom i Fit All. `Now`, `Proposal A` i `Proposal B` są obok siebie. Każda propozycja ma osobny wybór iteracji. Przycisk Canvases otwiera inne review, z osobnym wątkiem, uwagami, stash i kamerą.
 
 1. Zakreśl region myszą/Pencilem. Automatycznie otworzy się panel symulowanego nagrania. Palec domyślnie przesuwa canvas; rysowanie palcem można włączyć.
-2. `Stop` tworzy przykładową transkrypcję PL/EN; popraw tekst i `Save Comment`. `Cancel Recording` zatrzymuje demo i zachowuje zaznaczenie oraz wpisany tekst.
+2. `Stop` tworzy przykładową transkrypcję PL/EN; popraw tekst i `Save Comment`. `Discard` odrzuca bieżące nagranie i pusty region; wpisany tekst oraz wcześniejsze nagrania pozostają. Usunięty region można przywrócić przez Undo. Przerwanie lub zmiana canvasu zachowuje wpisany tekst, bez dopisywania przykładowej transkrypcji.
 3. `Auto Voice On` otwiera ustawienia; wyłączenie auto-startu dotyczy nowych zaznaczeń. Wtedy można pisać lub wybrać `Start Demo Voice`.
-4. Otwórz `Notes`, wybierz uwagi i `Save Stash` albo `Review Batch`. Wszystkie uwagi w paczce należą do jednego canvasu/wątku. `Simulate Send` nie wysyła prawdziwej wiadomości.
+4. Otwórz `Notes`, wybierz uwagi i `Save Stash` albo `Review Batch`. `Load Copies` odtwarza stash jako nowe uwagi bez nadpisywania aktualnych edycji. Wszystkie uwagi w paczce należą do jednego canvasu/wątku. `Simulate Send` nie wysyła prawdziwej wiadomości.
 5. Zmień canvas. Własne uwagi i stash nie mieszają się z drugim wątkiem. Aktywne nagranie kończy się na pierwotnym zaznaczeniu.
 6. Menu `Canvas Actions` zawiera import, demo pull i eksport JSON.
+
+Kontrolki wersji i piny mają stały rozmiar ekranowy przy zoomie. `Notes → Add Region` udostępnia zaznaczenie bez rysowania, z wyborem obrazu i edycją geometrii. Stare uwagi mają podgląd oryginału i `Show Source on Canvas`. Przypadkowe małe pociągnięcia nie uruchamiają głosu.
+
+`Review Batch` grupuje miniatury z adnotacjami i tekstem; brak importowanego obrazu blokuje symulację wysłania. Wynik symulacji pozostaje w panelu i historii, wysłane w demo uwagi są odznaczane, a świadome ponowienie ma ostrzeżenie.
 
 ## Granice dowodów
 

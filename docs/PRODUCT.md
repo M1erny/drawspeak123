@@ -141,3 +141,13 @@ Prototyp v2 realizuje pan, zoom/Fit All, trzy widoki równocześnie, niezależne
 Aktywne nagranie zawsze należy do canvasId/noteId, przy których się rozpoczęło. Zmiana canvasu lub ukrycie aplikacji kończy je, zapisując dostępną część do pierwotnej uwagi. Mikrofon, permission flow, transkrypcja i fizyczny Pencil Pro pozostają do implementacji natywnej. Nie wolno utożsamiać widocznego demo timera z działającym audio.
 
 HTML ma własny magazyn localStorage v2; nie migruje prototypowych danych v1. Importy mają niezmienny snapshotId, lecz bajty są dostępne wyłącznie w bieżącej sesji; brakujące obrazy są oznaczone, a dodawanie nowych uwag na nich zablokowane. Natywne MVP ma trwały zapis całych zasobów. Jawna promocja baseline i adapter T3 nadal nie są zaimplementowane.
+
+### Decyzje po trzech krytykach
+
+Recenzje Sol / Grok 4.7 / Opus 5.5 dotyczą kandydata z commitu 8e7f21f, nie końcowej poprawionej wersji. Rozstrzygnięcia są w docs/reviews/DECISIONS.md.
+
+Po review nagłówki, wybór iteracji i kotwice są w warstwie nieskalowanej, a numery uwag są stałe w obrębie canvasu. Add Region zapewnia alternatywę dla gestu. Prototyp przyjmuje zamknięty obrys albo świadomy diagonalny drag; próg intencji jest liczony w ekranowych CSS px (min. bounding box 18×18 i przekątna 32), co wymaga kalibracji na fizycznym iPadzie.
+
+Nagrywanie ma wąski pasek i REC przy kotwicy. Wyłącznie jawne Stop generuje przykład transkrypcji, przechowywany oddzielnie jako audio.transcript. Tekst użytkownika nie jest nadpisywany; można dołączyć transkrypcję. Przerwanie nie fabrykuje wypowiedzi, a pusta przerwana uwaga jest odznaczana. Discard usuwa pusty region odwracalnie. Natywne audio nie jest jeszcze implementowane.
+
+Load Copies tworzy nowe uwagi z zachowaniem snapshotId i sourceNoteId; nie nadpisuje aktualnego tekstu. Undo obejmuje tworzenie/usuwanie anotacji i odtwarzanie kopii, ale nie pełną historię edycji tekstu ani Redo. Wysyłka demo ma miniatury, kontrolę brakujących obrazów i trwałe potwierdzenie; po symulacji odznacza uwagi.

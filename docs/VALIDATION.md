@@ -22,3 +22,20 @@ Rzeczywiste gesty użytkownika na iPadzie i import różnych proporcji nie miał
 Brak natywnego projektu Xcode/builda, testów Pencil Pro squeeze, nagrania i odsłuchu, transkrypcji PL/EN, natywnego zapisu/odtwarzania, OAuth i tailnet, uploadów, realnej wysyłki/pull, uzgodnienia timeoutów i importera manifestu. SwiftUI i integracja są kolejnym etapem, nie wynikiem tej weryfikacji.
 
 Nie uruchamiano serwera deweloperskiego, instalacji pakietów, Dockera ani wysyłki do agenta. Nie utworzono zdalnego repo ani PR.
+
+## V2 po Sol / Grok 4.7 / Opus 5.5
+
+Kandydat oceniony niezależnie: commit 8e7f21f, SHA-256 HTML 2c69cfa0e2abce2e5943ce1f84f98285b2a4df9e94df79b1184ee83a4f0b2598. Raporty i decyzje: docs/reviews/DECISIONS.md.
+
+Końcowy HTML po poprawkach: SHA-256 c5d564cb3adb1940520214c2b6755d5531369dfef174966733792637a4f3a277.
+
+- Pierwszy queued model check zakończył się exit 75: timeout kolejki, nie uruchomił testów. To nie był pass.
+- Ostateczny: ~/.local/bin/heavy-check node scripts/check-model.cjs — exit 0. Sprawdza rzeczywisty model inline oraz finalizer nagrywania z zastąpionymi wyłącznie efektami widoku: ustawienia, kopie geometrii i stash, grupowanie wiadomości, izolację canvas/thread, stabilne numery, Undo dokładnej uwagi, próg świadomego regionu, explicit Stop vs cancel/interruption, zachowanie tekstu użytkownika, osobną surową transkrypcję, zapis do pierwotnego właściciela, guard brakującego obrazu, roundtrip zapisu i składnię pełnego skryptu.
+- Node syntax check: exit 0 dla aktualnego skryptu wyodrębnionego z HTML.
+- html_preview końcowego kodu: 1194, 728, 390 CSS px; brak komunikatów konsoli. Screenshoty final-1194.png, final-728.png, final-390.png w docs/reviews/.
+- Stany inscenizowane rzeczywistymi funkcjami aplikacji: nowy region → auto-start (final-recording-1194.png), podgląd paczki przez kliknięcie kontrolki w skrypcie (final-batch-1194.png), Add Region bez rysowania (final-region-728.png). Brak błędów konsoli. To potwierdza renderowanie tych stanów, nie pełne przejście gestem użytkownika.
+- Przegląd wizualny: nieskalowane selektory i piny, brak jednoczesnego Start/Stop, REC przy kotwicy, wąski recorder bez zasłaniania B, miniatury screenshotów z numerowanymi obrysami w paczce, dostępne pola geometrii.
+
+Nie wykonano ponownego niezależnego review po poprawkach ani nie nadano nowego score HIG/UX. Oceny z raportów dotyczą wyłącznie kandydata. Podstawowa wersja dark była sprawdzona na wcześniejszej kopii poprawek; nie jest to akceptacja wszystkich końcowych stanów w dark/increased contrast.
+
+Nadal pending: fizyczny iPad, próg intencji/palm rejection, Pencil Pro squeeze, VoiceOver/Switch Control, Dynamic Type i klawiatura ekranowa, realne audio/przerwania/odsłuch/transkrypcja, trwałe zasoby natywne, OAuth/Tailscale/upload/push/pull. Nie uruchomiono usług, zdalnej wysyłki ani publikacji.
