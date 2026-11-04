@@ -7,6 +7,8 @@ import SwiftUI
 struct MarksLayer: View {
     let marks: [PlacedMark]
     let focusedNoteId: UUID?
+    /// Comments picked in Select mode; drawn as heavily as the focused one.
+    var selectedNoteIds: Set<UUID> = []
     let camera: CanvasCamera
 
     @Environment(\.annotationStyle) private var annotationStyle
@@ -15,7 +17,7 @@ struct MarksLayer: View {
         let lineWidth = annotationStyle.lineWidth / zoom
         ZStack(alignment: .topLeading) {
             ForEach(marks) { mark in
-                let isFocused = mark.noteId == focusedNoteId
+                let isFocused = mark.noteId == focusedNoteId || selectedNoteIds.contains(mark.noteId)
                 let width = isFocused ? lineWidth * 1.8 : lineWidth
                 let path = MarkGeometry.path(for: mark.shape, in: mark.frame, headLength: 14 / zoom)
                 path.stroke(Theme.annotationHalo, style: StrokeStyle(lineWidth: width + 2.5 / zoom, lineCap: .round, lineJoin: .round))

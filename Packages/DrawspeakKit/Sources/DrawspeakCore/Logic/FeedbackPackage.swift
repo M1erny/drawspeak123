@@ -17,6 +17,26 @@ public struct FeedbackPackage: Hashable, Sendable {
     public var groups: [Group]
     public var isRepeat: Bool
     public var createdAt: Date
+    /// Set when a review is split into several messages; nil for a single message.
+    public var part: Part? = nil
+
+    /// One message of a review that is sent as several messages, because one T3 message
+    /// carries at most `FeedbackPackageSplitter.maxAttachmentsPerMessage` attachments.
+    public struct Part: Codable, Hashable, Sendable {
+        /// 1-based position in the series.
+        public var index: Int
+        public var count: Int
+        /// The batch id shared by every part; each part's own batch id is `<seriesId>-<index>`.
+        public var seriesId: String
+
+        public init(index: Int, count: Int, seriesId: String) {
+            self.index = index
+            self.count = count
+            self.seriesId = seriesId
+        }
+
+        public var isLast: Bool { index == count }
+    }
 
     public var items: [BatchItem] { groups.flatMap(\.items) }
     public var manifestFileName: String { "drawspeak-feedback-\(batchId).json" }

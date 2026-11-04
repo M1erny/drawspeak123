@@ -16,8 +16,10 @@ public struct OutboxEntry: Codable, Hashable, Identifiable, Sendable {
     /// Set while the batch starts a new thread that the server has not returned yet.
     /// `thread` then holds the host and the requested title, with an empty `threadId`.
     public var newThread: NewThreadTarget?
+    /// The position of this message when one review was sent as several messages.
+    public var part: FeedbackPackage.Part?
 
-    public init(id: String, createdAt: Date, thread: ThreadBinding, items: [BatchItem], isRepeat: Bool, state: DeliveryState, receipt: DeliveryReceipt? = nil, attempts: [DeliveryAttempt] = [], agentStatus: String? = nil, newThread: NewThreadTarget? = nil) {
+    public init(id: String, createdAt: Date, thread: ThreadBinding, items: [BatchItem], isRepeat: Bool, state: DeliveryState, receipt: DeliveryReceipt? = nil, attempts: [DeliveryAttempt] = [], agentStatus: String? = nil, newThread: NewThreadTarget? = nil, part: FeedbackPackage.Part? = nil) {
         self.id = id
         self.createdAt = createdAt
         self.thread = thread
@@ -28,6 +30,7 @@ public struct OutboxEntry: Codable, Hashable, Identifiable, Sendable {
         self.attempts = attempts
         self.agentStatus = agentStatus
         self.newThread = newThread
+        self.part = part
     }
 }
 

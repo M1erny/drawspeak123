@@ -4,26 +4,32 @@ import DrawspeakCore
 public struct CommentsInspector: View {
     @Bindable private var workspace: Workspace
     private let onShowSource: (UUID) -> Void
+    private let onSend: ((Set<UUID>) -> Void)?
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var deletionFeedback = 0
     @State private var groups: [CommentGroup] = []
     @State private var filter = CommentFilter.all
-    @State private var editMode = EditMode.inactive
-    @State private var selectedIDs: Set<UUID> = []
     @State private var showsDeleteConfirmation = false
     @State private var pendingIDs: Set<UUID> = []
     @State private var pendingCanvasID: UUID?
     @State private var excludedRecording = false
 
     /// `onAddRegion` is retained for source compatibility; the inspector no longer offers Add Region.
-    public init(workspace: Workspace, onShowSource: @escaping (UUID) -> Void, onAddRegion: @escaping () -> Void) {
+    /// `onSend` opens Send Feedback with the comments picked in Select mode.
+    public init(workspace: Workspace, onShowSource: @escaping (UUID) -> Void, onAddRegion: @escaping () -> Void,
+                onSend: ((Set<UUID>) -> Void)? = nil) {
         self.workspace = workspace
         self.onShowSource = onShowSource
+        self.onSend = onSend
     }
+
+    /// Select mode lives in the workspace, so canvas pins can toggle the same selection.
+    private var editMode: EditMode { workspace.commentEditMode }
+    private var selectedIDs: Set<UUID> { workspace.selectedComments }
 
     public var body: some View {
         ScrollViewReader { scroll in
-            List(selection: editMode.isEditing ? $selectedIDs : nil) {
+            List(selection: editMode.isEditing ? $workspace.selectedComments : nil) {
                 ForEach(groups) { group in
                     Section {
                         ForEach(group.notes) { note in
@@ -38,14 +44,14 @@ public struct CommentsInspector: View {
                             }
                             .tag(note.id)
                             .id(note.id)
-                            .selectionDisabled(!editMode.isEditing || !canDelete(note))
+                            .selectionDisabled(!editMode.isEditing)
                             .transition(reduceMotion ? .identity : .opacity)
                         }
                     } header: { Text(group.title) }
                 }
             }
             .listStyle(.insetGrouped)
-            .environment(\.editMode, $editMode)
+            .environment(\.editMode, $workspace.commentEditMode)
             .animation(reduceMotion ? nil : .snappy(duration: 0.22), value: groups.map { $0.notes.map(\.id) })
             // HIG: “Make sure all feedback is accessible.” Status text remains visible without effects.
             .sensoryFeedback(.selection, trigger: workspace.activeRecording?.recordingId) { _, _ in !reduceMotion }
@@ -66,11 +72,9 @@ public struct CommentsInspector: View {
             .onChange(of: workspace.showsSentNotes) {
                 refreshGroups()
             }
-            .onChange(of: filter) { refreshGroups(); selectedIDs.removeAll() }
+            .onChange(of: filter) { refreshGroups() }
             .onChange(of: workspace.currentCanvasId) {
                 filter = .all
-                selectedIDs.removeAll()
-                editMode = .inactive
                 showsDeleteConfirmation = false
             }
             .onChange(of: workspace.activeRecording?.noteId) { refreshGroups() }
@@ -120,13 +124,27 @@ public struct CommentsInspector: View {
             }
             if editMode.isEditing {
                 ToolbarItemGroup(placement: .bottomBar) {
-                    Button(action: selectAll) { Text("Select All", bundle: .module) }
-                        .disabled(deletableIDs.isEmpty)
-                    Spacer()
-                    Button(role: .destructive, action: deleteSelection) {
-                        Text("Delete ^[\(selectedIDs.count) Comments](inflect: true)", bundle: .module)
+                    Button(action: toggleSelectAll) {
+                        if allVisibleSelected { Text("Deselect All", bundle: .module) } else { Text("Select All", bundle: .module) }
                     }
-                    .disabled(selectedIDs.isEmpty)
+                    .disabled(filteredNotes.isEmpty)
+                    Spacer()
+                    Group {
+                        if selectedIDs.isEmpty { Text("Tap comments or pins", bundle: .module) }
+                        else { Text("\(selectedIDs.count) Selected", bundle: .module) }
+                    }
+                    .font(.subheadline).foregroundStyle(.secondary).monospacedDigit()
+                    Spacer()
+                    if onSend != nil {
+                        Button(action: sendSelection) {
+                            Label { Text("Send", bundle: .module) } icon: { Image(systemName: "paperplane") }
+                        }
+                        .disabled(selectedIDs.isEmpty)
+                    }
+                    Button(role: .destructive, action: deleteSelection) {
+                        Label { Text("Delete ^[\(selectedDeletable.count) Comments](inflect: true)", bundle: .module) } icon: { Image(systemName: "trash") }
+                    }
+                    .disabled(selectedDeletable.isEmpty)
                 }
             }
         }
@@ -149,21 +167,40 @@ public struct CommentsInspector: View {
             filter = .all
         }
         groups = CommentGroup.make(workspace.currentCanvas, notes: filteredNotes)
-        selectedIDs.formIntersection(deletableIDs)
+        if let selection = workspace.commentSelection {
+            let visibleIDs = Set(visible.map(\.id))
+            if !selection.isSubset(of: visibleIDs) { workspace.commentSelection = selection.intersection(visibleIDs) }
+        }
     }
 
     private func toggleSelection() {
         withAnimation(reduceMotion ? nil : .snappy(duration: 0.22)) {
-            editMode = editMode.isEditing ? .inactive : .active
-            selectedIDs.removeAll()
+            workspace.commentSelection = editMode.isEditing ? nil : []
         }
     }
 
-    private func selectAll() { selectedIDs = deletableIDs }
+    private var allVisibleSelected: Bool {
+        let ids = Set(filteredNotes.map(\.id))
+        return !ids.isEmpty && ids.isSubset(of: selectedIDs)
+    }
+
+    private func toggleSelectAll() {
+        let ids = Set(filteredNotes.map(\.id))
+        workspace.commentSelection = allVisibleSelected ? selectedIDs.subtracting(ids) : selectedIDs.union(ids)
+    }
+
+    private var selectedDeletable: Set<UUID> { selectedIDs.intersection(deletableIDs) }
 
     private func deleteSelection() {
-        delete(selectedIDs.intersection(deletableIDs), canvasID: workspace.currentCanvasId)
-        selectedIDs.removeAll()
+        let ids = selectedDeletable
+        delete(ids, canvasID: workspace.currentCanvasId)
+        workspace.commentSelection = selectedIDs.subtracting(ids)
+    }
+
+    private func sendSelection() {
+        let ids = selectedIDs
+        workspace.commentSelection = nil
+        onSend?(ids)
     }
 
     private func prepareDeleteAll() {
@@ -178,7 +215,7 @@ public struct CommentsInspector: View {
         // Capture may have started while the dialog was open.
         let safeIDs = Set(workspace.visibleNotes().filter(canDelete).map(\.id))
         delete(pendingIDs.intersection(safeIDs), canvasID: canvasID)
-        selectedIDs.removeAll()
+        if workspace.commentSelection != nil { workspace.commentSelection = [] }
     }
 
     private func delete(_ ids: Set<UUID>, canvasID: UUID?) {

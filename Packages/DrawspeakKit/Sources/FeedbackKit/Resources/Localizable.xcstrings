@@ -324,17 +324,6 @@
         }
       }
     },
-    "Message too long. Deselect some comments.": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Message too long. Deselect some comments."
-          }
-        }
-      }
-    },
     "New Thread": {
       "extractionState": "manual",
       "localizations": {
@@ -567,18 +556,6 @@
         }
       }
     },
-    "Select comments on up to ^[%lld screen](inflect: true).": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Select comments on up to ^[%lld screen](inflect: true)."
-          }
-        }
-      },
-      "comment": "Interpolated values identify a screen, proposal, version, comment, recipient, or attachment count as shown in the English key."
-    },
     "Selected": {
       "extractionState": "manual",
       "localizations": {
@@ -688,18 +665,6 @@
           }
         }
       }
-    },
-    "Too many attachments (%lld of 8). Deselect comments on ^[%lld screen](inflect: true).": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Too many attachments (%lld of 8). Deselect comments on ^[%lld screen](inflect: true)."
-          }
-        }
-      },
-      "comment": "Interpolated values identify a screen, proposal, version, comment, recipient, or attachment count as shown in the English key."
     },
     "Try Again": {
       "extractionState": "manual",

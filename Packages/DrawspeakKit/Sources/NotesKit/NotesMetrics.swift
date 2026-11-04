@@ -8,4 +8,6 @@ enum NotesMetrics {
     static let recordingDot: CGFloat = 8
     static let levelWidth: CGFloat = 36
     static let pinPadding: CGFloat = 2
+    static let rowPadding: CGFloat = 4
+    static let metadataSpacing: CGFloat = 4
 }

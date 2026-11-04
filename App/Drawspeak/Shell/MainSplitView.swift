@@ -2,7 +2,7 @@ import DrawspeakCore
 import SwiftUI
 
 /// Canvases in a sidebar that starts hidden; the current canvas fills the
-/// detail and Comments sit in a full-height inspector beside it.
+/// detail and Comments sit in an inspector inside it (see `CanvasDetail`).
 struct MainSplitView: View {
     let model: AppModel
     let workspace: Workspace
@@ -26,10 +26,6 @@ struct MainSplitView: View {
             } else {
                 NoCanvasView(workspace: workspace)
             }
-        }
-        // Outside the split view, the inspector gets its own full-height bar.
-        .inspector(isPresented: $controller.showsInspector) {
-            CommentsColumn(workspace: workspace, controller: controller)
         }
         .onAppear(perform: applyDebugLaunch)
     }

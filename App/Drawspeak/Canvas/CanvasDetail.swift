@@ -24,13 +24,20 @@ struct CanvasDetail: View {
             .navigationBarTitleDisplayMode(.inline)
             .toolbarRole(.editor)
             .toolbar { CanvasToolbar(workspace: workspace, controller: controller, isRegularWidth: horizontalSizeClass == .regular) }
+            // Inside the detail column, so the canvas toolbar lays out in the width left of the
+            // inspector. Attached outside the split view, the inspector covered the trailing
+            // Add, Comments and Send items, and nothing was left to close it.
+            .inspector(isPresented: $controller.showsInspector) {
+                CommentsColumn(workspace: workspace, controller: controller)
+            }
             .fileImporter(isPresented: $controller.showsImporter, allowedContentTypes: ImportCoordinator.allowedTypes,
-                          allowsMultipleSelection: false, onCompletion: importFile)
-            .photosPicker(isPresented: $controller.showsPhotoPicker, selection: $controller.selectedPhoto,
+                          allowsMultipleSelection: true, onCompletion: importFile)
+            .photosPicker(isPresented: $controller.showsPhotoPicker, selection: $controller.selectedPhotos,
+                          maxSelectionCount: CanvasController.maxImportCount, selectionBehavior: .ordered,
                           matching: .images, preferredItemEncoding: .current)
-            .onChange(of: controller.selectedPhoto) { _, photo in
-                guard let photo else { return }
-                Task { await controller.handlePhoto(photo) }
+            .onChange(of: controller.selectedPhotos) { _, photos in
+                guard !photos.isEmpty else { return }
+                Task { await controller.handlePhotos(photos) }
             }
             .sheet(item: $controller.sheet, onDismiss: controller.sheetDismissed) { sheet in
                 CanvasSheetContent(sheet: sheet, model: model, workspace: workspace, controller: controller)

@@ -9,4 +9,6 @@ enum FeedbackLayout {
     static let horizontalThreshold: CGFloat = 560
     static let thumbnailWidth: CGFloat = 180
     static let thumbnailHeight: CGFloat = 180
+    static let resultSymbolSize: CGFloat = 56
+    static let recipientSymbolSize: CGFloat = 28
 }

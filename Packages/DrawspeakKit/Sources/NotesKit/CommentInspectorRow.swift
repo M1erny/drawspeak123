@@ -1,6 +1,9 @@
 import SwiftUI
 import DrawspeakCore
 
+/// One comment in the Comments list. Collapsed it reads like a Mail or Notes row: the pin,
+/// two lines of text and a quiet metadata line. Selected, it expands into the editor with
+/// its actions below the text.
 struct CommentInspectorRow: View {
     let workspace: Workspace
     let note: Note
@@ -15,41 +18,22 @@ struct CommentInspectorRow: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: NotesMetrics.sectionSpacing) {
-            HStack {
-                header
-                if selected {
-                    Button(action: toggleRecording) {
-                        Label {
-                            if recording { Text("Stop", bundle: .module) }
-                            else { Text("Record Again", bundle: .module) }
-                        } icon: {
-                            Image(systemName: recording ? "stop.fill" : "mic")
-                                // HIG: “Aim for brevity and precision in feedback animations.”
-                                .symbolEffect(.pulse, options: .nonRepeating, value: recording)
-                                .symbolEffectsRemoved(reduceMotion)
-                        }
-                    }
-                    .labelStyle(.iconOnly)
-                    .frame(minWidth: Theme.minTarget, minHeight: Theme.minTarget)
-                    .disabled(!recording && !canRecord)
-                    Button(role: .destructive, action: delete) {
-                        Label { Text("Delete", bundle: .module) } icon: { Image(systemName: "trash") }
-                    }
-                    .labelStyle(.iconOnly)
-                    .frame(minWidth: Theme.minTarget, minHeight: Theme.minTarget)
-                    .disabled(!canDelete)
-                }
-                CommentMoreMenu(workspace: workspace, note: note)
-            }
+            header
             if selected {
                 CommentEditorContent(workspace: workspace, note: note)
                     .transition(reduceMotion ? .identity : .opacity)
+                CommentActionBar(recording: recording, canRecord: canRecord, canDelete: canDelete,
+                                 onToggleRecording: toggleRecording, onShowSource: showSource, onDelete: delete)
+                    .transition(reduceMotion ? .identity : .opacity)
             }
         }
+        .padding(.vertical, NotesMetrics.rowPadding)
         // Automatic List button styling can activate Record when More is tapped.
         // Keep each control independent; selection gestures live only on the header.
         .buttonStyle(.borderless)
         .animation(reduceMotion ? nil : .snappy(duration: 0.22), value: selected)
+        .listRowBackground(selected ? Theme.action.opacity(0.12) : nil)
+        .contextMenu { menuItems }
         .swipeActions(edge: .trailing, allowsFullSwipe: true) {
             Button(role: .destructive, action: delete) {
                 Label { Text("Delete", bundle: .module) } icon: { Image(systemName: "trash") }
@@ -74,19 +58,25 @@ struct CommentInspectorRow: View {
     }
 
     private var header: some View {
-        HStack {
+        HStack(alignment: .top, spacing: NotesMetrics.sectionSpacing) {
             if let number = workspace.displayNumber(for: note.id) {
                 PinBadge(number: number, isActive: selected)
             }
-            if !selected {
-                if note.hasText {
-                    Text(String(note.trimmedText.split(separator: "\n").first ?? "")).lineLimit(1)
-                } else {
-                    Text("No comment", bundle: .module).foregroundStyle(.secondary)
+            VStack(alignment: .leading, spacing: NotesMetrics.metadataSpacing) {
+                if !selected {
+                    if note.hasText {
+                        Text(note.trimmedText).lineLimit(2)
+                    } else {
+                        Text("No comment", bundle: .module).foregroundStyle(.secondary)
+                    }
                 }
+                CommentMetadata(workspace: workspace, note: note)
             }
-            Spacer(minLength: 0)
-            CommentStatusSymbol(note: note)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            CommentStatusSymbol(note: note).foregroundStyle(.secondary)
+            if selected {
+                CommentMoreMenu(workspace: workspace, note: note)
+            }
         }
         .frame(minHeight: Theme.minTarget)
         .contentShape(.rect)
@@ -96,6 +86,21 @@ struct CommentInspectorRow: View {
         .accessibilityElement(children: .combine)
         .accessibilityAddTraits(selected ? [.isButton, .isSelected] : [.isButton])
         .accessibilityAction(.default, select)
+    }
+
+    @ViewBuilder private var menuItems: some View {
+        Button(action: showSource) {
+            Label { Text("Show on Canvas", bundle: .module) } icon: { Image(systemName: "viewfinder") }
+        }
+        Button(action: record) {
+            Label { Text("Record Again", bundle: .module) } icon: { Image(systemName: "mic") }
+        }
+        .disabled(!canRecord)
+        Divider()
+        Button(role: .destructive, action: delete) {
+            Label { Text("Delete", bundle: .module) } icon: { Image(systemName: "trash") }
+        }
+        .disabled(!canDelete)
     }
 
     private func select() { workspace.focusedNoteId = note.id }

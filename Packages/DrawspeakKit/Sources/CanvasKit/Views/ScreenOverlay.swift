@@ -47,9 +47,13 @@ struct ScreenOverlay: View {
                         label: CanvasLabels.pin(ordinal: number, text: workspace.note(item.mark.noteId)?.text ?? "", shape: item.mark.shape),
                         isFocused: item.mark.noteId == focusedNoteId,
                         isRecording: item.mark.noteId == recordingNoteId,
-                        isNewCommit: item.mark.noteId == interaction.commitFeedback.noteId
+                        isNewCommit: item.mark.noteId == interaction.commitFeedback.noteId,
+                        selection: workspace.commentSelection.map { $0.contains(item.mark.noteId) }
                     ) {
-                        workspace.focusedNoteId = item.mark.noteId
+                        // In Select mode a pin toggles its comment instead of opening it.
+                        if !workspace.toggleCommentSelection(item.mark.noteId) {
+                            workspace.focusedNoteId = item.mark.noteId
+                        }
                     }
                     .offset(x: item.center.x - max(44, annotationStyle.pinSize) / 2, y: item.center.y - max(44, annotationStyle.pinSize) / 2)
                     RecordingBubble(workspace: workspace, noteId: item.mark.noteId, pin: item.center,

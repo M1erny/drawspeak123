@@ -39,6 +39,11 @@ public struct FeedbackManifest: Codable, Hashable, Sendable {
     public var isRepeat: Bool
     public var coordinateSpace: String
     public var snapshots: [SnapshotEntry]
+    /// Present when the review was split into several messages: this message's position,
+    /// the number of messages and the batch id they share.
+    public var part: Int?
+    public var partCount: Int?
+    public var seriesId: String?
 
     public init(package: FeedbackPackage) {
         schema = "drawspeak.feedback.v1"
@@ -48,6 +53,9 @@ public struct FeedbackManifest: Codable, Hashable, Sendable {
         createdAt = package.createdAt
         isRepeat = package.isRepeat
         coordinateSpace = "normalized snapshot space: (0,0) top-left, (1,1) bottom-right"
+        part = package.part?.index
+        partCount = package.part?.count
+        seriesId = package.part?.seriesId
         snapshots = package.groups.map { group in
             SnapshotEntry(
                 snapshotId: group.snapshot.id,

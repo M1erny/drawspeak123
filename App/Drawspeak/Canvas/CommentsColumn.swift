@@ -9,7 +9,8 @@ struct CommentsColumn: View {
 
     var body: some View {
         NavigationStack {
-            CommentsInspector(workspace: workspace, onShowSource: controller.showSource, onAddRegion: controller.addRegion)
+            CommentsInspector(workspace: workspace, onShowSource: controller.showSource, onAddRegion: controller.addRegion,
+                              onSend: { controller.openFeedback(selection: $0) })
                 .navigationBarTitleDisplayMode(.inline)
         }
         .inspectorColumnWidth(min: ShellMetrics.inspectorWidth.min, ideal: ShellMetrics.inspectorWidth.ideal,

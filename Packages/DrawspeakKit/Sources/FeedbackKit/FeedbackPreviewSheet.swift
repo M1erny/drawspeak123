@@ -18,17 +18,21 @@ public struct FeedbackPreviewSheet: View {
                 .navigationTitle(Text("Send Feedback", bundle: .module))
                 .navigationBarTitleDisplayMode(.inline)
                 .toolbar {
-                    ToolbarItem(placement: .cancellationAction) {
-                        Button(role: .close, action: onClose).disabled(model.busy)
+                    if !model.showsResult {
+                        ToolbarItem(placement: .cancellationAction) {
+                            Button(role: .close, action: onClose).disabled(model.busy)
+                        }
                     }
                     ToolbarItem(placement: .confirmationAction) {
-                        if !model.showsResult {
+                        if model.showsResult {
+                            Button(role: .confirm, action: onClose).disabled(model.busy)
+                        } else {
                             FeedbackSendAction(model: model, onChooseThread: onChooseThread)
                         }
                     }
                 }
                 .safeAreaBar(edge: .bottom) {
-                    if !model.showsResult {
+                    if !model.showsResult && !model.candidates.isEmpty {
                         FeedbackPreviewActions(model: model)
                     }
                 }
