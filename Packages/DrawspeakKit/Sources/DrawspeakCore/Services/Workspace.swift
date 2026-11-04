@@ -667,6 +667,8 @@ public final class Workspace {
             let ack = try await threads.send(threadId: entry.thread.threadId, text: staged.text, attachments: staged.attachments) { done, _ in
                 Task { @MainActor in
                     self.updateOutbox(batchId, canvasId: canvasId) { entry in
+                        // Progress never overrides a final state that arrived first.
+                        guard case .uploading = entry.state else { return }
                         entry.state = done >= total ? .sending : .uploading(done: done, total: total)
                     }
                 }
@@ -751,9 +753,12 @@ public final class Workspace {
         public var messagesChecked: Int
     }
 
-    /// Imports versions returned in the thread: review manifests with their files,
-    /// and plain images from agent messages as iterations of a "T3" proposal.
-    public func pull(canvasId: UUID, pixelSize: @escaping (Data) -> (width: Int, height: Int)?) async -> PullReport {
+    /// Renders an HTML capture: PNG bytes and pixel size.
+    public typealias HTMLCapturer = @MainActor (Data, RenderPolicy, Viewport) async throws -> (png: Data, width: Int, height: Int)
+
+    /// Imports versions the agent returned as text bundles (manifest + HTML files)
+    /// in its replies. Each message is imported once.
+    public func pull(canvasId: UUID, captureHTML: HTMLCapturer) async -> PullReport {
         guard let canvas = canvas(canvasId), let thread = canvas.thread, let threads else {
             return PullReport(importedSnapshots: 0, issues: ["Connect this canvas to a T3 thread first"], messagesChecked: 0)
         }
@@ -765,35 +770,19 @@ public final class Workspace {
         }
         var imported = 0
         var issues: [String] = []
-        for message in messages where message.role != "user" && !message.attachments.isEmpty {
+        for message in messages where message.role != "user" {
             guard !(self.canvas(canvasId)?.pulledMessageIds.contains(message.id) ?? true) else { continue }
-            var files: [String: Data] = [:]
-            var failed = false
-            for attachment in message.attachments {
-                do {
-                    files[attachment.fileName] = try await threads.downloadAttachment(threadId: thread.threadId, attachment: attachment)
-                } catch {
-                    issues.append("Could not download \(attachment.fileName)")
-                    failed = true
-                }
+            let bundle = TextBundleParser.parse(message.text)
+            guard let manifestData = bundle.manifest else { continue }
+            guard let manifest = try? ReviewManifest.decode(manifestData) else {
+                issues.append("A reply contains a manifest that could not be read")
+                mutateCanvas(canvasId) { $0.pulledMessageIds.append(message.id) }
+                continue
             }
-            if failed { continue }
-            let manifestData = files.first { $0.key.hasSuffix(".json") && $0.key.contains("manifest") }?.value
-            if let manifestData, let manifest = try? ReviewManifest.decode(manifestData), let current = self.canvas(canvasId) {
-                let result = ManifestValidator.validate(manifest, files: files, canvas: current)
-                issues.append(contentsOf: result.issues.map { "\($0.snapshotId ?? manifest.reviewId): \($0.message)" })
-                imported += importManifestEntries(result.valid, manifest: manifest, files: files, canvasId: canvasId, messageId: message.id)
-            } else {
-                for attachment in message.attachments where attachment.contentType.hasPrefix("image/") {
-                    guard let data = files[attachment.fileName], let size = pixelSize(data) else { continue }
-                    let screenId = ensureScreen(id: "t3-returned", title: "From T3", canvasId: canvasId)
-                    if (try? importArtifact(
-                        into: canvasId, data: data, kind: .image, contentType: attachment.contentType, fileName: attachment.fileName,
-                        pixelSize: size, target: .proposal(screenId: screenId, proposalId: "t3"),
-                        origin: .t3Pull(messageId: message.id, manifestReviewId: nil), changeSummary: String(message.text.prefix(280))
-                    )) != nil { imported += 1 }
-                }
-            }
+            guard let current = self.canvas(canvasId) else { break }
+            let result = ManifestValidator.validate(manifest, files: bundle.files, canvas: current)
+            issues.append(contentsOf: result.issues.map { "\($0.snapshotId ?? manifest.reviewId): \($0.message)" })
+            imported += await importManifestEntries(result.valid, manifest: manifest, files: bundle.files, canvasId: canvasId, messageId: message.id, captureHTML: captureHTML, issues: &issues)
             mutateCanvas(canvasId) { $0.pulledMessageIds.append(message.id) }
         }
         return PullReport(importedSnapshots: imported, issues: issues, messagesChecked: messages.count)
@@ -808,26 +797,49 @@ public final class Workspace {
         return id
     }
 
-    private func importManifestEntries(_ entries: [ReviewManifest.Entry], manifest: ReviewManifest, files: [String: Data], canvasId: UUID, messageId: String) -> Int {
+    private func importManifestEntries(
+        _ entries: [ReviewManifest.Entry],
+        manifest: ReviewManifest,
+        files: [String: Data],
+        canvasId: UUID,
+        messageId: String,
+        captureHTML: HTMLCapturer,
+        issues: inout [String]
+    ) async -> Int {
         var count = 0
-        // Parents first so iteration chains resolve.
+        // Baselines first, then iterations in order, so parent chains resolve.
         let ordered = entries.sorted { ($0.role == .baseline ? 0 : 1, $0.iteration) < ($1.role == .baseline ? 0 : 1, $1.iteration) }
         for entry in ordered {
             let screenId = ensureScreen(id: entry.screenId, title: entry.screenTitle ?? entry.screenId, canvasId: canvasId)
-            guard let image = ManifestValidator.file(entry.imagePath, in: files) else { continue }
+            let image = entry.imagePath.flatMap { ManifestValidator.file($0, in: files) }
             let html = (entry.htmlPath ?? entry.prototypePath).flatMap { ManifestValidator.file($0, in: files) }
             let isHTML = entry.artifactKind == .html && html != nil
+            let policy = entry.renderPolicy ?? .staticNoScript
+            var capture: (data: Data, contentType: String)?
+            var pixelSize = (entry.widthPx, entry.heightPx)
+            if isHTML, let html {
+                if let image {
+                    capture = (image, "image/png")
+                } else if let rendered = try? await captureHTML(html, policy, entry.viewport) {
+                    capture = (rendered.png, "image/png")
+                    pixelSize = (rendered.width, rendered.height)
+                } else {
+                    issues.append("\(entry.snapshotId): HTML capture failed; the version was imported without a capture")
+                }
+            }
+            guard let bytes = isHTML ? html : image else { continue }
             let target: ImportTarget = entry.role == .baseline
                 ? .baseline(screenId: screenId)
                 : .proposal(screenId: screenId, proposalId: entry.proposalId ?? "a")
+            let name = ((isHTML ? (entry.htmlPath ?? entry.prototypePath) : entry.imagePath) ?? entry.snapshotId) as NSString
             do {
                 try importArtifact(
                     into: canvasId,
-                    data: isHTML ? html! : image,
+                    data: bytes,
                     kind: isHTML ? .html : .image,
                     contentType: isHTML ? "text/html" : "image/png",
-                    fileName: (entry.imagePath as NSString).lastPathComponent,
-                    pixelSize: (entry.widthPx, entry.heightPx),
+                    fileName: name.lastPathComponent,
+                    pixelSize: pixelSize,
                     viewport: entry.viewport,
                     target: target,
                     origin: .t3Pull(messageId: messageId, manifestReviewId: manifest.reviewId),
@@ -836,8 +848,8 @@ public final class Workspace {
                     addressedNoteIds: entry.addressedNoteIds ?? [],
                     parentSnapshotId: entry.parentSnapshotId,
                     capturedAt: entry.capturedAt,
-                    captureImage: isHTML ? (image, "image/png") : nil,
-                    renderPolicy: entry.renderPolicy
+                    captureImage: capture,
+                    renderPolicy: policy
                 )
                 // Keep the manifest's iteration number rather than the derived one.
                 mutateCanvas(canvasId) { canvas in
@@ -847,7 +859,7 @@ public final class Workspace {
                 }
                 count += 1
             } catch {
-                continue
+                issues.append("\(entry.snapshotId): could not be stored")
             }
         }
         return count

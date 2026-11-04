@@ -11,8 +11,9 @@ public struct ReviewManifest: Codable, Hashable, Sendable {
         public var iteration: Int
         public var parentSnapshotId: String?
         public var artifactKind: ArtifactKind?
-        public var imagePath: String
-        public var sha256: String
+        /// Capture image. Optional for HTML entries returned as text: the app renders its own capture.
+        public var imagePath: String?
+        public var sha256: String?
         public var widthPx: Int
         public var heightPx: Int
         public var viewport: Viewport
@@ -89,8 +90,8 @@ public enum ManifestValidator {
             func fail(_ message: String) { issues.append(ManifestIssue(snapshotId: entry.snapshotId, message: message)) }
             guard seen.insert(entry.snapshotId).inserted else { fail("Duplicate snapshot id"); continue }
             if let existing = canvas.snapshots.first(where: { $0.id == entry.snapshotId }) {
-                if existing.image?.sha256 == entry.sha256.lowercased() { continue } // already imported, same bytes
-                fail("Snapshot id already exists with other bytes")
+                let sameBytes = existing.sourceBlob?.sha256 == (entry.htmlSha256 ?? entry.sha256)?.lowercased()
+                if !sameBytes { fail("Snapshot id already exists with other bytes") }
                 continue
             }
             guard entry.widthPx > 0, entry.heightPx > 0 else { fail("Invalid dimensions"); continue }
@@ -112,16 +113,24 @@ public enum ManifestValidator {
                     fail("Parent belongs to another proposal or screen"); continue
                 }
             }
-            guard isSafeRelativePath(entry.imagePath), let image = file(entry.imagePath, in: files) else {
-                fail("Image file missing or path unsafe"); continue
+            var hasArtifact = false
+            if let imagePath = entry.imagePath {
+                guard isSafeRelativePath(imagePath), let image = file(imagePath, in: files) else {
+                    fail("Image file missing or path unsafe"); continue
+                }
+                guard let expected = entry.sha256, BlobStore.sha256Hex(image) == expected.lowercased() else { fail("Image checksum mismatch"); continue }
+                hasArtifact = true
             }
-            guard BlobStore.sha256Hex(image) == entry.sha256.lowercased() else { fail("Image checksum mismatch"); continue }
-            if let htmlPath = entry.htmlPath ?? entry.prototypePath, entry.artifactKind == .html {
-                guard isSafeRelativePath(htmlPath), let html = file(htmlPath, in: files) else { fail("HTML file missing or path unsafe"); continue }
-                if let expected = entry.htmlSha256, BlobStore.sha256Hex(html) != expected.lowercased() {
+            if entry.artifactKind == .html {
+                guard let htmlPath = entry.htmlPath ?? entry.prototypePath, isSafeRelativePath(htmlPath), let html = file(htmlPath, in: files) else {
+                    fail("HTML file missing or path unsafe"); continue
+                }
+                guard let expected = entry.htmlSha256, BlobStore.sha256Hex(html) == expected.lowercased() else {
                     fail("HTML checksum mismatch"); continue
                 }
+                hasArtifact = true
             }
+            guard hasArtifact else { fail("Entry has no image or HTML"); continue }
             valid.append(entry)
         }
         return (valid, issues)
