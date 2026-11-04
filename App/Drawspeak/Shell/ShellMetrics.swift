@@ -12,5 +12,5 @@ enum ShellMetrics {
     /// Ideal heights of the fitted Settings and History sheets.
     static let settingsHeight: CGFloat = 640
     static let historyHeight: CGFloat = 520
-    static let feedbackPopoverSize = CGSize(width: 440, height: 620)
+    static let feedbackPopoverSize = CGSize(width: 560, height: 700)
 }
