@@ -18,13 +18,16 @@ struct FeedbackSummaryRow: View {
             if comments > 0 {
                 if model.messageCount > 1 {
                     Text("Sends as \(model.messageCount) messages with \(model.attachmentCount) attachments. T3 Code accepts up to \(FeedbackPackageSplitter.maxAttachmentsPerMessage) per message.", bundle: .module)
-                } else {
+                } else if includesHTML {
                     Text("Annotated screenshots, HTML sources and a JSON manifest in one message.", bundle: .module)
+                } else {
+                    Text("Annotated screenshots and a JSON manifest in one message.", bundle: .module)
                 }
             }
         }
     }
 
+    private var includesHTML: Bool { model.package?.groups.contains { $0.snapshot.kind == .html } ?? false }
     private var allSelected: Bool { model.isSelected(all: model.candidates) }
     private func toggleAll() { model.setSelection(!allSelected, for: model.candidates) }
 }
