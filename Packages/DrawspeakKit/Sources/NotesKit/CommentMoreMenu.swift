@@ -17,7 +17,7 @@ struct CommentMoreMenu: View {
                     Text("Discard", bundle: .module)
                 }
             }
-            if note.hasText {
+            if note.hasText, workspace.refiner?.isConfigured == true {
                 Button(action: refine) {
                     Label { Text("Refine with Claude", bundle: .module) } icon: { Image(systemName: "sparkles") }
                 }
