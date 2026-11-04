@@ -85,7 +85,6 @@ public struct CommentsInspector: View {
                 scroll.scrollTo(id, anchor: .center)
             }
         }
-        .navigationTitle(Text("Comments", bundle: .module))
         .toolbar {
             ToolbarItem(placement: .primaryAction) {
                 CommentFilterMenu(canvas: workspace.currentCanvas, notes: workspace.visibleNotes(), selection: $filter)
@@ -228,4 +227,4 @@ public struct CommentsInspector: View {
 
 }
 
-#Preview { NavigationStack { CommentsInspector(workspace: NotesPreview.workspace(), onShowSource: { _ in }, onAddRegion: {}) } }
+#Preview { NavigationStack { CommentsInspector(workspace: NotesPreview.workspace(), onShowSource: { _ in }, onAddRegion: {}).navigationTitle("Comments") } }
