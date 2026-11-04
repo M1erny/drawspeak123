@@ -184,18 +184,18 @@ Metryki walidacji: ukończenie pętli, czas do pierwszej gotowej paczki, liczba 
 
 ## 12. Stan kodu i dowodów
 
-Snapshot implementacji: lokalny commit 08bd0da. Niniejszy PRD dokumentuje też nowszy zaakceptowany flow; nie oznacza jego wdrożenia.
+Stan na 2026-11-04: natywny MVP na gałęzi `feat/native-mvp`, build w TestFlight. Decyzje implementacyjne: [ADR-0007](adr/0007-native-mvp-implementation.md).
 
 | Obszar | Stan |
 |---|---|
-| Canvas, warianty, obraz + statyczny HTML, DOM/layers i pressure preview | HTML prototyp v3; część stanów sprawdzona programatycznie w podglądzie. Brak dowodu fizycznego Pencila. |
-| Głos, push/pull i potwierdzenie wysyłki | Symulacje; brak mikrofonu, natywnego klienta i połączenia T3. |
-| ElevenLabs | Adapter hosta Node i 13/13 grup mock; bez live API, sekretu, capture lub wdrożonego hosta. |
-| Najnowszy flow Feedback (N) i autosave | Do wdrożenia: prototyp nadal ma Save Comment, Notes/Review Batch i wcześniejsze zasady kwalifikacji pustych uwag. |
-| Trwałość | Prototypowe metadane w localStorage; importowane bajty session-only. Natywna trwałość wymagana. |
-| Klikalne HTML/JS, squeeze, dostępność urządzeniowa | Do wdrożenia i weryfikacji na iPadzie. |
+| Canvas, Now i propozycje obok siebie, wersje, Promote to Now | Natywnie (CanvasKit); testy logiki; brak testu fizycznego Pencila. |
+| Obraz i HTML, DOMTarget, nacisk/warstwy, alternatywa bez nacisku | Natywnie (HTMLKit, izolowany WKWebView offline); kalibracja nacisku do iPada. |
+| Auto-głos, autosave, ElevenLabs Scribe v2 | Natywnie (VoiceKit); live transkrypcja PL potwierdzona; mikrofon tylko w symulatorze. |
+| Feedback (N), podgląd, Send to Agent / Save Draft, outbox, Delivery Unknown | Natywnie (FeedbackKit + Core); wysyłka do T3 potwierdzona ACK. |
+| Parowanie T3, wybór wątku, Pull | Natywnie (T3Kit); Pull dla propozycji HTML przez text-bundle; PNG z wątku poza MVP. |
+| Trwałość | JSON + bloby SHA-256, odzyskiwanie nieczytelnej biblioteki bez nadpisania. |
 
-Pełne dowody: [VALIDATION.md](VALIDATION.md). Raporty krytyk Sol, Grok 4.7 i Opus 5.5 dotyczą wcześniejszych kandydatów; nie są certyfikacją obecnego ani docelowego MVP.
+Pełne dowody: [VALIDATION.md](VALIDATION.md). Prototyp HTML w `prototype/` pozostaje demonstratorem interakcji.
 
 ## 13. Otwarte kwestie implementacyjne
 

@@ -55,3 +55,18 @@ Adapter ElevenLabs SHA-256: 71a380e7e9ad40410274e124e976128cf23dddffb78f72635c4e
 - Zrzuty stanów w reviews/: v3-dom-selection.png, v3-import-layer-comment.png, v3-canvas-728.png. QA dodaje wyłącznie skrypt inscenizacji do kopii podglądu; plik aplikacji go nie zawiera.
 
 Pozostaje niezweryfikowane: nacisk i release na fizycznym Pencil, palm rejection, pełna izolacja niezaufanych scripted bundli, capture screenshotu HTML jako bajtów do rzeczywistej paczki, trwałe źródła i audio, mikrofon/ElevenLabs na koncie użytkownika, wdrożony host i T3/Tailscale. Statyczny HTML nie potwierdza wykonywania React/JS. Testy providera są mock, nie akceptacją jakości/retencji/kosztu konta.
+
+## Natywny MVP — 2026-11-04
+
+Gałąź `feat/native-mvp`. Aplikacja iPadOS 27 (SwiftUI, Swift 6.4), pakiet `Packages/DrawspeakKit`, projekt `App/project.yml`. Decyzje: [ADR-0007](adr/0007-native-mvp-implementation.md).
+
+Wykonane (exit 0):
+
+- `heavy-check swift test` w `Packages/DrawspeakKit`: 171 testów (Core 69, CanvasKit 45, VoiceKit 23, HTMLKit 22, T3Kit 12).
+- `heavy-check xcodebuild … -scheme Drawspeak` na symulatorze iPad Pro 13" (iOS 27): build bez ostrzeżeń kompilatora.
+- **T3 Code na żywo z symulatora**: parowanie kodem z `t3 auth pairing create` (rejestracja → decyzja → token PKCE → `initialize`), lista wątków z serwera, wysyłka paczki (1 kompozyt PNG + manifest) do izolowanego wątku testowego z ACK (`state: sent`, `messageId` serwera), odpowiedź agenta w formacie text-bundle i **Pull**: import propozycji HTML (`Proposal C`) z capture renderowanym na iPadzie. Ścieżka przez debugowy hook `DebugEndToEnd` (tylko DEBUG + symulator), który wywołuje te same metody co przyciski.
+- **ElevenLabs na żywo**: `LiveElevenLabsTests` z kluczem z Apassy, syntetyczne nagranie PL (`say -v Zosia`): `detected=pol`, tekst zgodny, `scribe_v2`. Jedno płatne żądanie.
+- Przegląd UI/kodu: raporty w `docs/reviews/native-v1/` (HIG — Opus, kod SwiftUI i UX — gpt-6.1-sol); poprawki P0/P1 wdrożone, zrzuty po poprawkach zweryfikowane.
+- TestFlight: `scripts/testflight.sh` — archiwum Release, eksport z ręcznym podpisem, `altool --validate-app` (bez błędów) i upload.
+
+Niezweryfikowane: fizyczny iPad i Apple Pencil (kalibracja nacisku, squeeze, odrzucanie dłoni), mikrofon na urządzeniu, VoiceOver/Dynamic Type na urządzeniu, tryb okienkowy iPadOS, przerwanie sieci w trakcie wysyłki, pobieranie PNG zwróconych przez agenta (poza MVP, ADR-0007).

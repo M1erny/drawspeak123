@@ -2,12 +2,13 @@
 
 Projekt aplikacji Drawspeak na iPada do review UI: obrazy i makiety HTML na canvasie, zaznaczenia Apple Pencilem, komentarze głosowe i wymiana wersji z T3 Code przez Tailscale.
 
-Pierwszy etap: specyfikacja i interaktywny prototyp kluczowej interakcji. Aplikacja SwiftUI, rzeczywisty Pencil Pro, nagrywanie/transkrypcja oraz połączenie T3 Code to kolejne etapy opisane w specyfikacji.
+Stan: natywna aplikacja SwiftUI dla iPadOS 27 w TestFlight (`App/`, `Packages/DrawspeakKit`). Działa canvas z Now i propozycjami, zaznaczenia Pencilem, wybór komponentu HTML, głos z transkrypcją ElevenLabs, paczka Feedback (N) z wysyłką do wątku T3 Code i Pull propozycji HTML. Budowanie: `cd App && xcodegen generate`, testy: `cd Packages/DrawspeakKit && swift test`, wydanie: [docs/RELEASE.md](docs/RELEASE.md). Konfiguracja na iPadzie: Ustawienia › klucz ElevenLabs; T3 Code › Settings › Sharing & access › Create pairing link › Show code, a w Drawspeak „Choose Thread” → kod parowania.
 
 ## Pliki
 
 - [PRD produktu](docs/PRD.md) — aktualne wymagania całej aplikacji, model, flow i kryteria akceptacji.
-- [Rejestr ADR](docs/adr/README.md) — sześć przyjętych decyzji produktu i architektury.
+- [Rejestr ADR](docs/adr/README.md) — siedem przyjętych decyzji produktu i architektury.
+- [Kontrakt T3 MCP](docs/T3-MCP-CONTRACT.md) i [wydanie TestFlight](docs/RELEASE.md).
 - [Prototyp interakcji](prototype/index.html) — samodzielny HTML; otwórz plik w przeglądarce, bez instalacji i serwera.
 - [Integracja T3 Code](docs/T3-INTEGRATION.md) — możliwości potwierdzone w zainstalowanym buildzie i brakujące dowody.
 - [Kierunek wizualny](docs/DESIGN.md).
