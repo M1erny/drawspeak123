@@ -231,8 +231,8 @@ Errors: HTTP 400 `{"error":"invalid_request"|"invalid_client"|"invalid_grant"|"u
 | Session id | Response header `mcp-session-id` (UUID) on `initialize`, also `mcp-protocol-version` | B:340097–340103 |
 | Later requests | must send `Mcp-Session-Id`, else 400 "MCP-Session-Id header is required; send initialize to start a session" | B:340024 |
 | `initialize` with a session header | 400 | B:340023 |
-| `MCP-Protocol-Version` | optional after init; if sent it must be `2025-06-18` | B:339861–339880 |
-| Unknown session id | 404, the request **was not executed** | B:339881–339885 |
+| `MCP-Protocol-Version` | optional after init; if sent it must be `2025-06-18` | B:339869–339876 |
+| Unknown session id | 404, the request **was not executed** | B:339864–339868, B:342078–342079 |
 | Session storage | in memory, no idle expiry, lost when T3 restarts | B:339714–339738 |
 | End session | `DELETE /mcp` with `Mcp-Session-Id` returns 204 | B:342070, B:340034–340043 |
 | `GET`/`PUT`/`PATCH`/`OPTIONS /mcp` | 405 when authenticated; 401 when not (L4) | B:342065–342069 |

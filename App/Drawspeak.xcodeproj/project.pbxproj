@@ -135,7 +135,6 @@
 				TargetAttributes = {
 					6C68A70AB7F8B0216D6DC264 = {
 						DevelopmentTeam = 7S3F9767BM;
-						ProvisioningStyle = Automatic;
 					};
 				};
 			};
@@ -344,8 +343,8 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
-				CODE_SIGN_IDENTITY = "iPhone Developer";
-				CODE_SIGN_STYLE = Automatic;
+				CODE_SIGN_IDENTITY = "Apple Distribution";
+				CODE_SIGN_STYLE = Manual;
 				INFOPLIST_FILE = Drawspeak/Info.plist;
 				INFOPLIST_KEY_UIUserInterfaceStyle = Automatic;
 				LD_RUNPATH_SEARCH_PATHS = (
@@ -354,6 +353,7 @@
 				);
 				PRODUCT_BUNDLE_IDENTIFIER = com.wydrox.drawspeak;
 				PRODUCT_NAME = Drawspeak;
+				PROVISIONING_PROFILE_SPECIFIER = "Drawspeak App Store";
 				SDKROOT = iphoneos;
 				TARGETED_DEVICE_FAMILY = "1,2";
 			};
