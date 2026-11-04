@@ -2,6 +2,7 @@ import CanvasKit
 import DrawspeakCore
 import Foundation
 import Observation
+import PhotosUI
 import SwiftUI
 
 /// Presentation state and actions of the canvas detail: tools, sheets, the
@@ -17,6 +18,9 @@ final class CanvasController {
     private(set) var feedbackSelection: Set<UUID>?
     var showsInspector = false
     var showsImporter = false
+    var showsPhotoPicker = false
+    var selectedPhoto: PhotosPickerItem?
+    @ObservationIgnored private var importCanvasId: UUID?
     var showsSqueezePalette = false
     var squeezeAnchor: CGPoint?
     var alert: CanvasAlert?
@@ -63,7 +67,18 @@ final class CanvasController {
 
     // MARK: - Presentation
 
-    func requestImport() { showsImporter = true }
+    func requestImport() {
+        guard !isImportingFile else { return }
+        importCanvasId = workspace.currentCanvasId
+        showsImporter = true
+    }
+
+    func requestPhotoLibrary() {
+        guard !isImportingFile else { return }
+        importCanvasId = workspace.currentCanvasId
+        selectedPhoto = nil
+        showsPhotoPicker = true
+    }
     func showSettings() { sheet = .settings }
     func showHistory() { sheet = .history }
     func chooseThread() { sheet = .threadPicker(thenFeedback: nil) }
@@ -115,7 +130,7 @@ final class CanvasController {
     }
 
     func clearStatus(_ id: UUID) {
-        if status?.id == id { status = nil }
+        if status?.id == id, !isImportingFile { status = nil }
     }
 
     // MARK: - Undo
@@ -203,19 +218,62 @@ final class CanvasController {
             alert = .importFailed(ImportFailure(error).message)
             return
         }
-        guard let canvasId = workspace.currentCanvasId else { return }
+        guard !isImportingFile, let canvasId = importCanvasId ?? workspace.currentCanvasId else { return }
         isImportingFile = true
-        let outcome = await importer.read(url, canvasId: canvasId)
-        isImportingFile = false
+        defer { isImportingFile = false }
+        show(CanvasStatus(text: AttributedString(localized: "Reading File…")))
+        let outcome = await importer.read(url, canvasId: canvasId) { [weak self] page, count in
+            self?.show(CanvasStatus(text: AttributedString(localized: "Rendering Page \(page) of \(count)…")))
+        }
+        status = nil
         switch outcome {
-        case .success(let pending):
-            if workspace.canvas(pending.canvasId)?.screens.isEmpty ?? true {
-                finishImport(pending, target: .newScreen(title: pending.suggestedTitle))
-            } else {
-                sheet = .importTarget(pending)
+        case .success(let pages):
+            if pages.count > 1 {
+                do {
+                    for (index, pending) in pages.enumerated() {
+                        show(CanvasStatus(text: AttributedString(localized: "Adding Page \(index + 1) of \(pages.count)…")))
+                        _ = try importer.store(pending, target: .newScreen(title: pending.suggestedTitle), in: workspace)
+                        await Task.yield()
+                    }
+                    show(CanvasStatus(text: AttributedString(localized: "Added \(pages.count) Pages")))
+                    if canvasId == workspace.currentCanvasId { fitAll() }
+                } catch {
+                    status = nil
+                    alert = .importFailed(ImportFailure(error).message)
+                }
+                return
             }
+            guard let pending = pages.first else { return }
+            presentImport(pending)
         case .failure(let failure):
             alert = .importFailed(failure.message)
+        }
+    }
+
+    func handlePhoto(_ photo: PhotosPickerItem) async {
+        guard !isImportingFile, let canvasId = importCanvasId ?? workspace.currentCanvasId else { return }
+        isImportingFile = true
+        defer { isImportingFile = false }
+        show(CanvasStatus(text: AttributedString(localized: "Loading Photo…")))
+        do {
+            guard let data = try await photo.loadTransferable(type: Data.self) else { throw ImportFailure.unreadable }
+            let outcome = await ImportCoordinator.readPhoto(data, canvasId: canvasId, title: String(localized: "Photo"))
+            status = nil
+            switch outcome {
+            case .success(let pending): presentImport(pending)
+            case .failure(let failure): alert = .importFailed(failure.message)
+            }
+        } catch {
+            status = nil
+            alert = .importFailed(ImportFailure(error).message)
+        }
+    }
+
+    private func presentImport(_ pending: PendingImport) {
+        if workspace.canvas(pending.canvasId)?.screens.isEmpty ?? true {
+            finishImport(pending, target: .newScreen(title: pending.suggestedTitle))
+        } else {
+            sheet = .importTarget(pending)
         }
     }
 

@@ -6,9 +6,11 @@ struct CanvasAddMenu: View {
 
     var body: some View {
         Menu {
-            Button("Import Image or HTML…", systemImage: "square.and.arrow.down", action: controller.requestImport)
+            Button("Choose File…", systemImage: "square.and.arrow.down", action: controller.requestImport)
                 .keyboardShortcut("i", modifiers: .command)
-            Button("Add Region…", systemImage: "rectangle.dashed", action: controller.addRegion)
+                .disabled(controller.isImportingFile)
+            Button("Photo Library…", systemImage: "photo.on.rectangle", action: controller.requestPhotoLibrary)
+                .disabled(controller.isImportingFile)
         } label: {
             Label {
                 Text("Add")

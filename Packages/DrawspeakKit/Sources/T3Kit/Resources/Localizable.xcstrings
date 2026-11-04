@@ -322,6 +322,17 @@
         }
       }
     },
+    "Needs Input": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Needs Input"
+          }
+        }
+      }
+    },
     "No Threads": {
       "extractionState": "manual",
       "localizations": {
@@ -329,6 +340,17 @@
           "stringUnit": {
             "state": "translated",
             "value": "No Threads"
+          }
+        }
+      }
+    },
+    "Older": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Older"
           }
         }
       }
@@ -377,6 +399,17 @@
         }
       }
     },
+    "Recent": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Recent"
+          }
+        }
+      }
+    },
     "Running": {
       "extractionState": "manual",
       "localizations": {
@@ -384,6 +417,17 @@
           "stringUnit": {
             "state": "translated",
             "value": "Running"
+          }
+        }
+      }
+    },
+    "Stopped": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Stopped"
           }
         }
       }
@@ -560,6 +604,28 @@
           "stringUnit": {
             "state": "translated",
             "value": "Untitled Thread"
+          }
+        }
+      }
+    },
+    "Updated %@": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Updated %@"
+          }
+        }
+      }
+    },
+    "Updating Threads": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Updating Threads"
           }
         }
       }

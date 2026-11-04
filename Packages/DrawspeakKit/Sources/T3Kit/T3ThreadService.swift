@@ -8,7 +8,7 @@ nonisolated public struct T3ThreadService: ThreadService, Sendable {
     public func listThreads() async throws -> [ThreadSummary] {
         var threads: [ThreadSummary] = [], cursor: Int?
         var seenCursors = Set<Int>()
-        while true {
+        for _ in 0..<3 {
             var args: [String: JSONValue] = ["allProjects": .bool(true), "includeSubagents": .bool(false), "limit": .number(100)]
             if let cursor { args["cursor"] = .number(Double(cursor)) }
             let page = try await client.callTool(name: "t3_thread_list", arguments: .object(args))
@@ -30,7 +30,7 @@ nonisolated public struct T3ThreadService: ThreadService, Sendable {
             }
             for index in threads.indices { if let id = threads[index].projectId { threads[index].projectTitle = threads[index].projectTitle ?? titles[id] } }
         }
-        return threads
+        return Array(threads.prefix(ThreadListCache.capacity))
     }
     /// Projects in catalog order, without archived or deleted ones.
     public func listProjects() async throws -> [ProjectSummary] {

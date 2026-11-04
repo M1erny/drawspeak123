@@ -42,9 +42,24 @@ public struct T3ThreadPickerView: View {
             )
         }
         .searchable(text: $model.search)
-        .refreshable { await load() }
-        .task { await load() }
+        .refreshable { await model.load(service: service, force: true) }
+        .task(id: service.hostURL) { await load() }
         .navigationTitle(Text("Choose Thread", bundle: .module))
+        .toolbar {
+            ToolbarItem(placement: .status) {
+                HStack(spacing: 6) {
+                    if model.refreshing {
+                        ProgressView().controlSize(.small)
+                            .accessibilityLabel(Text("Updating Threads", bundle: .module))
+                    }
+                    if let fetchedAt = model.fetchedAt {
+                        Text("Updated \(Text(fetchedAt, format: .relative(presentation: .named, unitsStyle: .abbreviated)))", bundle: .module)
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                }
+            }
+        }
         .tint(.primary)
     }
 
@@ -53,7 +68,7 @@ public struct T3ThreadPickerView: View {
     }
 
     private func retry() {
-        Task { await load() }
+        Task { await model.load(service: service, force: true) }
     }
 
     private func pick(_ thread: ThreadSummary) {

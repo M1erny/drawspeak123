@@ -722,6 +722,126 @@
           }
         }
       }
+    },
+    "%@ · Version %lld": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ · Version %lld"
+          }
+        }
+      },
+      "generatesSymbol": false
+    },
+    "%@ › %@": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ › %@"
+          }
+        }
+      },
+      "generatesSymbol": false
+    },
+    "All": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "All"
+          }
+        }
+      },
+      "generatesSymbol": false
+    },
+    "Delete All Comments…": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Delete All Comments…"
+          }
+        }
+      },
+      "generatesSymbol": false
+    },
+    "Delete ^[%lld Comments](inflect: true)": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Delete ^[%lld Comments](inflect: true)"
+          }
+        }
+      },
+      "generatesSymbol": false
+    },
+    "Done": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Done"
+          }
+        }
+      },
+      "generatesSymbol": false
+    },
+    "Now": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Now"
+          }
+        }
+      },
+      "generatesSymbol": false
+    },
+    "Recording comments are excluded. Stop recording to delete them.": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Recording comments are excluded. Stop recording to delete them."
+          }
+        }
+      },
+      "generatesSymbol": false
+    },
+    "Select": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Select"
+          }
+        }
+      },
+      "generatesSymbol": false
+    },
+    "Select All": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Select All"
+          }
+        }
+      },
+      "generatesSymbol": false
     }
   },
   "version": "1.0"

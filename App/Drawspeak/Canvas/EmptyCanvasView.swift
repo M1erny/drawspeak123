@@ -15,12 +15,10 @@ struct EmptyCanvasView: View {
                     .buttonStyle(.bordered)
                     .disabled(controller.isPulling)
             }
-            if controller.hasThread {
-                Button("Import…", systemImage: "square.and.arrow.down", action: controller.requestImport)
-            } else {
-                Button("Import…", systemImage: "square.and.arrow.down", action: controller.requestImport)
-                    .buttonStyle(.bordered)
-            }
+            Button("Choose File…", systemImage: "square.and.arrow.down", action: controller.requestImport)
+                .disabled(controller.isImportingFile)
+            Button("Photo Library…", systemImage: "photo.on.rectangle", action: controller.requestPhotoLibrary)
+                .disabled(controller.isImportingFile)
         }
     }
 }

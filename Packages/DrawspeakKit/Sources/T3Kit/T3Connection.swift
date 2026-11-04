@@ -21,6 +21,8 @@ import Observation
         self.session = session ?? URLSession(configuration: configuration)
     }
     public func pair(host: URL, code: String, accessLevel: String = "full-access") async {
+        ThreadListCache.shared.invalidate(host: credentials?.hostURL ?? hostURL)
+        ThreadListCache.shared.invalidate(host: host)
         generation = UUID(); let operation = generation; state = .connecting
         let previousClient = threadService?.client; threadService = nil
         await previousClient?.close()
@@ -70,6 +72,7 @@ import Observation
         } catch { if generation == operation { threadService = nil; if case .unauthorized = error { state = .expired } else { state = .failed(error.localizedDescription) } } }
     }
     public func disconnect() {
+        ThreadListCache.shared.invalidate(host: credentials?.hostURL ?? hostURL)
         generation = UUID()
         let client = threadService?.client
         store.remove(host: credentials?.hostURL ?? hostURL)

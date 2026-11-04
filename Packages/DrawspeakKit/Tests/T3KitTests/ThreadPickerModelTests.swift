@@ -6,32 +6,33 @@ import DrawspeakCore
 @MainActor
 struct ThreadPickerModelTests {
     @Test func searchMatchesTitlesAndProjects() {
-        let threads = [
-            thread("1", title: "Checkout", projectId: "a", projectTitle: "Store"),
-            thread("2", title: "Login", projectId: "b", projectTitle: "Account")
-        ]
-        #expect(ThreadPickerModel.projectGroups(threads: threads, search: "check").flatMap(\.threads).map(\.id) == ["1"])
-        #expect(ThreadPickerModel.projectGroups(threads: threads, search: "ACCOUNT").flatMap(\.threads).map(\.id) == ["2"])
-        #expect(ThreadPickerModel.projectGroups(threads: threads, search: "missing").isEmpty)
-        #expect(ThreadPickerModel.projectGroups(threads: threads, search: "  ").count == 2)
+        let threads = [thread("1", title: "Checkout", projectTitle: "Store"), thread("2", title: "Login", projectTitle: "Account")]
+        #expect(ThreadPickerModel.statusGroups(threads: threads, search: "check").flatMap(\.threads).map(\.id) == ["1"])
+        #expect(ThreadPickerModel.statusGroups(threads: threads, search: "ACCOUNT").flatMap(\.threads).map(\.id) == ["2"])
+        #expect(ThreadPickerModel.statusGroups(threads: threads, search: "missing").isEmpty)
+        #expect(ThreadPickerModel.statusGroups(threads: threads, search: "  ").flatMap(\.threads).count == 2)
     }
 
-    @Test func projectsKeepDistinctIdentitiesAndThreadOrder() {
+    @Test func statusOrderAndSevenDayBoundary() {
+        let now = Date(timeIntervalSince1970: 1_000_000)
         let threads = [
-            thread("1", projectId: nil),
-            thread("2", projectId: "Other Threads"),
-            thread("3", projectId: "z", projectTitle: "Alpha"),
-            thread("4", projectId: "z", projectTitle: "Alpha")
+            thread("older", status: "completed", date: now.addingTimeInterval(-7 * 86_400 - 1)),
+            thread("boundary", status: "completed", date: now.addingTimeInterval(-7 * 86_400)),
+            thread("idle", status: "idle", date: now), thread("waiting", status: "waiting"),
+            thread("failed", status: "failed"), thread("interrupted", status: "interrupted"),
+            thread("cancelled", status: "cancelled"), thread("rolled_back", status: "rolled_back"),
+            thread("running", status: "running"), thread("starting", status: "starting"),
+            thread("preparing", status: "preparing"), thread("queued", status: "queued")
         ]
-        let groups = ThreadPickerModel.projectGroups(threads: threads, search: "")
-        #expect(groups.count == 3)
-        #expect(groups.first?.title == "Alpha")
-        #expect(groups.first?.threads.map(\.id) == ["3", "4"])
-        #expect(groups.contains { $0.id == nil && $0.threads.map(\.id) == ["1"] })
-        #expect(groups.contains { $0.id == "Other Threads" && $0.threads.map(\.id) == ["2"] })
+        let groups = ThreadPickerModel.statusGroups(threads: threads, search: "", now: now)
+        #expect(groups.map(\.id) == [.running, .waiting, .recent, .stopped, .older])
+        #expect(groups[0].threads.count == 4)
+        #expect(groups[2].threads.map(\.id) == ["idle", "boundary"])
+        #expect(groups[3].threads.count == 4)
+        #expect(groups[4].threads.map(\.id) == ["older"])
     }
 
-    private func thread(_ id: String, title: String = "Thread", projectId: String?, projectTitle: String? = nil) -> ThreadSummary {
-        ThreadSummary(id: id, title: title, projectId: projectId, projectTitle: projectTitle, status: nil, updatedAt: nil)
+    private func thread(_ id: String, title: String = "Thread", projectTitle: String? = nil, status: String? = nil, date: Date? = nil) -> ThreadSummary {
+        ThreadSummary(id: id, title: title, projectId: "project", projectTitle: projectTitle, status: status, updatedAt: date)
     }
 }

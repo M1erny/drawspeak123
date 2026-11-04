@@ -1,6 +1,7 @@
 import CanvasKit
 import DrawspeakCore
 import NotesKit
+import PhotosUI
 import SwiftUI
 
 /// The current canvas with the native toolbar and every presentation that
@@ -25,6 +26,12 @@ struct CanvasDetail: View {
             .toolbar { CanvasToolbar(workspace: workspace, controller: controller, isRegularWidth: horizontalSizeClass == .regular) }
             .fileImporter(isPresented: $controller.showsImporter, allowedContentTypes: ImportCoordinator.allowedTypes,
                           allowsMultipleSelection: false, onCompletion: importFile)
+            .photosPicker(isPresented: $controller.showsPhotoPicker, selection: $controller.selectedPhoto,
+                          matching: .images, preferredItemEncoding: .current)
+            .onChange(of: controller.selectedPhoto) { _, photo in
+                guard let photo else { return }
+                Task { await controller.handlePhoto(photo) }
+            }
             .sheet(item: $controller.sheet, onDismiss: controller.sheetDismissed) { sheet in
                 CanvasSheetContent(sheet: sheet, model: model, workspace: workspace, controller: controller)
             }

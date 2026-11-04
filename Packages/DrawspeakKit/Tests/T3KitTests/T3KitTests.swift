@@ -158,8 +158,8 @@ import DrawspeakCore
             return try Self.rpc(body, result: .object(["structuredContent": .object(["threads": .array([thread]), "nextCursor": cursor < 400 ? .number(Double(cursor + 100)) : .null])]))
         }
         let threads = try await T3ThreadService(client: MCPClient(credentials: credential(), session: session)).listThreads()
-        #expect(threads.count == 5); #expect(Set(threads.compactMap(\.projectId)).count == 5); #expect(threads.first?.updatedAt != nil)
-        #expect(cursors.withLock { $0 } == [0, 100, 200, 300, 400])
+        #expect(threads.count == 3); #expect(Set(threads.compactMap(\.projectId)).count == 3); #expect(threads.first?.updatedAt != nil)
+        #expect(cursors.withLock { $0 } == [0, 100, 200])
     }
     @Test func validationHappensBeforeNetwork() async throws {
         let session = StubProtocol.session { _ in Issue.record("Invalid send reached network"); return (500, [:], Data()) }

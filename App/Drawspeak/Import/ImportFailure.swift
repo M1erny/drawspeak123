@@ -15,7 +15,7 @@ nonisolated struct ImportFailure: Error {
         case Workspace.ImportError.invalidViewport:
             message = String(localized: "This HTML's viewport is too large.")
         case Workspace.ImportError.unsupportedType:
-            message = String(localized: "Use PNG, JPEG, WebP or HTML.")
+            message = String(localized: "Use HTML, PDF, PNG, JPEG, WebP or HEIC.")
         case let failure as ImportFailure:
             message = failure.message
         default:
