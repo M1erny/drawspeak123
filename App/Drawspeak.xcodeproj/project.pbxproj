@@ -1,0 +1,424 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 77;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		28C52762E9A128F38E84568E /* NotesKit in Frameworks */ = {isa = PBXBuildFile; productRef = 59A3B96DD10EAE9F6E085949 /* NotesKit */; };
+		6140A784E80F839E16411004 /* CanvasKit in Frameworks */ = {isa = PBXBuildFile; productRef = 6236E16418C85716B1AF964E /* CanvasKit */; };
+		617FC67605B3009248A414C5 /* VoiceKit in Frameworks */ = {isa = PBXBuildFile; productRef = 593BF5E24A85D58317CD5871 /* VoiceKit */; };
+		7433664504F1864508A01C1C /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = D3E65FDFF3AC7940DF4DEAFD /* Assets.xcassets */; };
+		7AF8EED8418198BA3A81FF12 /* HTMLKit in Frameworks */ = {isa = PBXBuildFile; productRef = E112867C26FB283C9CB750CD /* HTMLKit */; };
+		B3DA028751E353ED82B317E6 /* DrawspeakCore in Frameworks */ = {isa = PBXBuildFile; productRef = 89DF02360DDD4852B034BE3D /* DrawspeakCore */; };
+		D02F7D030760D7A21F3EADCE /* DrawspeakApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = EB673C9598B69A84008C4B9A /* DrawspeakApp.swift */; };
+		DA84CBB847E4BCF794B910A0 /* T3Kit in Frameworks */ = {isa = PBXBuildFile; productRef = 5ACE654C782A8816BD7ED19A /* T3Kit */; };
+		F78BF837D9E59E831B52B8D2 /* FeedbackKit in Frameworks */ = {isa = PBXBuildFile; productRef = 8FCF199F604702A8FEDB0E83 /* FeedbackKit */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXFileReference section */
+		0567BFE2D9B8C1BABA3F315E /* DrawspeakKit */ = {isa = PBXFileReference; lastKnownFileType = folder; name = DrawspeakKit; path = ../Packages/DrawspeakKit; sourceTree = SOURCE_ROOT; };
+		743FEDA952252E2177EBB3BB /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
+		98769D420DEA9CD4F7CE2DC5 /* Drawspeak.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = Drawspeak.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		D3E65FDFF3AC7940DF4DEAFD /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
+		EB673C9598B69A84008C4B9A /* DrawspeakApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DrawspeakApp.swift; sourceTree = "<group>"; };
+/* End PBXFileReference section */
+
+/* Begin PBXFrameworksBuildPhase section */
+		7AC4621088A173B6FAB15D5E /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				B3DA028751E353ED82B317E6 /* DrawspeakCore in Frameworks */,
+				DA84CBB847E4BCF794B910A0 /* T3Kit in Frameworks */,
+				617FC67605B3009248A414C5 /* VoiceKit in Frameworks */,
+				7AF8EED8418198BA3A81FF12 /* HTMLKit in Frameworks */,
+				6140A784E80F839E16411004 /* CanvasKit in Frameworks */,
+				28C52762E9A128F38E84568E /* NotesKit in Frameworks */,
+				F78BF837D9E59E831B52B8D2 /* FeedbackKit in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXFrameworksBuildPhase section */
+
+/* Begin PBXGroup section */
+		14D31DE0A2A3F0AC5B6C2D8E /* Packages */ = {
+			isa = PBXGroup;
+			children = (
+				0567BFE2D9B8C1BABA3F315E /* DrawspeakKit */,
+			);
+			name = Packages;
+			sourceTree = "<group>";
+		};
+		20A2E16616BABD403042A9FC /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				98769D420DEA9CD4F7CE2DC5 /* Drawspeak.app */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+		39FC87DDCB77891399D995E6 /* App */ = {
+			isa = PBXGroup;
+			children = (
+				EB673C9598B69A84008C4B9A /* DrawspeakApp.swift */,
+			);
+			path = App;
+			sourceTree = "<group>";
+		};
+		4F61B59B8FAD9A70AE105300 /* Resources */ = {
+			isa = PBXGroup;
+			children = (
+				D3E65FDFF3AC7940DF4DEAFD /* Assets.xcassets */,
+			);
+			path = Resources;
+			sourceTree = "<group>";
+		};
+		8465E66C2D635542B16216DE /* Drawspeak */ = {
+			isa = PBXGroup;
+			children = (
+				743FEDA952252E2177EBB3BB /* Info.plist */,
+				39FC87DDCB77891399D995E6 /* App */,
+				4F61B59B8FAD9A70AE105300 /* Resources */,
+			);
+			path = Drawspeak;
+			sourceTree = "<group>";
+		};
+		99BC0D2900CF88B10BD68284 = {
+			isa = PBXGroup;
+			children = (
+				8465E66C2D635542B16216DE /* Drawspeak */,
+				14D31DE0A2A3F0AC5B6C2D8E /* Packages */,
+				20A2E16616BABD403042A9FC /* Products */,
+			);
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		6C68A70AB7F8B0216D6DC264 /* Drawspeak */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 2F241BC4F6C4380963883F31 /* Build configuration list for PBXNativeTarget "Drawspeak" */;
+			buildPhases = (
+				D54BB08C72AFC4B81373B4A5 /* Sources */,
+				D6EC35D2BE8726498E5A2793 /* Resources */,
+				7AC4621088A173B6FAB15D5E /* Frameworks */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = Drawspeak;
+			packageProductDependencies = (
+				89DF02360DDD4852B034BE3D /* DrawspeakCore */,
+				5ACE654C782A8816BD7ED19A /* T3Kit */,
+				593BF5E24A85D58317CD5871 /* VoiceKit */,
+				E112867C26FB283C9CB750CD /* HTMLKit */,
+				6236E16418C85716B1AF964E /* CanvasKit */,
+				59A3B96DD10EAE9F6E085949 /* NotesKit */,
+				8FCF199F604702A8FEDB0E83 /* FeedbackKit */,
+			);
+			productName = Drawspeak;
+			productReference = 98769D420DEA9CD4F7CE2DC5 /* Drawspeak.app */;
+			productType = "com.apple.product-type.application";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		5ECBF35FCD55BFC9CECC7048 /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				BuildIndependentTargetsInParallel = YES;
+				LastUpgradeCheck = 1430;
+				TargetAttributes = {
+					6C68A70AB7F8B0216D6DC264 = {
+						DevelopmentTeam = 7S3F9767BM;
+						ProvisioningStyle = Automatic;
+					};
+				};
+			};
+			buildConfigurationList = 4C023AAB78406712BBFF4748 /* Build configuration list for PBXProject "Drawspeak" */;
+			developmentRegion = en;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				Base,
+				en,
+			);
+			mainGroup = 99BC0D2900CF88B10BD68284;
+			minimizedProjectReferenceProxies = 1;
+			packageReferences = (
+				6B32BBB868B23FC4F8198404 /* XCLocalSwiftPackageReference "../Packages/DrawspeakKit" */,
+			);
+			preferredProjectObjectVersion = 77;
+			productRefGroup = 20A2E16616BABD403042A9FC /* Products */;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				6C68A70AB7F8B0216D6DC264 /* Drawspeak */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXResourcesBuildPhase section */
+		D6EC35D2BE8726498E5A2793 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				7433664504F1864508A01C1C /* Assets.xcassets in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
+
+/* Begin PBXSourcesBuildPhase section */
+		D54BB08C72AFC4B81373B4A5 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				D02F7D030760D7A21F3EADCE /* DrawspeakApp.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin XCBuildConfiguration section */
+		407EAC9743D8926188301749 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				CURRENT_PROJECT_VERSION = 1;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				DEVELOPMENT_TEAM = 7S3F9767BM;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_TESTABILITY = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
+				GCC_DYNAMIC_NO_PIC = NO;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"$(inherited)",
+					"DEBUG=1",
+				);
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 27.0;
+				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
+				MARKETING_VERSION = 0.1.0;
+				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
+				MTL_FAST_MATH = YES;
+				ONLY_ACTIVE_ARCH = YES;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+				SWIFT_STRICT_CONCURRENCY = complete;
+				SWIFT_VERSION = 6.0;
+				TARGETED_DEVICE_FAMILY = 2;
+			};
+			name = Debug;
+		};
+		AD42BAA4166F9DC5C725DE23 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_IDENTITY = "iPhone Developer";
+				CODE_SIGN_STYLE = Automatic;
+				INFOPLIST_FILE = Drawspeak/Info.plist;
+				INFOPLIST_KEY_UIUserInterfaceStyle = Automatic;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.wydrox.drawspeak;
+				PRODUCT_NAME = Drawspeak;
+				SDKROOT = iphoneos;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Debug;
+		};
+		F6BA534E92CAD04CA69EC337 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				CURRENT_PROJECT_VERSION = 1;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				DEVELOPMENT_TEAM = 7S3F9767BM;
+				ENABLE_NS_ASSERTIONS = NO;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 27.0;
+				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
+				MARKETING_VERSION = 0.1.0;
+				MTL_ENABLE_DEBUG_INFO = NO;
+				MTL_FAST_MATH = YES;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_COMPILATION_MODE = wholemodule;
+				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
+				SWIFT_OPTIMIZATION_LEVEL = "-O";
+				SWIFT_STRICT_CONCURRENCY = complete;
+				SWIFT_VERSION = 6.0;
+				TARGETED_DEVICE_FAMILY = 2;
+			};
+			name = Release;
+		};
+		FC1A734CD8DAFA342C0929A6 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_IDENTITY = "iPhone Developer";
+				CODE_SIGN_STYLE = Automatic;
+				INFOPLIST_FILE = Drawspeak/Info.plist;
+				INFOPLIST_KEY_UIUserInterfaceStyle = Automatic;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.wydrox.drawspeak;
+				PRODUCT_NAME = Drawspeak;
+				SDKROOT = iphoneos;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Release;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		2F241BC4F6C4380963883F31 /* Build configuration list for PBXNativeTarget "Drawspeak" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				AD42BAA4166F9DC5C725DE23 /* Debug */,
+				FC1A734CD8DAFA342C0929A6 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+		4C023AAB78406712BBFF4748 /* Build configuration list for PBXProject "Drawspeak" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				407EAC9743D8926188301749 /* Debug */,
+				F6BA534E92CAD04CA69EC337 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+/* End XCConfigurationList section */
+
+/* Begin XCLocalSwiftPackageReference section */
+		6B32BBB868B23FC4F8198404 /* XCLocalSwiftPackageReference "../Packages/DrawspeakKit" */ = {
+			isa = XCLocalSwiftPackageReference;
+			relativePath = ../Packages/DrawspeakKit;
+		};
+/* End XCLocalSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		593BF5E24A85D58317CD5871 /* VoiceKit */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = VoiceKit;
+		};
+		59A3B96DD10EAE9F6E085949 /* NotesKit */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = NotesKit;
+		};
+		5ACE654C782A8816BD7ED19A /* T3Kit */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = T3Kit;
+		};
+		6236E16418C85716B1AF964E /* CanvasKit */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = CanvasKit;
+		};
+		89DF02360DDD4852B034BE3D /* DrawspeakCore */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = DrawspeakCore;
+		};
+		8FCF199F604702A8FEDB0E83 /* FeedbackKit */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = FeedbackKit;
+		};
+		E112867C26FB283C9CB750CD /* HTMLKit */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = HTMLKit;
+		};
+/* End XCSwiftPackageProductDependency section */
+	};
+	rootObject = 5ECBF35FCD55BFC9CECC7048 /* Project object */;
+}
