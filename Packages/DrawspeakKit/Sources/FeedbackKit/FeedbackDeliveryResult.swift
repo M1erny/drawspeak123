@@ -26,7 +26,7 @@ struct FeedbackDeliveryResult: View {
                         .foregroundStyle(.secondary)
                         .multilineTextAlignment(.center)
                     if phase == .working {
-                        ProgressView(value: progress).padding(.top, FeedbackLayout.rowPadding)
+                        ProgressView(value: progress).tint(Theme.action).padding(.top, FeedbackLayout.rowPadding)
                     }
                 }
                 .frame(maxWidth: .infinity)
@@ -44,7 +44,9 @@ struct FeedbackDeliveryResult: View {
                     if let date = model.entries.compactMap(\.receipt?.acknowledgedAt).max() {
                         LabeledContent { Text(date, format: .dateTime.hour().minute()) } label: { Text("Delivered", bundle: .module) }
                     }
-                } header: { Text("Sent To", bundle: .module) }
+                } header: {
+                    if model.allSent { Text("Sent To", bundle: .module) } else { Text("To", bundle: .module) }
+                }
             }
 
             if model.series.count > 1 {

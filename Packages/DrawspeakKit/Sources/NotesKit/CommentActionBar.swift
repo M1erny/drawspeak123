@@ -12,6 +12,17 @@ struct CommentActionBar: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
+        // Titles when the column is wide enough, symbols otherwise; never wrapped labels.
+        ViewThatFits(in: .horizontal) {
+            actions.labelStyle(.titleAndIcon)
+            actions.labelStyle(.iconOnly)
+        }
+        .buttonStyle(.bordered)
+        .controlSize(.small)
+        .frame(minHeight: Theme.minTarget)
+    }
+
+    private var actions: some View {
         HStack(spacing: NotesMetrics.controlSpacing) {
             Button(action: onToggleRecording) {
                 Label {
@@ -35,8 +46,5 @@ struct CommentActionBar: View {
             .labelStyle(.iconOnly)
             .disabled(!canDelete)
         }
-        .buttonStyle(.bordered)
-        .controlSize(.small)
-        .frame(minHeight: Theme.minTarget)
     }
 }

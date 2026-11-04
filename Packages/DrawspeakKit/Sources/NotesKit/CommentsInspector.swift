@@ -51,6 +51,18 @@ public struct CommentsInspector: View {
                 }
             }
             .listStyle(.insetGrouped)
+            // Selected rows and controls use the app's action color; black selection read as an error state.
+            .tint(Theme.action)
+            // The selection bar belongs to the Comments column, not to the whole window's bottom bar.
+            .safeAreaBar(edge: .bottom) {
+                if editMode.isEditing {
+                    CommentSelectionBar(
+                        selectedCount: selectedIDs.count, deletableCount: selectedDeletable.count,
+                        allSelected: allVisibleSelected, canSelectAll: !filteredNotes.isEmpty, canSend: onSend != nil,
+                        onToggleAll: toggleSelectAll, onSend: sendSelection, onDelete: deleteSelection
+                    )
+                }
+            }
             .environment(\.editMode, $workspace.commentEditMode)
             .animation(reduceMotion ? nil : .snappy(duration: 0.22), value: groups.map { $0.notes.map(\.id) })
             // HIG: “Make sure all feedback is accessible.” Status text remains visible without effects.
@@ -96,7 +108,7 @@ public struct CommentsInspector: View {
                 }
                 .disabled(groups.isEmpty && !editMode.isEditing)
             }
-            ToolbarItem(placement: .secondaryAction) {
+            ToolbarItem(placement: .primaryAction) {
                 Menu {
                     Toggle(isOn: $workspace.showsSentNotes) { Text("Show Sent", bundle: .module) }
                     Button(role: .destructive, action: prepareDeleteAll) {
@@ -119,31 +131,6 @@ public struct CommentsInspector: View {
                     if excludedRecording {
                         Text("Recording comments are excluded. Stop recording to delete them.", bundle: .module)
                     }
-                }
-            }
-            if editMode.isEditing {
-                ToolbarItemGroup(placement: .bottomBar) {
-                    Button(action: toggleSelectAll) {
-                        if allVisibleSelected { Text("Deselect All", bundle: .module) } else { Text("Select All", bundle: .module) }
-                    }
-                    .disabled(filteredNotes.isEmpty)
-                    Spacer()
-                    Group {
-                        if selectedIDs.isEmpty { Text("Tap comments or pins", bundle: .module) }
-                        else { Text("\(selectedIDs.count) Selected", bundle: .module) }
-                    }
-                    .font(.subheadline).foregroundStyle(.secondary).monospacedDigit()
-                    Spacer()
-                    if onSend != nil {
-                        Button(action: sendSelection) {
-                            Label { Text("Send", bundle: .module) } icon: { Image(systemName: "paperplane") }
-                        }
-                        .disabled(selectedIDs.isEmpty)
-                    }
-                    Button(role: .destructive, action: deleteSelection) {
-                        Label { Text("Delete ^[\(selectedDeletable.count) Comments](inflect: true)", bundle: .module) } icon: { Image(systemName: "trash") }
-                    }
-                    .disabled(selectedDeletable.isEmpty)
                 }
             }
         }
