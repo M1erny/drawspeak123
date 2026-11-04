@@ -25,6 +25,15 @@ final class CanvasInteraction {
         }
     }
 
+    var interactingSnapshotId: String?
+
+    /// The input surface leaves this card to its isolated web view.
+    func isInteracting(at screen: CGPoint) -> Bool {
+        guard let id = interactingSnapshotId, let canvas = workspace?.currentCanvas else { return false }
+        let world = CanvasFraming.screenToWorld(screen, camera: camera.state)
+        return CanvasWorldLayout(canvas: canvas).slot(at: world)?.snapshot?.id == id
+    }
+
     var drawWithFinger = false {
         didSet {
             guard drawWithFinger != oldValue else { return }
@@ -114,7 +123,7 @@ final class CanvasInteraction {
     /// Starts a mark or a pressure selection. Returns false when the touch
     /// does not start on an available snapshot card.
     func markBegan(at screen: CGPoint, kind: InputKind, force: Double?, time: TimeInterval) -> Bool {
-        guard acceptsMarking(from: kind), let workspace, let canvas = workspace.currentCanvas else { return false }
+        guard !isInteracting(at: screen), acceptsMarking(from: kind), let workspace, let canvas = workspace.currentCanvas else { return false }
         let world = CanvasFraming.screenToWorld(screen, camera: camera.state)
         guard let slot = CanvasWorldLayout(canvas: canvas).slot(at: world), let snapshot = slot.snapshot,
               workspace.isSourceAvailable(snapshot) else { return false }
@@ -270,7 +279,7 @@ final class CanvasInteraction {
 
     /// A finger or pointer tap with the component tool opens the chooser.
     func tap(at screen: CGPoint, kind: InputKind) {
-        guard tool == .component, let workspace, let canvas = workspace.currentCanvas else { return }
+        guard !isInteracting(at: screen), tool == .component, let workspace, let canvas = workspace.currentCanvas else { return }
         let world = CanvasFraming.screenToWorld(screen, camera: camera.state)
         guard let slot = CanvasWorldLayout(canvas: canvas).slot(at: world), let snapshot = slot.snapshot,
               workspace.isSourceAvailable(snapshot) else {
@@ -292,7 +301,7 @@ final class CanvasInteraction {
     func openChooser(slotId: String, method: SelectionMethod) {
         guard let workspace, let canvas = workspace.currentCanvas,
               let slot = CanvasWorldLayout(canvas: canvas).slot(id: slotId), let snapshot = slot.snapshot,
-              snapshot.kind == .html, workspace.isSourceAvailable(snapshot) else { return }
+              snapshot.id != interactingSnapshotId, snapshot.kind == .html, workspace.isSourceAvailable(snapshot) else { return }
         let center = CanvasFraming.worldToScreen(CGPoint(x: slot.frame.midX, y: slot.frame.midY), camera: camera.state)
         openChooser(slot: slot, snapshot: snapshot, canvasId: canvas.id, point: NPoint(x: 0.5, y: 0.5), anchor: center, method: method)
     }

@@ -53,5 +53,9 @@ struct WorkspaceNotesTests {
         #expect(note.textSource == .typed)
         ws.updateNoteText(id, text: "hello")
         #expect(ws.note(id)?.revision == r0 + 1)
+        // Clearing is an edit too: it stays typed so a late transcript cannot refill it.
+        ws.updateNoteText(id, text: "")
+        #expect(ws.note(id)?.textSource == .typed)
+        #expect(ws.note(id)?.revision == r0 + 2)
     }
 }

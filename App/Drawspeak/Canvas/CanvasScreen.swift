@@ -21,6 +21,7 @@ struct CanvasScreen: View {
     @State private var importer = ImportCoordinator()
     @State private var banner: CanvasBanner?
     @State private var isPulling = false
+    @State private var isImportingFile = false
     @State private var squeezeAnchor: CGPoint?
     @State private var showsSqueezePalette = false
     @State private var viewSize: CGSize = .zero
@@ -35,7 +36,7 @@ struct CanvasScreen: View {
                 overlayInsets: EdgeInsets(top: 88, leading: 16, bottom: 96, trailing: 16),
                 squeezeAnchor: $squeezeAnchor,
                 onSqueeze: { showsSqueezePalette.toggle() },
-                onAddRegion: { _ in sheet = .addRegion }
+                onAddRegion: { snapshotId in sheet = .addRegion(snapshotId: snapshotId) }
             )
             .ignoresSafeArea()
             .onGeometryChange(for: CGSize.self) { $0.size } action: { viewSize = $0 }
@@ -51,7 +52,7 @@ struct CanvasScreen: View {
                 workspace: workspace,
                 connection: model.connection,
                 tool: $tool,
-                isPulling: isPulling,
+                isPulling: isPulling || isImportingFile,
                 canUndo: canUndo,
                 canRedo: canRedo,
                 actions: chromeActions
@@ -91,6 +92,9 @@ struct CanvasScreen: View {
         }
         .onChange(of: undoManager) { workspace.undoManager = undoManager }
         .onChange(of: model.connection.state) { model.connectionChanged() }
+        .onChange(of: workspace.focusedNoteId) { _, noteId in
+            if let noteId { keepMarkClearOfInspector(noteId) }
+        }
         .onChange(of: scenePhase) { _, phase in
             guard phase != .active else { return }
             // Leaving the app ends capture; the audio stays with its own note.
@@ -116,13 +120,13 @@ struct CanvasScreen: View {
     private var chromeActions: CanvasChrome.Actions {
         CanvasChrome.Actions(
             showCanvases: { sheet = .canvases },
-            pickThread: { sheet = .threadPicker },
+            pickThread: { sheet = .threadPicker(thenFeedback: nil) },
             importFile: { isImporting = true },
             pull: pull,
             showNotes: { sheet = .notes },
             showHistory: { sheet = .history },
             showSettings: { sheet = .settings },
-            addRegion: { sheet = .addRegion },
+            addRegion: { sheet = .addRegion(snapshotId: nil) },
             openFeedback: { sheet = .feedback(initialSelection: nil) },
             undo: undo,
             redo: redo,
@@ -141,7 +145,13 @@ struct CanvasScreen: View {
             SettingsView(model: model)
         case .feedback(let selection):
             if let canvasId = workspace.currentCanvasId {
-                FeedbackPreviewSheet(workspace: workspace, canvasId: canvasId, initialSelection: selection) { self.sheet = nil }
+                FeedbackPreviewSheet(
+                    workspace: workspace,
+                    canvasId: canvasId,
+                    initialSelection: selection,
+                    onChooseThread: { self.sheet = .threadPicker(thenFeedback: selection ?? []) },
+                    onClose: { self.sheet = nil }
+                )
             }
         case .history:
             if let canvasId = workspace.currentCanvasId {
@@ -162,10 +172,13 @@ struct CanvasScreen: View {
                     }
                 }
             }
-        case .addRegion:
-            AddRegionSheet(workspace: workspace) { self.sheet = nil }
-        case .threadPicker:
-            ThreadBindingSheet(workspace: workspace, connection: model.connection)
+        case .addRegion(let snapshotId):
+            AddRegionSheet(workspace: workspace, initialSnapshotId: snapshotId) { self.sheet = nil }
+        case .threadPicker(let returnSelection):
+            ThreadBindingSheet(workspace: workspace, connection: model.connection) {
+                // Coming from Feedback: go back to the same preview once bound.
+                if let returnSelection { self.sheet = .feedback(initialSelection: returnSelection.isEmpty ? nil : returnSelection) }
+            }
         case .importTarget(let pending):
             ImportTargetSheet(workspace: workspace, pending: pending) { target in
                 self.sheet = nil
@@ -201,13 +214,28 @@ struct CanvasScreen: View {
         workspace.updateCamera(camera, canvasId: updated.id)
     }
 
+    /// The inspector floats on the trailing side; slide the canvas so the mark stays visible.
+    private func keepMarkClearOfInspector(_ noteId: UUID) {
+        guard let canvas = workspace.currentCanvas,
+              let rect = CanvasFraming.markScreenRect(noteId: noteId, in: canvas, camera: canvas.camera) else { return }
+        let inspectorMinX = viewSize.width - 412
+        guard rect.maxX > inspectorMinX - 16 else { return }
+        var camera = canvas.camera
+        camera.offsetX -= rect.maxX - inspectorMinX + 32
+        workspace.updateCamera(camera, canvasId: canvas.id)
+    }
+
     // MARK: - Import and pull
 
     private func handleImport(_ result: Result<[URL], any Error>) async {
-        guard case .success(let urls) = result, let url = urls.first else { return }
-        switch await importer.read(url) {
+        guard case .success(let urls) = result, let url = urls.first, let canvasId = workspace.currentCanvasId else { return }
+        isImportingFile = true
+        banner = CanvasBanner(message: "Preparing \(url.lastPathComponent)…", isError: false)
+        let outcome = await importer.read(url, canvasId: canvasId)
+        isImportingFile = false
+        switch outcome {
         case .success(let pending):
-            if workspace.currentCanvas?.screens.isEmpty ?? true {
+            if workspace.canvas(pending.canvasId)?.screens.isEmpty ?? true {
                 await finishImport(pending, target: .newScreen(title: pending.suggestedTitle))
             } else {
                 sheet = .importTarget(pending)
@@ -221,7 +249,7 @@ struct CanvasScreen: View {
         do {
             let snapshot = try importer.store(pending, target: target, in: workspace)
             banner = CanvasBanner(message: "Added \(snapshot.versionLabel) of \(pending.suggestedTitle)", isError: false)
-            if workspace.currentCanvas?.snapshots.count == 1 { fitAll() }
+            if pending.canvasId == workspace.currentCanvasId, workspace.currentCanvas?.snapshots.count == 1 { fitAll() }
         } catch {
             banner = CanvasBanner(message: ImportFailure(error).message, isError: true)
         }

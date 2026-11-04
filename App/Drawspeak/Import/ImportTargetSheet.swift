@@ -28,8 +28,8 @@ struct ImportTargetSheet: View {
                         onChoose(.newScreen(title: title.isEmpty ? pending.suggestedTitle : title))
                     }
                 }
-                ForEach(workspace.currentCanvas?.screens ?? []) { screen in
-                    ScreenTargetSection(workspace: workspace, screen: screen, onChoose: onChoose)
+                ForEach(workspace.canvas(pending.canvasId)?.screens ?? []) { screen in
+                    ScreenTargetSection(canvas: workspace.canvas(pending.canvasId), screen: screen, onChoose: onChoose)
                 }
             }
             .navigationTitle("Add to Canvas")

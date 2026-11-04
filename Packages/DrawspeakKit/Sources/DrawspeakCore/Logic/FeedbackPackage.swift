@@ -20,6 +20,9 @@ public struct FeedbackPackage: Hashable, Sendable {
 
     public var items: [BatchItem] { groups.flatMap(\.items) }
     public var manifestFileName: String { "drawspeak-feedback-\(batchId).json" }
-    /// The marker written into the message, used to reconcile Delivery Unknown.
-    public var marker: String { "drawspeak-batch:\(batchId)" }
+    /// The exact marker written into the first line of the message, used to
+    /// reconcile Delivery Unknown: `[drawspeak-batch:<batchId>]`.
+    public var marker: String { Self.marker(batchId: batchId) }
+
+    public static func marker(batchId: String) -> String { "[drawspeak-batch:\(batchId)]" }
 }

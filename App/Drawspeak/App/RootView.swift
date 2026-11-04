@@ -7,7 +7,7 @@ struct RootView: View {
         if let workspace = model.workspace {
             CanvasScreen(model: model, workspace: workspace)
         } else if let error = model.loadError {
-            ContentUnavailableView(error, systemImage: "externaldrive.badge.exclamationmark")
+            LibraryRecoveryView(error: error, fileURL: model.unreadableLibrary, model: model)
         } else {
             ProgressView()
                 .controlSize(.large)

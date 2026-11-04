@@ -24,19 +24,50 @@ public struct T3ThreadPickerView: View {
                     Section(filtered.first(where: { ($0.projectId ?? "Other threads") == project })?.projectTitle ?? project) {
                         ForEach(filtered.filter { ($0.projectId ?? "Other threads") == project }) { thread in
                             Button { pick(thread) } label: {
-                                VStack(alignment: .leading, spacing: 6) {
-                                    Text(thread.title).foregroundStyle(Theme.ink)
-                                    if let status = thread.status { Text(status.replacingOccurrences(of: "_", with: " ").capitalized).font(.caption).foregroundStyle(Theme.secondaryInk).padding(4).background(Theme.canvas, in: .capsule) }
-                                    if selected?.threadId == thread.id && selected?.hostURL == service.hostURL { Label("Selected", systemImage: "checkmark").font(.caption) }
+                                HStack {
+                                    VStack(alignment: .leading, spacing: 6) {
+                                        Text(thread.title).foregroundStyle(Theme.ink)
+                                        Text(thread.projectTitle ?? thread.projectId ?? "Other threads")
+                                            .font(.subheadline).foregroundStyle(Theme.secondaryInk)
+                                        if let updatedAt = thread.updatedAt {
+                                            TimelineView(.periodic(from: .now, by: 60)) { context in
+                                                Text(Self.recency(updatedAt, now: context.date))
+                                                    .font(.caption).foregroundStyle(Theme.secondaryInk)
+                                            }
+                                        }
+                                        if let status = Self.statusLabel(thread.status) {
+                                            Text(status).font(.caption).foregroundStyle(Theme.secondaryInk)
+                                                .padding(4).background(Theme.canvas, in: .capsule)
+                                        }
+                                    }
+                                    Spacer()
+                                    if selected?.threadId == thread.id && selected?.hostURL == service.hostURL {
+                                        Image(systemName: "checkmark")
+                                            .accessibilityLabel("Currently bound thread")
+                                    }
                                 }.frame(minHeight: 44, alignment: .leading)
+
                             }
                         }
                     }
                 }
             }
-            .overlay { if loading && threads.isEmpty { ProgressView("Loading threads") } else if filtered.isEmpty && error == nil { ContentUnavailableView(search.isEmpty ? "No threads" : "No matching threads", systemImage: "bubble.left.and.bubble.right", description: Text("Create a thread in T3 Code on your Mac.")) } }
+            .overlay { if loading && threads.isEmpty { ProgressView("Loading threads") } else if filtered.isEmpty && error == nil { ContentUnavailableView(search.isEmpty ? "No threads" : "No matching threads", systemImage: "bubble.left.and.bubble.right", description: Text(search.isEmpty ? "Create a thread in T3 Code on your Mac." : "Try another thread title or project name.")) } }
             .searchable(text: $search, prompt: "Search threads or projects").refreshable { await load() }.task { await load() }
             .navigationTitle("Choose a thread").tint(Theme.action)
+        }
+    }
+    private static func recency(_ date: Date, now: Date) -> String {
+        let formatter = RelativeDateTimeFormatter()
+        formatter.unitsStyle = .short
+        return formatter.localizedString(for: date, relativeTo: now)
+    }
+    private static func statusLabel(_ status: String?) -> String? {
+        switch status {
+        case "running", "preparing", "starting": "Running"
+        case "waiting", "queued": "Waiting"
+        case "failed": "Failed"
+        default: nil
         }
     }
     private func load() async {

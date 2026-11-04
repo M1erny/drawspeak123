@@ -7,7 +7,8 @@ nonisolated public struct T3ThreadService: ThreadService, Sendable {
     public init(client: MCPClient) { self.client = client }
     public func listThreads() async throws -> [ThreadSummary] {
         var threads: [ThreadSummary] = [], cursor: Int?
-        for _ in 0..<3 {
+        var seenCursors = Set<Int>()
+        while true {
             var args: [String: JSONValue] = ["allProjects": .bool(true), "includeSubagents": .bool(false), "limit": .number(100)]
             if let cursor { args["cursor"] = .number(Double(cursor)) }
             let page = try await client.callTool(name: "t3_thread_list", arguments: .object(args))
@@ -17,21 +18,26 @@ nonisolated public struct T3ThreadService: ThreadService, Sendable {
                     threads.append(ThreadSummary(id: id, title: item["title"].string ?? "Untitled thread", projectId: item["projectId"].string, projectTitle: item["projectTitle"].string, status: item["status"].string, updatedAt: date(item["updatedAt"])))
                 }
             }
-            guard let next = page["nextCursor"].int, next != cursor else { break }; cursor = next
+            guard let next = page["nextCursor"].int else { break }
+            guard seenCursors.insert(next).inserted else { throw MCPError.invalidResponse }
+            cursor = next
         }
         // The thread list schema has no project title; resolve titles from the project catalog.
         if threads.contains(where: { $0.projectId != nil && $0.projectTitle == nil }) {
             var titles: [String: String] = [:], projectCursor: Int?
-            for _ in 0..<3 {
+            var seenProjectCursors = Set<Int>()
+            while true {
                 var args: [String: JSONValue] = ["limit": .number(100)]
                 if let projectCursor { args["cursor"] = .number(Double(projectCursor)) }
                 let page = try await client.callTool(name: "t3_project_list", arguments: .object(args))
                 for project in page["projects"].array {
                     if let id = project["id"].string, let title = project["title"].string { titles[id] = title }
                 }
-                guard let next = page["nextCursor"].int, next != projectCursor else { break }; projectCursor = next
+                guard let next = page["nextCursor"].int else { break }
+                guard seenProjectCursors.insert(next).inserted else { throw MCPError.invalidResponse }
+                projectCursor = next
             }
-            for index in threads.indices { if let id = threads[index].projectId { threads[index].projectTitle = titles[id] } }
+            for index in threads.indices { if let id = threads[index].projectId { threads[index].projectTitle = threads[index].projectTitle ?? titles[id] } }
         }
         return threads
     }
@@ -81,7 +87,6 @@ nonisolated public struct T3ThreadService: ThreadService, Sendable {
             let snapshot = try await client.callTool(name: "t3_thread_read", arguments: .object(["threadId": .string(threadId), "limit": .number(1), "runLimit": .number(1)]))
             let thread = snapshot["thread"]
             guard !thread["archived"].bool else { throw DeliveryFailure.notSent("Unarchive the target thread before sending.") }
-            if ["running", "waiting", "preparing", "starting"].contains(thread["status"].string ?? "") { throw DeliveryFailure.notSent("The thread is active. Wait for it to finish before sending attachments.") }
             await client.recordAttempt(T3DeliveryAttempt(batchId: batchId, threadId: threadId, activeRunId: thread["activeRunId"].string, latestRunId: thread["latestRunId"].string, status: thread["status"].string))
             let levels = ["read-only", "approval-required", "auto-accept-edits", "auto", "full-access"]
             if client.credentials.accessLevel == "read-only" { throw DeliveryFailure.notAuthorized }
@@ -114,7 +119,8 @@ nonisolated public struct T3ThreadService: ThreadService, Sendable {
     public func reconcile(threadId: String, batchId: String) async throws -> MessageAck? {
         let marker = "[drawspeak-batch:\(batchId)]"
         var position: Int?
-        for _ in 0..<10 {
+        var seenPositions = Set<Int>()
+        while true {
             var args: [String: JSONValue] = ["threadId": .string(threadId), "view": .string("messages"), "limit": .number(100), "maxCharsPerItem": .number(50_000)]
             if let position { args["afterPosition"] = .number(Double(position)) }
             let page = try await client.callTool(name: "t3_thread_read", arguments: .object(args))
@@ -122,19 +128,27 @@ nonisolated public struct T3ThreadService: ThreadService, Sendable {
                 return MessageAck(messageId: id, acknowledgedAt: Date())
             }
             guard page["hasMore"].bool else { break }
-            guard let next = page["nextPosition"].int, next != position else { throw MCPError.invalidResponse }; position = next
+            guard let next = page["nextPosition"].int, seenPositions.insert(next).inserted else { throw MCPError.invalidResponse }; position = next
         }
         var cursor: Int?
-        for _ in 0..<10 {
+        var seenCursors = Set<Int>()
+        while true {
             var args: [String: JSONValue] = ["action": .string("list"), "threadId": .string(threadId), "limit": .number(100)]
             if let cursor { args["cursor"] = .number(Double(cursor)) }
             let page = try await client.callTool(name: "t3_queue", arguments: .object(args))
             if page["items"].array.contains(where: { $0["text"].string?.contains(marker) == true }) { return MessageAck(messageId: nil, acknowledgedAt: Date()) }
-            guard let next = page["nextCursor"].int, next != cursor else { break }; cursor = next
+            guard let next = page["nextCursor"].int else { break }
+            guard seenCursors.insert(next).inserted else { throw MCPError.invalidResponse }
+            cursor = next
         }
         return nil
     }
     public func downloadAttachment(threadId: String, attachment: ThreadAttachment) async throws -> Data { throw MCPError.unsupported }
+    /// Display-only warning: sending to an active thread can steer the running agent.
+    public func isThreadRunning(threadId: String) async -> Bool {
+        guard let value = try? await client.callTool(name: "t3_thread_read", arguments: .object(["threadId": .string(threadId), "limit": .number(1), "runLimit": .number(1)])) else { return false }
+        return ["running", "waiting", "preparing", "starting"].contains(value["thread"]["status"].string ?? "")
+    }
     public func threadStatus(threadId: String) async throws -> String? {
         let value = try await client.callTool(name: "t3_thread_read", arguments: .object(["threadId": .string(threadId), "limit": .number(1), "runLimit": .number(1)]))
         return (value["thread"]["status"].string ?? value["recentRuns"].array.first?["status"].string)?.replacingOccurrences(of: "_", with: " ").capitalized

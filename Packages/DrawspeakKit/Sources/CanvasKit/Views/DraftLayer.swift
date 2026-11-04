@@ -16,17 +16,19 @@ struct DraftLayer: View {
             switch draft.kind {
             case .region:
                 MarkGeometry.polyline(points)
-                    .stroke(Theme.annotation, style: StrokeStyle(lineWidth: lineWidth, lineCap: .round, lineJoin: .round))
-                Path(StrokeClassifier.boundingRect(of: points))
+                    .annotationStroke(width: lineWidth, halo: 2.5 / zoom)
+                let bounds = Path(StrokeClassifier.boundingRect(of: points))
+                bounds.stroke(Theme.annotationHalo, style: StrokeStyle(lineWidth: lineWidth / 2 + 2.5 / zoom, dash: [6 / zoom, 4 / zoom]))
+                bounds
                     .stroke(Theme.annotation.opacity(0.5), style: StrokeStyle(lineWidth: lineWidth / 2, dash: [6 / zoom, 4 / zoom]))
             case .arrow:
                 if let first = points.first, let last = points.last {
                     MarkGeometry.arrow(from: first, to: last, headLength: 14 / zoom)
-                        .stroke(Theme.annotation, style: StrokeStyle(lineWidth: lineWidth, lineCap: .round, lineJoin: .round))
+                        .annotationStroke(width: lineWidth, halo: 2.5 / zoom)
                 }
             case .pen:
                 MarkGeometry.polyline(points)
-                    .stroke(Theme.annotation, style: StrokeStyle(lineWidth: lineWidth, lineCap: .round, lineJoin: .round))
+                    .annotationStroke(width: lineWidth, halo: 2.5 / zoom)
             case nil:
                 EmptyView()
             }

@@ -12,6 +12,7 @@ struct ScreenOverlay: View {
     let workspace: Workspace
     let interaction: CanvasInteraction
     let dragState: ScreenDragState
+    @Binding var interactingSnapshotId: String?
 
     static let headerHeight: CGFloat = 44
     static let gap: CGFloat = 2
@@ -48,7 +49,7 @@ struct ScreenOverlay: View {
                 .offset(x: item.origin.x, y: item.origin.y)
             }
             ForEach(headers) { item in
-                LaneHeader(lane: item.slot.lane, workspace: workspace)
+                LaneHeader(lane: item.slot.lane, workspace: workspace, interactingSnapshotId: $interactingSnapshotId)
                     .frame(width: max(item.rect.width, 1), height: Self.headerHeight, alignment: .leading)
                     .offset(x: item.rect.minX, y: item.rect.minY - Self.headerHeight - Self.gap)
             }

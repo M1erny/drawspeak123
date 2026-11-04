@@ -10,6 +10,7 @@ import VoiceKit
 final class AppModel {
     private(set) var workspace: Workspace?
     private(set) var loadError: String?
+    private(set) var unreadableLibrary: URL?
     let recorder = AudioRecorder()
     let connection = T3Connection()
 
@@ -21,9 +22,15 @@ final class AppModel {
         #endif
         do {
             let locations = try StorageLocations.applicationSupport()
-            let workspace = await Workspace.load(locations: locations)
-            configure(workspace)
-            self.workspace = workspace
+            switch await Workspace.open(locations: locations) {
+            case .loaded(let workspace):
+                install(workspace)
+            case .unreadable(let error, let fileURL):
+                loadError = error
+                unreadableLibrary = fileURL
+                return
+            }
+            guard let workspace else { return }
             #if DEBUG
             if ProcessInfo.processInfo.arguments.contains("-DrawspeakSeedDemo") {
                 DemoContent.seed(into: workspace)
@@ -31,7 +38,33 @@ final class AppModel {
             #endif
         } catch {
             loadError = "Drawspeak could not open its storage."
+            return
         }
+        await connectAndRunHooks()
+    }
+
+    /// Keeps the unreadable file (renamed) and starts an empty library.
+    func startFresh() async {
+        guard let locations = try? StorageLocations.applicationSupport() else { return }
+        let workspace = await Workspace.startFresh(locations: locations)
+        loadError = nil
+        unreadableLibrary = nil
+        install(workspace)
+        await connectAndRunHooks()
+    }
+
+    func retryOpening() async {
+        loadError = nil
+        unreadableLibrary = nil
+        await start()
+    }
+
+    private func install(_ workspace: Workspace) {
+        configure(workspace)
+        self.workspace = workspace
+    }
+
+    private func connectAndRunHooks() async {
         await connection.restore()
         #if DEBUG && targetEnvironment(simulator)
         if let code = ProcessInfo.processInfo.environment["DRAWSPEAK_T3_PAIRING_CODE"], !code.isEmpty,

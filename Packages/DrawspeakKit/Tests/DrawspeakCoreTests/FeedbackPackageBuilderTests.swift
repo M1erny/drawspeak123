@@ -24,10 +24,13 @@ struct FeedbackPackageBuilderTests {
         #expect(first.items.map(\.noteId) == [a, c])
         #expect(first.items.map(\.ordinal) == [1, 3])
         #expect(package.groups[1].items.map(\.noteId) == [b])
-        #expect(package.marker == "drawspeak-batch:ds-batch-42")
+        #expect(package.marker == "[drawspeak-batch:ds-batch-42]")
+        #expect(FeedbackPackage.marker(batchId: "ds-batch-42") == package.marker)
 
         let text = FeedbackPackageBuilder.messageText(for: package)
-        #expect(text.contains("drawspeak-batch:ds-batch-42"))
+        // The exact marker leads the first line (inside the 1000-character queue preview).
+        #expect(text.components(separatedBy: "\n").first?.hasPrefix("[drawspeak-batch:ds-batch-42] ") == true)
+        #expect(!text.contains("[[drawspeak-batch"))
         for note in ["alpha comment", "bravo comment", "charlie comment"] {
             #expect(text.contains(note))
         }

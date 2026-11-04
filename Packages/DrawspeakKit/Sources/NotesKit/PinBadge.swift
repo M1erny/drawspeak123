@@ -16,7 +16,7 @@ public struct PinBadge: View {
             .frame(minWidth: Theme.pinSize, minHeight: Theme.pinSize)
             .padding(2)
             .background(Theme.annotation, in: .circle)
-            .overlay { Circle().strokeBorder(isActive ? Theme.ink : .clear, lineWidth: 2) }
+            .overlay { Circle().strokeBorder(.white, lineWidth: 1.5) }
             .accessibilityLabel("Comment \(number)")
             .accessibilityValue(isActive ? "Active" : "")
     }

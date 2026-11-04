@@ -39,7 +39,7 @@ public struct ZoomControls: View {
                 .keyboardShortcut("0", modifiers: .command)
         }
         .padding(6)
-        .paletteBackground()
+        .modifier(CanvasPaletteBackground())
         .accessibilityElement(children: .contain)
         .accessibilityLabel("Zoom")
     }

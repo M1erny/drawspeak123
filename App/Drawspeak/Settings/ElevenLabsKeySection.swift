@@ -22,14 +22,17 @@ struct ElevenLabsKeySection: View {
                     onChange()
                 }
             } else {
-                SecureField("ElevenLabs API key", text: $draft)
-                    .textContentType(.password)
-                    .autocorrectionDisabled()
-                    .textInputAutocapitalization(.never)
-                    .focused($isFocused)
-                    .onSubmit(save)
-                Button("Save Key", action: save)
-                    .disabled(draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                HStack {
+                    SecureField("ElevenLabs API key", text: $draft)
+                        .textContentType(.password)
+                        .autocorrectionDisabled()
+                        .textInputAutocapitalization(.never)
+                        .focused($isFocused)
+                        .onSubmit(save)
+                    Button("Save", action: save)
+                        .buttonStyle(.borderedProminent)
+                        .disabled(draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                }
             }
         } header: {
             Text("Transcription")

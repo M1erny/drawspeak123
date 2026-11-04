@@ -21,7 +21,10 @@ struct T3ConnectionSection: View {
             case .connecting:
                 ProgressView()
             case .notPaired, .expired, .failed:
-                Button("Connect to T3 Code…") { showsPairing = true }
+                if connection.canReconnect {
+                    Button("Reconnect") { Task { await connection.reconnect() } }
+                }
+                Button(connection.canReconnect ? "Pair Again…" : "Connect to T3 Code…") { showsPairing = true }
             }
         } header: {
             Text("T3 Code")

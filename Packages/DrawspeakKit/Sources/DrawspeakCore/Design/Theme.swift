@@ -2,10 +2,16 @@ import SwiftUI
 
 /// Shared visual language. Annotations get the strongest contrast; chrome stays calm.
 public enum Theme {
-    /// Pencil marks, pins and the recording anchor.
-    public static let annotation = Color(light: 0xBD3048, dark: 0xFF8598)
-    /// Primary actions (Send to Agent, Feedback).
+    /// Pencil marks, pins, composites and the recording anchor. Fixed in both
+    /// appearances: marks sit on screenshots, which do not change with Dark Mode.
+    public static let annotation = Color(hex: 0xBD3048)
+    /// Halo drawn under marks and pins so they stay visible on any screenshot.
+    public static let annotationHalo = Color.white
+    /// Text-tinted controls (links, borderless and bordered buttons).
     public static let action = Color(light: 0x1758BD, dark: 0x95BAFF)
+    /// Fill of filled primary buttons (Send to Agent, Feedback) with a white label.
+    /// Fixed so the white label keeps its contrast in Dark Mode.
+    public static let actionFill = Color(hex: 0x1758BD)
     /// Canvas background behind snapshots.
     public static let canvas = Color(light: 0xF5F6F8, dark: 0x181B1F)
     /// Snapshot paper and opaque palette fallback.
@@ -26,6 +32,15 @@ public enum Theme {
 }
 
 public extension Color {
+    /// A fixed color from a 0xRRGGBB value, identical in light and dark appearance.
+    init(hex: UInt32) {
+        self.init(
+            red: Double((hex >> 16) & 0xFF) / 255,
+            green: Double((hex >> 8) & 0xFF) / 255,
+            blue: Double(hex & 0xFF) / 255
+        )
+    }
+
     /// A dynamic color from 0xRRGGBB values for light and dark appearance.
     init(light: UInt32, dark: UInt32) {
         #if canImport(UIKit)

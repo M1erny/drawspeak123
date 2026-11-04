@@ -2,12 +2,12 @@ import DrawspeakCore
 import SwiftUI
 
 struct ScreenTargetSection: View {
-    let workspace: Workspace
+    let canvas: ReviewCanvas?
     let screen: Screen
     let onChoose: (Workspace.ImportTarget) -> Void
 
     var body: some View {
-        let proposals = workspace.currentCanvas.map { CanvasLayout.proposalIds(in: $0, screen: screen) } ?? []
+        let proposals = canvas.map { CanvasLayout.proposalIds(in: $0, screen: screen) } ?? []
         Section(screen.title) {
             Button("New Now Version", systemImage: "arrow.triangle.2.circlepath") {
                 onChoose(.baseline(screenId: screen.id))

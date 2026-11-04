@@ -7,8 +7,8 @@ enum CanvasSheet: Identifiable {
     case feedback(initialSelection: Set<UUID>?)
     case history
     case notes
-    case addRegion
-    case threadPicker
+    case addRegion(snapshotId: String?)
+    case threadPicker(thenFeedback: Set<UUID>?)
     case importTarget(PendingImport)
 
     var id: String {

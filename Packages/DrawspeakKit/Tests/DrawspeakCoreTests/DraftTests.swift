@@ -21,7 +21,7 @@ struct DraftTests {
         #expect(draft.items.map(\.noteId) == [a, b])
     }
 
-    @Test func resumeAfterEditKeepsNewerTextAndSameNoteId() throws {
+    @Test func resumeAfterEditKeepsNewerTextAndCopiesDraftText() throws {
         let ws = makeWorkspace()
         try addImage(ws, id: "s1")
         let id = addTextNote(ws, snapshotId: "s1", text: "draft text")
@@ -31,9 +31,15 @@ struct DraftTests {
         ws.updateNoteText(id, text: "newer text")
         let resumed = ws.resumeDraft(draft.id, canvasId: canvasId)
 
-        #expect(resumed == [id])
+        // The live note keeps the newer edit; the draft's wording comes back as a copy.
         #expect(ws.note(id)?.text == "newer text")
-        #expect(ws.currentCanvas?.notes.count == 1)
+        #expect(resumed.copiedCount == 1)
+        #expect(!resumed.noteIds.contains(id))
+        let copyId = try #require(resumed.noteIds.first)
+        #expect(ws.note(copyId)?.text == "draft text")
+        #expect(ws.note(copyId)?.textSource == .typed)
+        #expect(ws.currentCanvas?.notes.count == 2)
+        #expect(!resumed.recipientChanged)
     }
 
     @Test func resumeAfterDeleteCreatesCopyWithNewOrdinalAndDraftText() throws {
@@ -47,8 +53,9 @@ struct DraftTests {
         ws.deleteNote(id)
         let resumed = ws.resumeDraft(draft.id, canvasId: canvasId)
 
-        let copyId = try #require(resumed.first)
-        #expect(resumed.count == 1)
+        let copyId = try #require(resumed.noteIds.first)
+        #expect(resumed.noteIds.count == 1)
+        #expect(resumed.copiedCount == 1)
         #expect(copyId != id)
         let copy = try #require(ws.note(copyId))
         #expect(copy.text == "draft text")

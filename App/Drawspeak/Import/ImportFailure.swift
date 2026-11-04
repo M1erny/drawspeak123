@@ -11,6 +11,7 @@ struct ImportFailure: Error {
     init(_ error: any Error) {
         switch error {
         case Workspace.ImportError.tooLarge(let limit): message = "The file is larger than \(limit) MiB."
+        case Workspace.ImportError.invalidViewport: message = "The HTML asks for a viewport Drawspeak cannot render (max 4096 × 4096 pt, scale 0.5–4)."
         case Workspace.ImportError.unsupportedType: message = "Drawspeak imports PNG, JPEG, WebP and self-contained HTML."
         case let failure as ImportFailure: message = failure.message
         default: message = "The file could not be imported."

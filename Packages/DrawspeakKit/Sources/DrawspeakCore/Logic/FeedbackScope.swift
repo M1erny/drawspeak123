@@ -10,6 +10,9 @@ public struct FeedbackScope: Sendable {
     /// N on the Feedback button: ready, unsent notes (including ones whose source needs repair).
     public var count: Int { ready.count + unavailable.count }
 
+    /// Shown for HTML notes whose snapshot has no capture image yet.
+    public static let captureMissingReason = "Preview image is still being created"
+
     public static func readiness(of note: Note, in canvas: ReviewCanvas, sourceAvailable: (Snapshot) -> Bool) -> NoteReadiness {
         if note.isRecording { return .recording }
         if note.isTranscribing && !note.hasText { return .transcribing }
@@ -23,6 +26,7 @@ public struct FeedbackScope: Sendable {
             return .sourceUnavailable("Component target does not match this version")
         }
         guard sourceAvailable(snapshot) else { return .sourceUnavailable("Source file is missing") }
+        if snapshot.needsCapture { return .sourceUnavailable(Self.captureMissingReason) }
         return .ready
     }
 

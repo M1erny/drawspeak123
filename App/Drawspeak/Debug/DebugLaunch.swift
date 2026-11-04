@@ -14,8 +14,8 @@ enum DebugLaunch {
         case "settings": sheet = .settings
         case "history": sheet = .history
         case "notes": sheet = .notes
-        case "addRegion": sheet = .addRegion
-        case "threads": sheet = .threadPicker
+        case "addRegion": sheet = .addRegion(snapshotId: nil)
+        case "threads": sheet = .threadPicker(thenFeedback: nil)
         case "canvases": sheet = .canvases
         case "inspector": workspace.focusedNoteId = workspace.currentCanvas?.notes.first?.id
         case "component": tool = .component

@@ -16,12 +16,15 @@ public struct NotesListView: View {
                 ForEach(canvas.snapshots) { snapshot in
                     let notes = canvas.notes.filter { $0.snapshotId == snapshot.id }.sorted { $0.ordinal < $1.ordinal }
                     if !notes.isEmpty {
-                        Section(NotesPresentation.sourceLabel(snapshot, in: canvas)) {
+                        Section {
                             ForEach(notes) { note in
                                 Button { onSelect(note.id) } label: {
                                     NoteListRow(workspace: workspace, canvas: canvas, note: note)
                                 }.buttonStyle(.plain)
                             }
+                        } header: {
+                            Text(NotesPresentation.sourceLabel(snapshot, in: canvas))
+                            Text("^[\(notes.count) comment](inflect: true)")
                         }
                     }
                 }

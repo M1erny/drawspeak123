@@ -39,6 +39,12 @@ struct RecordingRow: View {
             case .saved:
                 Text("Audio Saved")
                 TranscribeAgainButton(workspace: workspace, noteId: note.id, recordingId: recording.id, canvasId: canvasId)
+            case .saveFailed:
+                Label("The audio could not be stored yet. It is kept on this iPad.", systemImage: "exclamationmark.triangle")
+                Button("Try Saving Again", systemImage: "arrow.clockwise") {
+                    workspace.retrySavingAudio(RecordingScope(canvasId: canvasId, noteId: note.id, recordingId: recording.id))
+                }
+                .frame(minHeight: Theme.minTarget)
             }
         }
         .font(.subheadline)

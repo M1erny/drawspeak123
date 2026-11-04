@@ -3,10 +3,11 @@ import DrawspeakCore
 
 struct AnnotationPreviewShape: Shape {
     let annotation: AnnotationShape
+    var crop = NRect(x: 0, y: 0, width: 1, height: 1)
 
     nonisolated func path(in rect: CGRect) -> Path {
-        func point(_ p: NPoint) -> CGPoint { CGPoint(x: rect.minX + p.x * rect.width, y: rect.minY + p.y * rect.height) }
-        func box(_ r: NRect) -> CGRect { CGRect(x: rect.minX + r.x * rect.width, y: rect.minY + r.y * rect.height, width: r.width * rect.width, height: r.height * rect.height) }
+        func point(_ p: NPoint) -> CGPoint { CGPoint(x: rect.minX + (p.x - crop.x) / crop.width * rect.width, y: rect.minY + (p.y - crop.y) / crop.height * rect.height) }
+        func box(_ r: NRect) -> CGRect { CGRect(x: rect.minX + (r.x - crop.x) / crop.width * rect.width, y: rect.minY + (r.y - crop.y) / crop.height * rect.height, width: r.width / crop.width * rect.width, height: r.height / crop.height * rect.height) }
         var path = Path()
         switch annotation {
         case .region(let r), .component(let r): path.addRect(box(r))

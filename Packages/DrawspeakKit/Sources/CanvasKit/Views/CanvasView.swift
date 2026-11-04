@@ -19,6 +19,7 @@ public struct CanvasView: View {
     private let onSqueeze: (() -> Void)?
     private let onAddRegion: ((String) -> Void)?
 
+    @State private var interactingSnapshotId: String?
     @State private var interaction = CanvasInteraction()
     @State private var dragState = ScreenDragState()
     @State private var previousTool: CanvasTool?
@@ -71,14 +72,14 @@ public struct CanvasView: View {
                         tool: tool,
                         workspace: workspace,
                         interaction: interaction,
-                        actions: cardActions
+                        actions: cardActions,
+                        interactingSnapshotId: interactingSnapshotId
                     )
                     MarksLayer(marks: marks, focusedNoteId: workspace.focusedNoteId, camera: interaction.camera)
                     ComponentOutlineLayer(pick: interaction.pick, camera: interaction.camera)
                     DraftLayer(draft: interaction.draft, camera: interaction.camera)
                 }
             }
-            .allowsHitTesting(false)
             CanvasInputLayer(interaction: interaction)
             ScreenOverlay(
                 rows: layout?.rows ?? [],
@@ -87,13 +88,27 @@ public struct CanvasView: View {
                 recordingNoteId: workspace.activeRecording?.noteId,
                 workspace: workspace,
                 interaction: interaction,
-                dragState: dragState
+                dragState: dragState,
+                interactingSnapshotId: $interactingSnapshotId
             )
             ComponentChip(pick: interaction.pick)
         }
         .ignoresSafeArea()
         .overlay(alignment: .top) {
-            StatusBanner(status: interaction.status)
+            VStack {
+                if interactingSnapshotId != nil {
+                    HStack {
+                        Text("Interacting — tap Done to annotate")
+                        Button("Done") { interactingSnapshotId = nil }
+                            .frame(minWidth: 44, minHeight: 44)
+                    }
+                    .font(.subheadline)
+                    .padding(.horizontal, 12)
+                    .background(Theme.surface, in: .capsule)
+                    .accessibilityHint("Prototype state changes are not saved. Done returns to the original snapshot.")
+                }
+                StatusBanner(status: interaction.status)
+            }
                 .padding(.top, overlayInsets.top + 12)
         }
         .onGeometryChange(for: CGSize.self) { proxy in
@@ -121,8 +136,20 @@ public struct CanvasView: View {
             interaction.drawWithFinger = drawWithFinger
         }
         .onChange(of: workspace.currentCanvasId, initial: true) {
+            interactingSnapshotId = nil
             interaction.workspace = workspace
             interaction.loadCamera(workspace.currentCanvas?.camera ?? CameraState())
+        }
+        .onChange(of: interactingSnapshotId) {
+            interaction.interactingSnapshotId = interactingSnapshotId
+            interaction.cancelMarking()
+            interaction.dismissChooser()
+        }
+        .onChange(of: canvas) {
+            if let id = interactingSnapshotId,
+               !((canvas.map { CanvasWorldLayout(canvas: $0).slots.contains { $0.snapshot?.id == id } }) ?? false) {
+                interactingSnapshotId = nil
+            }
         }
         .onChange(of: canvas?.camera) { _, camera in
             adopt(camera)

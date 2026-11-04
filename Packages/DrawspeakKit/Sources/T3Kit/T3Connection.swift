@@ -42,6 +42,24 @@ import Observation
         guard credential.expiresAt > Date() else { state = .expired; threadService = nil; return }
         state = .connecting; await connect(credential, generation: operation)
     }
+    /// True only when an unexpired saved credential can be used without pairing again.
+    public var canReconnect: Bool {
+        guard let credentials, credentials.expiresAt > Date() else { return false }
+        switch state {
+        case .failed, .connected: return true
+        case .notPaired, .connecting, .expired: return false
+        }
+    }
+    public func reconnect() async {
+        guard state != .connecting, state != .expired, let credential = credentials else { return }
+        guard credential.expiresAt > Date() else { state = .expired; threadService = nil; return }
+        generation = UUID(); let operation = generation
+        state = .connecting
+        let previousClient = threadService?.client; threadService = nil
+        await previousClient?.close()
+        guard generation == operation else { return }
+        await connect(credential, generation: operation)
+    }
     private func connect(_ credential: T3Credentials, generation operation: UUID) async {
         credentials = credential; hostURL = credential.hostURL
         let client = MCPClient(credentials: credential, session: session)

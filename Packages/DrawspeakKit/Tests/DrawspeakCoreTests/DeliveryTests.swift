@@ -48,12 +48,15 @@ struct DeliveryTests {
         #expect(ws.note(id)?.lastSentRevision == nil)
     }
 
-    @Test func recoveryMapsSendingToUnknownAndUploadingToReady() {
+    @Test func recoveryMapsEveryStartedEntryToDeliveryUnknown() {
         func entry(_ state: DeliveryState) -> OutboxEntry {
             OutboxEntry(id: "b", createdAt: fixedDate, thread: testThread, items: [], isRepeat: false, state: state)
         }
         #expect(OutboxRecovery.recover(entry(.sending)).state == .deliveryUnknown)
-        #expect(OutboxRecovery.recover(entry(.uploading(done: 1, total: 3))).state == .readyToSend)
+        // One `send` call covers uploads and the message: an Uploading checkpoint may have crossed it.
+        #expect(OutboxRecovery.recover(entry(.uploading(done: 1, total: 3))).state == .deliveryUnknown)
+        #expect(OutboxRecovery.recover(entry(.uploading(done: 0, total: 3))).state == .deliveryUnknown)
+        #expect(OutboxRecovery.recover(entry(.failed(reason: "x"))).state == .failed(reason: "x"))
         #expect(OutboxRecovery.recover(entry(.sent)).state == .sent)
         #expect(OutboxRecovery.recover(entry(.deliveryUnknown)).state == .deliveryUnknown)
         #expect(OutboxRecovery.recover(entry(.readyToSend)).state == .readyToSend)
@@ -72,7 +75,7 @@ struct DeliveryTests {
         )
         let states = Dictionary(uniqueKeysWithValues: (ws.currentCanvas?.outbox ?? []).map { ($0.id, $0.state) })
         #expect(states["b1"] == .deliveryUnknown)
-        #expect(states["b2"] == .readyToSend)
+        #expect(states["b2"] == .deliveryUnknown)
     }
 
     @Test func reconcileFindsMarkerAndMarksSentFromThread() async throws {
@@ -84,11 +87,7 @@ struct DeliveryTests {
         #expect(result.entry?.state == .deliveryUnknown)
         let canvasId = try #require(ws.currentCanvasId)
 
-        let message = ThreadMessage(
-            id: "m-99", role: "user", text: "Drawspeak feedback ... Batch: \(result.package.marker)",
-            createdAt: fixedDate, attachments: []
-        )
-        ws.threads = FakeThreadService(messages: [message])
+        ws.threads = FakeThreadService(reconcileResult: .found(MessageAck(messageId: "m-99", acknowledgedAt: fixedDate)))
         let reconciled = await ws.reconcile(batchId: "ds-recon-1", canvasId: canvasId)
 
         #expect(reconciled == .found)
@@ -108,8 +107,9 @@ struct DeliveryTests {
         _ = await sendNotes(ws, noteIds: [id], batchId: "ds-recon-2")
         let canvasId = try #require(ws.currentCanvasId)
 
-        let other = ThreadMessage(id: "m-1", role: "user", text: "unrelated drawspeak-batch:ds-other", createdAt: nil, attachments: [])
-        ws.threads = FakeThreadService(messages: [other])
+        // A quoted marker in another message is not a receipt; only `reconcile` decides.
+        let quoted = ThreadMessage(id: "m-1", role: "assistant", text: "You sent [drawspeak-batch:ds-recon-2]", createdAt: nil, attachments: [])
+        ws.threads = FakeThreadService(messages: [quoted], reconcileResult: .notFound)
         let reconciled = await ws.reconcile(batchId: "ds-recon-2", canvasId: canvasId)
 
         #expect(reconciled == .notFound)

@@ -13,7 +13,7 @@ struct CanvasRow: View {
                 Text(canvas.thread?.displayName ?? "No thread")
                     .font(.subheadline)
                     .foregroundStyle(Theme.secondaryInk)
-                Text("\(canvas.snapshots.count) versions · \(canvas.notes.count) comments")
+                Text("^[\(canvas.snapshots.count) version](inflect: true) · ^[\(canvas.notes.count) comment](inflect: true)")
                     .font(.footnote)
                     .foregroundStyle(Theme.secondaryInk)
             }

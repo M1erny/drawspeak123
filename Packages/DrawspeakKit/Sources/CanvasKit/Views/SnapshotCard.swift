@@ -15,6 +15,9 @@ struct SnapshotCard: View {
     let accessibilityText: String
     let commentCount: Int
     let actions: CardActions
+    var allowsInteraction = false
+
+    @Environment(\.colorScheme) private var colorScheme
 
     @State private var isMissing = false
 
@@ -22,7 +25,7 @@ struct SnapshotCard: View {
         ZStack(alignment: .topLeading) {
             if let snapshot = slot.snapshot {
                 if isMissing {
-                    MissingSourceCard()
+                    MissingSourceCard(snapshot: snapshot)
                 } else {
                     if let capture = snapshot.image {
                         SnapshotImage(url: workspace.blobs.url(for: capture), maxPixelSize: imageMaxPixel, onFailure: markMissing)
@@ -34,8 +37,13 @@ struct SnapshotCard: View {
                             policy: snapshot.renderPolicy ?? .staticNoScript,
                             viewport: snapshot.viewport,
                             inspector: inspector,
-                            width: slot.frame.width
+                            width: slot.frame.width,
+                            allowsInteraction: allowsInteraction,
+                            snapshot: snapshot,
+                            workspace: workspace,
+                            canvasId: workspace.currentCanvasId
                         )
+                        .id("\(snapshot.id)-\(allowsInteraction)")
                     }
                 }
             } else {
@@ -46,11 +54,17 @@ struct SnapshotCard: View {
         .frame(width: slot.frame.width, height: slot.frame.height)
         .background(Theme.surface, in: .rect(cornerRadius: Theme.cardCornerRadius))
         .clipShape(.rect(cornerRadius: Theme.cardCornerRadius))
-        .shadow(color: .black.opacity(0.08), radius: 8, y: 2)
-        .accessibilityElement(children: .ignore)
-        .accessibilityLabel(isMissing ? "\(accessibilityText). Source file is missing" : accessibilityText)
+        .overlay {
+            RoundedRectangle(cornerRadius: Theme.cardCornerRadius)
+                .strokeBorder(Color(uiColor: .separator).opacity(colorScheme == .dark ? 1 : 0), lineWidth: 0.5)
+                .allowsHitTesting(false)
+        }
+        .shadow(color: .black.opacity(colorScheme == .dark ? 0.2 : 0.08), radius: 8, y: 2)
+        .allowsHitTesting(allowsInteraction)
+        .accessibilityElement(children: allowsInteraction ? .contain : .ignore)
+        .accessibilityLabel(isMissing ? "\(accessibilityText). Missing \(slot.snapshot?.kind == .html ? "HTML" : "image") source: \(slot.snapshot?.title ?? "unknown file")" : accessibilityText)
         .accessibilityActions {
-            if let snapshot = slot.snapshot, !isMissing {
+            if let snapshot = slot.snapshot, !isMissing, !allowsInteraction {
                 if let addRegion = actions.addRegion {
                     Button("Add Region…") { addRegion(snapshot.id) }
                 }
@@ -63,18 +77,17 @@ struct SnapshotCard: View {
             }
         }
         .offset(x: slot.frame.minX, y: slot.frame.minY)
-        .task(id: slot.snapshot?.id) {
-            checkSource()
-        }
+        .onChange(of: workspace.currentCanvas, initial: true) { checkSource() }
+        .onChange(of: slot.snapshot?.id) { checkSource() }
     }
 
     private func checkSource() {
         guard let snapshot = slot.snapshot else { return }
-        isMissing = !workspace.isSourceAvailable(snapshot)
+        isMissing = snapshot.sourceBlob.map { !workspace.blobs.exists($0) } ?? true
     }
 
     private func markMissing() {
-        isMissing = true
+        checkSource()
     }
 }
 #endif

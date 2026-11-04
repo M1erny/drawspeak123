@@ -5,6 +5,7 @@ import SwiftUI
 /// The floating drawing palette: tools, then Undo and Redo.
 /// Shortcuts: V hand, R region, A arrow, P pen, C component, ⌘Z, ⇧⌘Z.
 public struct ToolPalette: View {
+    @State private var announcedTool: CanvasTool?
     @Binding private var tool: CanvasTool
     private let canUndo: Bool
     private let canRedo: Bool
@@ -30,6 +31,7 @@ public struct ToolPalette: View {
             ForEach(CanvasTool.allCases) { item in
                 ToolButton(tool: item, isSelected: item == tool) {
                     tool = item
+                    announcedTool = item
                 }
             }
             Divider()
@@ -41,9 +43,25 @@ public struct ToolPalette: View {
                 .keyboardShortcut("z", modifiers: [.command, .shift])
         }
         .padding(6)
-        .paletteBackground()
+        .modifier(CanvasPaletteBackground())
         .accessibilityElement(children: .contain)
         .accessibilityLabel("Tools")
+        .overlay(alignment: .top) {
+            if let announcedTool {
+                Text(announcedTool.title)
+                    .font(.subheadline)
+                    .padding(8)
+                    .background(Theme.surface, in: .capsule)
+                    .offset(y: -44)
+                    .allowsHitTesting(false)
+            }
+        }
+        .onChange(of: tool) { announcedTool = tool }
+        .task(id: announcedTool) {
+            guard announcedTool != nil else { return }
+            do { try await Task.sleep(for: .milliseconds(1500)) } catch { return }
+            announcedTool = nil
+        }
     }
 }
 #endif

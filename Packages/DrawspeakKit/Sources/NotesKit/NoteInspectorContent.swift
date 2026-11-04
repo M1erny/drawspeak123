@@ -15,22 +15,28 @@ struct NoteInspectorContent: View {
             HStack(alignment: .top) {
                 PinBadge(number: note.ordinal, isActive: true)
                 VStack(alignment: .leading, spacing: 4) {
-                    Text(note.shape.kindLabel).font(.headline)
+                    Text("Comment \(note.ordinal)").font(.headline)
                     if let snapshot = canvas.snapshots.first(where: { $0.id == note.snapshotId }) {
-                        Text(NotesPresentation.sourceLabel(snapshot, in: canvas)).font(.caption).foregroundStyle(Theme.secondaryInk)
+                        Text(note.shape.kindLabel + " · " + NotesPresentation.sourceLabel(snapshot, in: canvas)).font(.caption).foregroundStyle(Theme.secondaryInk)
                     }
                 }
                 Spacer(minLength: 0)
+                Menu("More", systemImage: "ellipsis.circle") {
+                    Button("Delete Comment", systemImage: "trash", role: .destructive) {
+                        workspace.deleteNote(note.id)
+                        onClose()
+                    }
+                    .disabled(workspace.activeRecording != nil)
+                    .accessibilityHint("Deletes comment \(note.ordinal). Undo can restore it.")
+                }
+                .labelStyle(.iconOnly)
+                .frame(minWidth: Theme.minTarget, minHeight: Theme.minTarget)
                 Button("Close", systemImage: "xmark", action: onClose)
                     .labelStyle(.iconOnly).frame(minWidth: Theme.minTarget, minHeight: Theme.minTarget)
             }
             ReadinessChip(readiness: FeedbackScope.readiness(of: note, in: canvas, sourceAvailable: workspace.isSourceAvailable))
-            if let snapshot = canvas.snapshots.first(where: { $0.id == note.snapshotId }) {
-                SnapshotMarkPreview(workspace: workspace, snapshot: snapshot, shape: note.shape)
-                Button("Show Source on Canvas", systemImage: "scope") { onShowSource(note.id) }
-                    .frame(minHeight: Theme.minTarget)
-            }
             NoteTextEditor(workspace: workspace, note: note)
+                .id("comment-editor")
             if let issue = workspace.voiceIssue {
                 VoicePermissionNotice(issue: issue, onOpenSettings: {
                     if let url = URL(string: "app-settings:") { openURL(url) }
@@ -53,14 +59,12 @@ struct NoteInspectorContent: View {
             ForEach(note.recordings) { recording in
                 RecordingRow(workspace: workspace, note: note, recording: recording, canvasId: canvas.id)
             }
-            Divider()
-            Button("Delete Comment", systemImage: "trash", role: .destructive) {
-                workspace.deleteNote(note.id)
-                onClose()
+            if let snapshot = canvas.snapshots.first(where: { $0.id == note.snapshotId }) {
+                SnapshotMarkPreview(workspace: workspace, snapshot: snapshot, shape: note.shape, croppedToMark: true, maximumHeight: 180)
+                    .frame(maxHeight: 180)
+                Button("Show Source on Canvas", systemImage: "scope") { onShowSource(note.id) }
+                    .frame(minHeight: Theme.minTarget)
             }
-            .frame(minHeight: Theme.minTarget)
-            .disabled(workspace.activeRecording?.noteId == note.id)
-            .accessibilityHint("Deletes comment \(note.ordinal). Undo can restore it.")
         }
         .padding().foregroundStyle(Theme.ink)
     }

@@ -63,6 +63,10 @@ final class CanvasInputSurface: UIView, UIGestureRecognizerDelegate {
         }
     }
 
+    override func point(inside point: CGPoint, with event: UIEvent?) -> Bool {
+        !interaction.isInteracting(at: point) && super.point(inside: point, with: event)
+    }
+
     // MARK: - Camera gestures
 
     @objc private func handlePan(_ recognizer: UIPanGestureRecognizer) {

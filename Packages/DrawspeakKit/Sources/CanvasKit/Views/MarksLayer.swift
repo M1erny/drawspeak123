@@ -15,9 +15,12 @@ struct MarksLayer: View {
         ZStack(alignment: .topLeading) {
             ForEach(marks) { mark in
                 let isFocused = mark.noteId == focusedNoteId
-                MarkGeometry.path(for: mark.shape, in: mark.frame, headLength: 14 / zoom)
+                let width = isFocused ? lineWidth * 1.8 : lineWidth
+                let path = MarkGeometry.path(for: mark.shape, in: mark.frame, headLength: 14 / zoom)
+                path.stroke(Theme.annotationHalo, style: StrokeStyle(lineWidth: width + 2.5 / zoom, lineCap: .round, lineJoin: .round))
+                path
                     .stroke(
-                        Theme.annotation.opacity(isFocused || focusedNoteId == nil ? 1 : 0.75),
+                        Theme.annotation,
                         style: StrokeStyle(lineWidth: isFocused ? lineWidth * 1.8 : lineWidth, lineCap: .round, lineJoin: .round)
                     )
             }

@@ -4,7 +4,6 @@ import DrawspeakCore
 struct CompositeCanvas: View {
     let image: CGImage
     let items: [BatchItem]
-    private let red = Color(red: 189 / 255, green: 48 / 255, blue: 72 / 255)
 
     var body: some View {
         Canvas { context, size in
@@ -12,15 +11,15 @@ struct CompositeCanvas: View {
             let width = max(size.width, size.height) * 0.003
             for item in items {
                 let path = mark(item.shape, size: size, width: width)
-                context.stroke(path, with: .color(.white), style: StrokeStyle(lineWidth: width * 2, lineCap: .round, lineJoin: .round))
-                context.stroke(path, with: .color(red), style: StrokeStyle(lineWidth: width, lineCap: .round, lineJoin: .round))
+                context.stroke(path, with: .color(Theme.annotationHalo), style: StrokeStyle(lineWidth: width * 2, lineCap: .round, lineJoin: .round))
+                context.stroke(path, with: .color(Theme.annotation), style: StrokeStyle(lineWidth: width, lineCap: .round, lineJoin: .round))
                 let bounds = item.shape.bounds.clamped()
                 let radius = width * 4.5
                 let x = min(max(CGFloat(bounds.x) * size.width, radius + width), size.width - radius - width)
                 let y = min(max(CGFloat(bounds.y) * size.height, radius + width), size.height - radius - width)
                 let pin = Path(ellipseIn: CGRect(x: x - radius, y: y - radius, width: radius * 2, height: radius * 2))
-                context.fill(pin, with: .color(red))
-                context.stroke(pin, with: .color(.white), lineWidth: width)
+                context.fill(pin, with: .color(Theme.annotation))
+                context.stroke(pin, with: .color(Theme.annotationHalo), lineWidth: width)
                 context.draw(Text(item.ordinal, format: .number).font(.system(size: radius, weight: .bold)).foregroundStyle(.white), at: CGPoint(x: x, y: y))
             }
         }

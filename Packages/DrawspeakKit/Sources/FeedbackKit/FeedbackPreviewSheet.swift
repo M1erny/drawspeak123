@@ -4,23 +4,35 @@ import DrawspeakCore
 public struct FeedbackPreviewSheet: View {
     @State private var model: FeedbackPreviewModel
     private let initialSelection: Set<UUID>?
+    private let onChooseThread: (() -> Void)?
     private let onClose: () -> Void
 
-    public init(workspace: Workspace, canvasId: UUID, initialSelection: Set<UUID>? = nil, onClose: @escaping () -> Void) {
+    public init(workspace: Workspace, canvasId: UUID, initialSelection: Set<UUID>? = nil, onChooseThread: (() -> Void)? = nil, onClose: @escaping () -> Void) {
         _model = State(initialValue: FeedbackPreviewModel(workspace: workspace, canvasId: canvasId))
-        self.initialSelection = initialSelection; self.onClose = onClose
+        self.initialSelection = initialSelection; self.onChooseThread = onChooseThread; self.onClose = onClose
     }
     public var body: some View {
         NavigationStack {
             ScrollView {
                 VStack(alignment: .leading, spacing: 20) {
-                    if let thread = model.frozenCanvas?.thread {
-                        Text("To: \(thread.displayName)").font(.headline)
-                        Text(thread.hostURL.host() ?? thread.hostURL.absoluteString).font(.subheadline).foregroundStyle(.secondary)
-                    } else { Text("Connect this canvas to a T3 thread to send").font(.headline) }
+                    LabeledContent("To") {
+                        if let thread = model.recipient {
+                            VStack(alignment: .trailing) {
+                                Text(thread.displayName)
+                                Text(thread.hostURL.host() ?? thread.hostURL.absoluteString)
+                                    .font(.subheadline).foregroundStyle(.secondary)
+                            }
+                        } else {
+                            Button("Choose Thread…") { onChooseThread?() }
+                                .tint(Theme.action).disabled(onChooseThread == nil || model.busy)
+                                .frame(minHeight: 44)
+                        }
+                    }
+                    Text("^[\(model.selected.count) comment](inflect: true) · ^[\(model.selectedSnapshotCount) snapshot](inflect: true) → \(model.recipient?.displayName ?? "No recipient")")
+                        .font(.subheadline)
                     if let count = model.savedCount {
                         Label("Draft Saved", systemImage: "doc.badge.checkmark").font(.title2)
-                        Text("Saved as draft · \(count) comments. Nothing was sent.")
+                        Text("Saved as draft · ^[\(count) comment](inflect: true). Nothing was sent.")
                         Button("Back to Canvas", action: onClose).frame(minHeight: 44)
                     } else if let entry = model.entry {
                         FeedbackDeliveryResult(model: model, entry: entry, onClose: onClose)
@@ -37,29 +49,34 @@ public struct FeedbackPreviewSheet: View {
                             }
                         }
                         if model.candidates.isEmpty { ContentUnavailableView("No Ready Comments", systemImage: "text.bubble", description: Text("Add text to a comment on the canvas.")) }
-                        if let reason = model.sendBlock { Text(reason).foregroundStyle(.red).font(.subheadline) }
                     }
                     if let error = model.error { Text(error).foregroundStyle(.red) }
                     if let error = model.workspace.lastSaveError { Text(error).foregroundStyle(.red) }
                 }.padding()
             }
+            .scrollEdgeEffectStyle(.soft, for: .bottom)
             .navigationTitle("Feedback")
-            .toolbar { ToolbarItem(placement: .cancellationAction) { Button("Close", action: onClose).disabled(model.busy) } }
+            .toolbar { ToolbarItem(placement: .cancellationAction) { Button(role: .close, action: onClose).disabled(model.busy) } }
             .safeAreaInset(edge: .bottom) {
                 if model.savedCount == nil && model.entry == nil {
                     VStack(spacing: 12) {
                         if model.busy { ProgressView("Preparing feedback…") }
                         Button("Send to Agent") { Task { await model.send() } }
-                            .buttonStyle(.glassProminent).tint(Theme.action)
+                            .buttonStyle(.glassProminent).tint(Theme.actionFill)
                             .disabled(model.busy || model.sendBlock != nil).frame(minHeight: 44)
                         Button("Save Draft") { Task { await model.save() } }
+                            .buttonStyle(.bordered).tint(Theme.action)
                             .disabled(model.busy || model.selection.isEmpty).frame(minHeight: 44)
-                    }.frame(maxWidth: .infinity).padding().paletteBackground()
+                        if let reason = model.sendBlock {
+                            Text(reason).font(.footnote).foregroundStyle(.secondary)
+                                .fixedSize(horizontal: false, vertical: true)
+                        }
+                    }.frame(maxWidth: .infinity).padding()
                 }
             }
         }
         .interactiveDismissDisabled(model.busy)
-        .presentationDragIndicator(.visible)
+        .presentationDragIndicator(.hidden)
         .task { model.open(initialSelection: initialSelection) }
     }
     private var snapshotIds: [String] {

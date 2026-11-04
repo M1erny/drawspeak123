@@ -1,5 +1,6 @@
 import DrawspeakCore
 import Foundation
+import Synchronization
 
 let fixedDate = Date(timeIntervalSince1970: 1_800_000_000)
 
@@ -21,20 +22,52 @@ func makeTranscript(_ text: String) -> Transcript {
     )
 }
 
-/// A workspace backed by a fresh temp directory with one project and one bound canvas.
+func makeTempRoot() -> URL {
+    FileManager.default.temporaryDirectory.appending(path: UUID().uuidString, directoryHint: .isDirectory)
+}
+
+/// A workspace backed by a temp directory (`root`) with one project and one bound canvas.
 @MainActor
-func makeWorkspace(thread: ThreadBinding? = testThread) -> Workspace {
-    let root = FileManager.default.temporaryDirectory.appending(path: UUID().uuidString)
+func makeWorkspace(thread: ThreadBinding? = testThread, root: URL = makeTempRoot()) -> Workspace {
     let project = Project(name: "Test", createdAt: fixedDate)
     let canvas = ReviewCanvas(projectId: project.id, title: "Review", thread: thread, createdAt: fixedDate, updatedAt: fixedDate)
     let document = LibraryDocument(projects: [project], canvases: [canvas], lastCanvasId: canvas.id)
+    let locations = StorageLocations(root: root)
     let workspace = Workspace(
         document: document,
-        blobs: BlobStore(root: root.appending(path: "blobs")),
-        store: LibraryStore(fileURL: root.appending(path: "library.json"))
+        blobs: BlobStore(root: locations.blobs),
+        store: LibraryStore(fileURL: locations.libraryFile)
     )
     workspace.now = { fixedDate }
     return workspace
+}
+
+/// Decodes the library file as saved on disk.
+func persistedDocument(root: URL) -> LibraryDocument? {
+    guard let data = try? Data(contentsOf: StorageLocations(root: root).libraryFile) else { return nil }
+    let decoder = JSONDecoder()
+    decoder.dateDecodingStrategy = .iso8601
+    return try? decoder.decode(LibraryDocument.self, from: data)
+}
+
+func persistedOutboxState(root: URL, batchId: String) -> DeliveryState? {
+    persistedDocument(root: root)?.canvases.flatMap(\.outbox).first { $0.id == batchId }?.state
+}
+
+/// Makes a directory read-only (or writable again) to simulate storage failures.
+func setWritable(_ url: URL, _ writable: Bool) throws {
+    try FileManager.default.setAttributes([.posixPermissions: writable ? 0o755 : 0o555], ofItemAtPath: url.path(percentEncoded: false))
+}
+
+@MainActor
+func waitUntil(timeout: Duration = .seconds(5), _ condition: () -> Bool) async -> Bool {
+    let clock = ContinuousClock()
+    let deadline = clock.now + timeout
+    while !condition() {
+        if clock.now > deadline { return false }
+        try? await Task.sleep(for: .milliseconds(5))
+    }
+    return true
 }
 
 /// Imports a distinct image as a new screen with the given snapshot id.
@@ -63,23 +96,95 @@ func addTextNote(
     return id
 }
 
+/// Records which service methods were called.
+final class CallLog: Sendable {
+    private let storage = Mutex<[String]>([])
+    func record(_ call: String) { storage.withLock { $0.append(call) } }
+    var calls: [String] { storage.withLock { $0 } }
+}
+
+enum ReconcileStub: Sendable {
+    case found(MessageAck)
+    case notFound
+    case fails
+}
+
+struct ReconcileUnavailable: Error {}
+
 /// A thread service double. `sendFailure` makes `send` throw; `messages` is what the thread contains.
 struct FakeThreadService: ThreadService {
+    var hostURL: URL = testThread.hostURL
     var sendFailure: DeliveryFailure?
     var messages: [ThreadMessage] = []
+    var reconcileResult: ReconcileStub = .notFound
+    var log = CallLog()
+    /// Runs when `send` starts, before any upload.
+    var onSend: @Sendable () -> Void = {}
 
-    func listThreads() async throws -> [ThreadSummary] { [] }
-    func readMessages(threadId: String) async throws -> [ThreadMessage] { messages }
+    func listThreads() async throws -> [ThreadSummary] { log.record("listThreads"); return [] }
+    func readMessages(threadId: String) async throws -> [ThreadMessage] { log.record("readMessages"); return messages }
     func send(
         threadId: String, text: String, attachments: [OutgoingAttachment],
         progress: @Sendable (Int, Int) -> Void
     ) async throws(DeliveryFailure) -> MessageAck {
+        log.record("send")
+        onSend()
         progress(attachments.count, attachments.count)
         if let sendFailure { throw sendFailure }
         return MessageAck(messageId: "msg-1", acknowledgedAt: fixedDate)
     }
     func downloadAttachment(threadId: String, attachment: ThreadAttachment) async throws -> Data { Data() }
-    func threadStatus(threadId: String) async throws -> String? { nil }
+    func reconcile(threadId: String, batchId: String) async throws -> MessageAck? {
+        log.record("reconcile")
+        switch reconcileResult {
+        case .found(let ack): return ack
+        case .notFound: return nil
+        case .fails: throw ReconcileUnavailable()
+        }
+    }
+    func threadStatus(threadId: String) async throws -> String? { log.record("threadStatus"); return nil }
+}
+
+/// A microphone double that writes a small temporary file on Stop.
+@MainActor
+final class FakeVoice: VoiceCapturing {
+    private(set) var scope: RecordingScope?
+    private(set) var discardCount = 0
+    private(set) var lastFile: URL?
+    let directory = makeTempRoot()
+
+    func requestPermission() async -> Bool { true }
+    func start(scope: RecordingScope) throws { self.scope = scope }
+    func stop() -> CapturedAudio? {
+        guard let scope else { return nil }
+        self.scope = nil
+        try? FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        let url = directory.appending(path: "\(UUID().uuidString).m4a")
+        try? Data("audio-\(scope.recordingId)".utf8).write(to: url)
+        lastFile = url
+        return CapturedAudio(scope: scope, fileURL: url, contentType: "audio/mp4", duration: 1.5)
+    }
+    func discard() {
+        scope = nil
+        discardCount += 1
+    }
+    var isRecording: Bool { scope != nil }
+    var level: Double { 0 }
+    var elapsed: TimeInterval { 0 }
+}
+
+/// Returns `text` after a short delay and counts requests.
+final class FakeTranscriber: Transcribing, Sendable {
+    let text: String
+    private let count = Mutex(0)
+    init(text: String) { self.text = text }
+    var calls: Int { count.withLock { $0 } }
+    var isConfigured: Bool { true }
+    func transcribe(audio: Data, contentType: String, language: String?) async throws(TranscriptionFailure) -> Transcript {
+        count.withLock { $0 += 1 }
+        try? await Task.sleep(for: .milliseconds(30))
+        return makeTranscript(text)
+    }
 }
 
 /// Builds a package for the given notes and sends it through the workspace.

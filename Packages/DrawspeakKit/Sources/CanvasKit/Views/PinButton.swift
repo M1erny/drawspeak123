@@ -21,7 +21,7 @@ struct PinButton: View {
                 .frame(width: Theme.pinSize, height: Theme.pinSize)
                 .background(Theme.annotation, in: .circle)
                 .overlay {
-                    Circle().stroke(isFocused ? Theme.ink : Theme.surface, lineWidth: isFocused ? 3 : 1.5)
+                    Circle().stroke(Theme.annotationHalo, lineWidth: isFocused ? 3 : 2.5)
                 }
                 .background {
                     if isRecording { RecordingRing() }

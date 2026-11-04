@@ -36,7 +36,17 @@ public enum TranscriptMerge {
         let isLatestRecording = recordingIndex == note.recordings.count - 1
         let outcome: TranscriptMergeOutcome
         let text = transcript.text.trimmingCharacters(in: .whitespacesAndNewlines)
-        if isLatestRecording, note.textSource != .typed, !text.isEmpty {
+        let recording = note.recordings[recordingIndex]
+        let mayFill: Bool
+        if let startRevision = recording.textRevisionAtStart {
+            // Any text change since the recording started is newer user work,
+            // including clearing the text. Typed text from before is kept too.
+            let editedSinceStart = note.revision != startRevision
+            mayFill = !editedSinceStart && !(note.textSource == .typed && note.hasText)
+        } else {
+            mayFill = note.textSource != .typed
+        }
+        if isLatestRecording, mayFill, !text.isEmpty {
             if note.textSource == .transcript, note.hasText {
                 // Several recordings without typing: keep previous transcripts and add this one.
                 note.text = note.trimmedText + "\n" + text

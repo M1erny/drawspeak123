@@ -13,7 +13,7 @@ struct PaletteIconButton: View {
         Button(title, systemImage: systemImage, action: action)
             .labelStyle(.iconOnly)
             .font(.title3)
-            .foregroundStyle(Theme.ink)
+            .foregroundStyle(isEnabled ? Theme.ink : Theme.secondaryInk.opacity(0.35))
             .frame(width: Theme.minTarget, height: Theme.minTarget)
             .contentShape(.rect(cornerRadius: 12))
             .hoverEffect(.highlight)

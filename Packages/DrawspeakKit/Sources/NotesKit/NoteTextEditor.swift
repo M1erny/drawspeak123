@@ -33,6 +33,9 @@ struct NoteTextEditor: View {
             await workspace.saveNow()
             if !Task.isCancelled { isSaving = false }
         }
+        .onChange(of: workspace.voiceIssue, initial: true) { old, issue in
+            if (issue != nil || old != nil) && !note.hasText { isFocused = true }
+        }
         .onChange(of: text) { _, value in
             if value != workspace.note(note.id)?.text { workspace.updateNoteText(note.id, text: value) }
         }

@@ -24,10 +24,10 @@ nonisolated public enum CanvasTool: String, CaseIterable, Identifiable, Sendable
     public var systemImage: String {
         switch self {
         case .hand: "hand.raised"
-        case .region: "lasso"
+        case .region: "rectangle.dashed"
         case .arrow: "arrow.up.right"
-        case .pen: "pencil.tip"
-        case .component: "cursorarrow.rays"
+        case .pen: "pencil.and.scribble"
+        case .component: "square.on.square.dashed"
         }
     }
 

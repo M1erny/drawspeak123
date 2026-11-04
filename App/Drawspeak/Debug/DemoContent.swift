@@ -25,7 +25,7 @@ enum DemoContent {
             pixelSize: (780, 1688), viewport: Viewport(width: 390, height: 844, deviceScaleFactor: 2),
             target: .proposal(screenId: base.screenId, proposalId: "b"), renderPolicy: .staticNoScript
         )
-        workspace.addNote(snapshotId: base.id, shape: .region(NRect(x: 0.1, y: 0.82, width: 0.8, height: 0.08)), autoVoice: false)
+        workspace.addNote(snapshotId: base.id, shape: .region(NRect(x: 0.06, y: 0.875, width: 0.88, height: 0.095)), autoVoice: false)
         if let id = workspace.currentCanvas?.notes.last?.id {
             workspace.updateNoteText(id, text: "The pay button should show the total.")
         }

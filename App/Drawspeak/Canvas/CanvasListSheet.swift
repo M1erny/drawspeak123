@@ -43,7 +43,7 @@ struct CanvasListSheet: View {
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Done") { dismiss() }
                 }
-                ToolbarItem(placement: .primaryAction) {
+                ToolbarItem(placement: .topBarLeading) {
                     Button("New Canvas", systemImage: "plus") {
                         workspace.createCanvas(title: "Review \(workspace.canvases.count + 1)", thread: nil)
                         dismiss()

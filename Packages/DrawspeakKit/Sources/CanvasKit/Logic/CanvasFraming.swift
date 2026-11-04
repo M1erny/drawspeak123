@@ -69,6 +69,13 @@ nonisolated public enum CanvasFraming {
         return noteCamera.zoom > cardCamera.zoom ? noteCamera : cardCamera
     }
 
+    /// Bounds of a visible note's mark in screen points; nil for another version.
+    public static func markScreenRect(noteId: UUID, in canvas: ReviewCanvas, camera: CameraState) -> CGRect? {
+        let layout = CanvasWorldLayout(canvas: canvas)
+        guard let mark = PlacedMark.marks(in: layout, notes: canvas.notes).first(where: { $0.noteId == noteId }) else { return nil }
+        return worldToScreen(SnapshotSpace.worldRect(mark.shape.bounds.clamped(), in: mark.frame), camera: camera)
+    }
+
     /// The screen rect content may occupy: the view minus insets, the header
     /// chrome above cards and the margin.
     static func availableRect(viewSize: CGSize, insets: EdgeInsets) -> CGRect {

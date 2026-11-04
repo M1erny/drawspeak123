@@ -94,7 +94,12 @@ public enum ManifestValidator {
                 if !sameBytes { fail("Snapshot id already exists with other bytes") }
                 continue
             }
-            guard entry.widthPx > 0, entry.heightPx > 0 else { fail("Invalid dimensions"); continue }
+            guard entry.widthPx > 0, entry.heightPx > 0,
+                  Double(entry.widthPx) * Double(entry.heightPx) <= Viewport.maxPixelCount
+            else { fail("Invalid dimensions"); continue }
+            guard entry.viewport.isWithinCaptureLimits else {
+                fail("Viewport is outside the supported range (1–4096 points, scale 0.5–4, at most 40 MP)"); continue
+            }
             switch entry.role {
             case .baseline:
                 guard entry.proposalId == nil, entry.iteration == 0 else { fail("Baseline must have no proposal and iteration 0"); continue }

@@ -8,19 +8,29 @@ struct ThreadLabel: View {
 
     var body: some View {
         HStack(spacing: 6) {
-            Circle()
-                .fill(indicatorColor)
-                .frame(width: 8, height: 8)
-                .accessibilityHidden(true)
+            if binding != nil {
+                Image(systemName: statusSymbol)
+                    .foregroundStyle(indicatorColor)
+                    .imageScale(.small)
+                    .accessibilityHidden(true)
+            }
             if let binding {
                 Text(binding.threadTitle)
                     .font(.subheadline)
                     .lineLimit(1)
             } else {
-                Text("Choose Thread")
-                    .font(.subheadline)
-                    .foregroundStyle(Theme.secondaryInk)
+                Label("Choose Thread", systemImage: "link.badge.plus")
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(Theme.action)
             }
+        }
+    }
+
+    private var statusSymbol: String {
+        switch state {
+        case .connected: "checkmark.circle.fill"
+        case .connecting: "arrow.triangle.2.circlepath"
+        case .notPaired, .expired, .failed: "exclamationmark.circle"
         }
     }
 
@@ -28,7 +38,7 @@ struct ThreadLabel: View {
         switch state {
         case .connected: .green
         case .connecting: .orange
-        case .notPaired, .expired, .failed: .secondary
+        case .notPaired, .expired, .failed: .orange
         }
     }
 }

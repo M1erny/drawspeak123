@@ -9,20 +9,22 @@ import UniformTypeIdentifiers
 struct ImportCoordinator {
     static let allowedTypes: [UTType] = [.png, .jpeg, .webP, .html]
 
-    func read(_ url: URL) async -> Result<PendingImport, ImportFailure> {
-        let scoped = url.startAccessingSecurityScopedResource()
-        defer { if scoped { url.stopAccessingSecurityScopedResource() } }
-        guard let data = try? Data(contentsOf: url) else { return .failure(ImportFailure(message: "The file could not be read.")) }
+    func read(_ url: URL, canvasId: UUID) async -> Result<PendingImport, ImportFailure> {
         let type = UTType(filenameExtension: url.pathExtension) ?? .data
+        let limit = type.conforms(to: .html) ? Workspace.maxHTMLBytes : Workspace.maxImageBytes
+        let loaded = await Self.readBounded(url, limit: limit)
+        guard case .success(let data) = loaded else {
+            if case .failure(let failure) = loaded { return .failure(failure) }
+            return .failure(ImportFailure(message: "The file could not be read."))
+        }
         let name = url.lastPathComponent
         let title = url.deletingPathExtension().lastPathComponent
         if type.conforms(to: .html) {
-            guard data.count <= Workspace.maxHTMLBytes else { return .failure(ImportFailure(Workspace.ImportError.tooLarge(limitMiB: 2))) }
             let info = HTMLImport.inspect(data)
             do {
                 let capture = try await HTMLCapture.capture(html: data, policy: .staticNoScript, viewport: info.suggestedViewport)
                 return .success(PendingImport(
-                    fileName: name, suggestedTitle: info.title ?? title, kind: .html, contentType: "text/html", data: data,
+                    canvasId: canvasId, fileName: name, suggestedTitle: info.title ?? title, kind: .html, contentType: "text/html", data: data,
                     pixelSize: (capture.pixelWidth, capture.pixelHeight), viewport: info.suggestedViewport,
                     capture: capture.pngData, containsScripts: info.containsScripts
                 ))
@@ -33,16 +35,16 @@ struct ImportCoordinator {
         guard Self.allowedTypes.contains(where: { type.conforms(to: $0) }) else {
             return .failure(ImportFailure(Workspace.ImportError.unsupportedType))
         }
-        guard data.count <= Workspace.maxImageBytes else { return .failure(ImportFailure(Workspace.ImportError.tooLarge(limitMiB: 10))) }
         guard let size = Self.pixelSize(of: data) else { return .failure(ImportFailure(message: "The image could not be decoded.")) }
         return .success(PendingImport(
-            fileName: name, suggestedTitle: title, kind: .image, contentType: type.preferredMIMEType ?? "image/png", data: data,
+            canvasId: canvasId, fileName: name, suggestedTitle: title, kind: .image, contentType: type.preferredMIMEType ?? "image/png", data: data,
             pixelSize: size, viewport: nil, capture: nil, containsScripts: false
         ))
     }
 
     func store(_ pending: PendingImport, target: Workspace.ImportTarget, in workspace: Workspace) throws -> Snapshot {
         try workspace.importArtifact(
+            into: pending.canvasId,
             data: pending.data,
             kind: pending.kind,
             contentType: pending.contentType,
@@ -53,6 +55,20 @@ struct ImportCoordinator {
             captureImage: pending.capture.map { ($0, "image/png") },
             renderPolicy: pending.kind == .html ? .staticNoScript : nil
         )
+    }
+
+    /// Reads at most `limit` bytes off the main actor, checking the size first.
+    nonisolated static func readBounded(_ url: URL, limit: Int) async -> Result<Data, ImportFailure> {
+        await Task.detached(priority: .userInitiated) {
+            let scoped = url.startAccessingSecurityScopedResource()
+            defer { if scoped { url.stopAccessingSecurityScopedResource() } }
+            let tooLarge = ImportFailure(Workspace.ImportError.tooLarge(limitMiB: limit / (1024 * 1024)))
+            if let size = try? url.resourceValues(forKeys: [.fileSizeKey]).fileSize, size > limit { return .failure(tooLarge) }
+            guard let handle = try? FileHandle(forReadingFrom: url) else { return .failure(ImportFailure(message: "The file could not be read.")) }
+            defer { try? handle.close() }
+            guard let data = try? handle.read(upToCount: limit + 1) else { return .failure(ImportFailure(message: "The file could not be read.")) }
+            return data.count > limit ? .failure(tooLarge) : .success(data)
+        }.value
     }
 
     static func pixelSize(of data: Data) -> (width: Int, height: Int)? {

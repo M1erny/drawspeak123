@@ -77,6 +77,10 @@ public struct Snapshot: Codable, Hashable, Identifiable, Sendable {
     /// The bytes that define this version: the HTML source for HTML, the image otherwise.
     public var sourceBlob: BlobRef? { kind == .html ? html : image }
 
+    /// HTML imported without a capture image. It cannot be sent until a
+    /// capture is attached (`Workspace.attachCapture`).
+    public var needsCapture: Bool { kind == .html && image == nil }
+
     public var versionLabel: String {
         switch role {
         case .baseline: "Now"

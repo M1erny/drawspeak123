@@ -9,9 +9,7 @@ struct PercentControl: View {
         VStack {
             Stepper("\(title): \(Int(value))%", value: $value, in: 0...100, step: 1)
                 .frame(minHeight: Theme.minTarget)
-            Slider(value: $value, in: 0...100, step: 1) { Text(title) }
-                .frame(minHeight: Theme.minTarget)
-                .accessibilityValue("\(Int(value)) percent")
+
         }
     }
 }

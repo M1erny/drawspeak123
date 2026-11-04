@@ -11,6 +11,7 @@ struct CardsLayer: View {
     let workspace: Workspace
     let interaction: CanvasInteraction
     let actions: CardActions
+    let interactingSnapshotId: String?
 
     @Environment(\.displayScale) private var displayScale
 
@@ -25,7 +26,7 @@ struct CardsLayer: View {
         ForEach(slots) { slot in
             let snapshot = slot.snapshot
             let isLive = snapshot?.kind == .html && slot.frame.intersects(visible)
-                && (zoom >= Self.liveHTMLMinimumZoom || tool == .component || snapshot?.image == nil)
+                && (snapshot?.id == interactingSnapshotId || zoom >= Self.liveHTMLMinimumZoom || tool == .component || snapshot?.image == nil)
             let count = snapshot.map { commentCounts[$0.id] ?? 0 } ?? 0
             SnapshotCard(
                 slot: slot,
@@ -35,7 +36,8 @@ struct CardsLayer: View {
                 inspector: isLive ? snapshot.map { interaction.inspectors.inspector(slotId: slot.id, snapshotId: $0.id) } : nil,
                 accessibilityText: CanvasLabels.card(lane: slot.lane, screenTitle: slot.screen.title, commentCount: count),
                 commentCount: count,
-                actions: actions
+                actions: actions,
+                allowsInteraction: snapshot?.id == interactingSnapshotId
             )
         }
     }

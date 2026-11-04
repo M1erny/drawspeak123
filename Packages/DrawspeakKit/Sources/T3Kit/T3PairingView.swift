@@ -14,13 +14,41 @@ public struct T3PairingView: View {
     public var body: some View {
         NavigationStack {
             Form {
+                Section {
+                    Text("Keep T3 Code open and make sure this iPad can reach your Mac.")
+                        .font(.callout)
+                } header: {
+                    Text("Get a pairing code")
+                } footer: {
+                    Text("On your Mac: T3 Code › Settings › Sharing & access › Create pairing link › Show code")
+                }
                 Section("T3 Code") {
-                    TextField("Host", text: $host).autocorrectionDisabled().frame(minHeight: 44)
-                    TextField("Pairing code", text: $code).font(.body.monospaced()).textContentType(.oneTimeCode).autocorrectionDisabled().frame(minHeight: 44)
-                        #if os(iOS)
-                        .textInputAutocapitalization(.characters)
-                        #endif
-                        .onChange(of: code) { _, value in code = String(value.uppercased().prefix(12)) }
+                    LabeledContent("Host") {
+                        TextField("https://your-mac", text: $host)
+                            .multilineTextAlignment(.trailing)
+                            .autocorrectionDisabled()
+                            #if os(iOS)
+                            .keyboardType(.URL)
+                            .textInputAutocapitalization(.never)
+                            #endif
+                            .accessibilityLabel("Host")
+                            .frame(minHeight: 44)
+                    }
+                    LabeledContent("Pairing code") {
+                        TextField("12-character code", text: $code)
+                            .font(.body.monospaced())
+                            .multilineTextAlignment(.trailing)
+                            .textContentType(.oneTimeCode)
+                            .autocorrectionDisabled()
+                            #if os(iOS)
+                            .textInputAutocapitalization(.characters)
+                            #endif
+                            .accessibilityLabel("Pairing code")
+                            .frame(minHeight: 44)
+                            .onChange(of: code) { _, value in code = String(value.uppercased().prefix(12)) }
+                    }
+                }
+                Section {
                     Picker("Access level", selection: $accessLevel) {
                         Text("Full access").tag("full-access")
                         Text("Auto").tag("auto")
@@ -28,11 +56,23 @@ public struct T3PairingView: View {
                         Text("Approval required").tag("approval-required")
                         Text("Read only").tag("read-only")
                     }
-                    Text("Full access also permits settings and source control changes. Lower levels can send only to threads at or below that level.").font(.footnote).foregroundStyle(Theme.secondaryInk)
+                    Text(accessDescription).font(.footnote).foregroundStyle(Theme.secondaryInk)
+                } header: {
+                    Text("Choose access")
+                } footer: {
+                    Text("Full access is selected because new T3 threads default to full access. Threads created with full access need full access to receive feedback. Lower levels can send only to threads at or below that level. You can revoke access on your Mac.")
                 }
                 Section {
-                    Text("On your Mac: T3 Code › Settings › Sharing & access › Create pairing link › Show code").font(.callout)
-                    Button("Connect", systemImage: "link") { Task { await connect() } }.frame(minHeight: 44).disabled(code.count != 12 || connection.state == .connecting)
+                    Button { Task { await connect() } } label: {
+                        Label("Connect", systemImage: "link")
+                            .frame(maxWidth: .infinity, minHeight: 44)
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .disabled(!canConnect)
+                    if !canConnect && connection.state != .connecting {
+                        Text("Enter a host and a 12-character pairing code to connect.")
+                            .font(.footnote).foregroundStyle(Theme.secondaryInk)
+                    }
                     if let warning = connection.compatibilityWarning { Text(warning).foregroundStyle(Theme.secondaryInk) }
                     if connection.state == .connecting { ProgressView("Connecting to T3 Code") }
                     if let error = inputError { Text(error).foregroundStyle(Theme.annotation) }
@@ -42,6 +82,18 @@ public struct T3PairingView: View {
                 Section { Text("To revoke access, remove Drawspeak (iPad) in T3 Code › Settings › Sharing & access.").font(.footnote) }
             }.navigationTitle("Connect to T3").tint(Theme.action)
         }
+    }
+    private var accessDescription: String {
+        switch accessLevel {
+        case "read-only": "View threads. Sending feedback is unavailable."
+        case "approval-required": "Agent actions require approval on your Mac."
+        case "auto-accept-edits": "Edits are accepted automatically; other actions need approval."
+        case "auto": "Agent actions run automatically within T3 Code's permissions."
+        default: "Includes settings and source control changes."
+        }
+    }
+    private var canConnect: Bool {
+        code.count == 12 && !host.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && connection.state != .connecting
     }
     private func connect() async {
         inputError = nil

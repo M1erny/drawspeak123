@@ -108,6 +108,21 @@ struct CanvasFramingTests {
         #expect(approx(center, CGPoint(x: available.midX, y: available.midY), tolerance: 0.5))
     }
 
+    @Test func markScreenRectUsesSelectedVersionAndCamera() throws {
+        let fixture = try TwoScreenFixture()
+        let noteId = try #require(fixture.ws.addNote(snapshotId: fixture.proposalA.id, shape: regionShape, autoVoice: false))
+        let camera = CameraState(offsetX: 37, offsetY: -19, zoom: 1.5)
+        let card = try #require(CanvasWorldLayout(canvas: fixture.canvas).slots.first { $0.snapshot?.id == fixture.proposalA.id }?.frame)
+        let rect = try #require(CanvasFraming.markScreenRect(noteId: noteId, in: fixture.canvas, camera: camera))
+        #expect(abs(rect.minX - (37 + (card.minX + card.width * 0.1) * 1.5)) < 0.0001)
+        #expect(abs(rect.minY - (-19 + (card.minY + card.height * 0.1) * 1.5)) < 0.0001)
+        #expect(abs(rect.width - card.width * 0.3 * 1.5) < 0.0001)
+        #expect(abs(rect.height - card.height * 0.2 * 1.5) < 0.0001)
+        #expect(CanvasFraming.markScreenRect(noteId: UUID(), in: fixture.canvas, camera: camera) == nil)
+        _ = try addProposal(fixture.ws, screenId: fixture.s1, proposal: "A", id: "newer-a")
+        #expect(CanvasFraming.markScreenRect(noteId: noteId, in: fixture.canvas, camera: camera) == nil)
+    }
+
     @Test func clampZoomHandlesNonFinite() {
         #expect(CanvasFraming.clampZoom(.nan) == 1)
         #expect(CanvasFraming.clampZoom(100) == 6)

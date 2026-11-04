@@ -20,9 +20,12 @@ struct NoteListRow: View {
             } else if !note.recordings.isEmpty {
                 Image(systemName: note.isRecording ? "mic.fill" : "mic").accessibilityLabel(note.isRecording ? "Recording" : "Has voice recording")
             }
+            Image(systemName: "scope")
+                .foregroundStyle(Theme.action)
+                .accessibilityLabel("Show on Canvas")
         }
         .frame(minHeight: Theme.minTarget).accessibilityElement(children: .combine)
-        .accessibilityHint("Opens comment inspector")
+        .accessibilityHint("Shows this comment on the canvas and opens its inspector")
     }
 }
 

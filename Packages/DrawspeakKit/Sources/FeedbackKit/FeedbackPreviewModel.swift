@@ -22,10 +22,13 @@ final class FeedbackPreviewModel {
     var newNotes: [Note] { workspace.feedbackScope(canvasId: canvasId)?.ready.filter { note in !candidates.contains { $0.id == note.id } } ?? [] }
     var selected: [Note] { candidates.filter { selection.contains($0.id) } }
     var repeatCount: Int { selected.filter { $0.lastSentRevision != nil }.count }
+    // Observe binding changes without admitting later note revisions into the preview.
+    var recipient: ThreadBinding? { entry?.thread ?? workspace.canvas(canvasId)?.thread }
+    var selectedSnapshotCount: Int { Set(selected.map(\.snapshotId)).count }
     var package: FeedbackPackage? {
         guard var canvas = frozenCanvas else { return nil }
         canvas.notes = selected
-        let thread = canvas.thread ?? ThreadBinding(hostURL: URL(filePath: "/"), threadId: "", threadTitle: "No recipient", projectId: nil, projectTitle: nil)
+        let thread = recipient ?? ThreadBinding(hostURL: URL(filePath: "/"), threadId: "", threadTitle: "No recipient", projectId: nil, projectTitle: nil)
         return FeedbackPackageBuilder.build(canvas: canvas, noteIds: selection, thread: thread, batchId: batchId ?? "preview", now: workspace.now())
     }
     func reason(for note: Note) -> String? {
@@ -41,7 +44,7 @@ final class FeedbackPreviewModel {
         if selected.isEmpty { return "Select at least one comment." }
         if let note = selected.first(where: { reason(for: $0) != nil }) { return "Comment \(note.ordinal): \(reason(for: note) ?? "Unavailable") — deselect to send the rest" }
         if let package { do { try FeedbackPayloadBuilder.validate(package) } catch { return error.localizedDescription } }
-        if frozenCanvas?.thread == nil { return "Connect this canvas to a T3 thread to send" }
+        if recipient == nil { return "Connect this canvas to a T3 thread to send" }
         if workspace.threads == nil { return "Connect to T3 Code to send. You can save a draft." }
         return nil
     }

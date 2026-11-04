@@ -36,7 +36,7 @@ struct CanvasChrome: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            HStack(alignment: .top, spacing: 12) {
+            HStack(alignment: .center, spacing: 12) {
                 CanvasTitlePalette(workspace: workspace, connection: connection, onShowCanvases: actions.showCanvases, onPickThread: actions.pickThread)
                 Spacer(minLength: 12)
                 CanvasActionsPalette(
@@ -52,17 +52,17 @@ struct CanvasChrome: View {
 
             Spacer()
 
-            HStack(alignment: .bottom, spacing: 12) {
+            ZStack(alignment: .bottom) {
+                ToolPalette(tool: $tool, canUndo: canUndo, canRedo: canRedo, onUndo: actions.undo, onRedo: actions.redo)
+                    .frame(maxWidth: .infinity)
                 ZoomControls(
                     zoom: workspace.currentCanvas?.camera.zoom ?? 1,
                     onZoomOut: actions.zoomOut,
                     onZoomIn: actions.zoomIn,
                     onFitAll: actions.fitAll
                 )
-                Spacer(minLength: 12)
-                ToolPalette(tool: $tool, canUndo: canUndo, canRedo: canRedo, onUndo: actions.undo, onRedo: actions.redo)
-                Spacer(minLength: 12)
-                    .frame(maxWidth: horizontalSizeClass == .compact ? 0 : 160)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .opacity(horizontalSizeClass == .compact ? 0 : 1)
             }
             .padding(.horizontal, 16)
             .padding(.bottom, 12)

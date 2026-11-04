@@ -3,7 +3,7 @@ import DrawspeakCore
 import HTMLKit
 import SwiftUI
 
-/// The live, non-interactive HTML of a card, rendered at the snapshot's
+/// The live HTML of a card, interactive only while trying the prototype at its
 /// viewport and scaled to the lane width. Hidden until the document loads,
 /// so the capture image underneath shows meanwhile.
 struct LiveHTMLLayer: View {
@@ -13,6 +13,12 @@ struct LiveHTMLLayer: View {
     let viewport: Viewport
     let inspector: DOMInspector
     let width: CGFloat
+    let allowsInteraction: Bool
+    let snapshot: Snapshot
+    let workspace: Workspace
+    let canvasId: UUID?
+
+    @State private var didAttemptCapture = false
 
     @State private var html: Data?
     @State private var isLoaded = false
@@ -26,7 +32,7 @@ struct LiveHTMLLayer: View {
                     policy: policy,
                     viewport: viewport,
                     inspector: inspector,
-                    allowsInteraction: false,
+                    allowsInteraction: allowsInteraction,
                     onLoad: markLoaded
                 )
                 .frame(width: size.width, height: size.height)
@@ -42,6 +48,12 @@ struct LiveHTMLLayer: View {
 
     private func markLoaded() {
         isLoaded = true
+        guard !didAttemptCapture, workspace.needsCapture(snapshot), let html, let canvasId else { return }
+        didAttemptCapture = true
+        Task {
+            guard let capture = try? await HTMLCapture.capture(html: html, policy: policy, viewport: viewport) else { return }
+            workspace.attachCapture(capture.pngData, pixelSize: (capture.pixelWidth, capture.pixelHeight), to: snapshot.id, canvasId: canvasId)
+        }
     }
 }
 #endif

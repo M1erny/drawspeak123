@@ -85,7 +85,7 @@ import DrawspeakCore
         let result = try await MCPClient(credentials: credential(), session: session).callTool(name: "t3_thread_list")
         #expect(result["threads"].array.isEmpty); #expect(calls.withLock { $0 } == 2)
     }
-    @Test(arguments: ["success", "timeout", "uploadFailure", "unauthorized", "sessionExpired"])
+    @Test(arguments: ["success", "running", "timeout", "uploadFailure", "unauthorized", "sessionExpired"])
     func delivery(_ scenario: String) async throws {
         let order = Mutex<[String]>([])
         let session = StubProtocol.session { request in
@@ -99,7 +99,7 @@ import DrawspeakCore
             let name = body["params"]["name"].string!; order.withLock { $0.append(name) }
             var content: JSONValue = .object([:])
             switch name {
-            case "t3_thread_read": content = .object(["thread": .object(["status": .string("idle"), "runtimeMode": .string("full-access")])])
+            case "t3_thread_read": content = .object(["thread": .object(["status": .string(scenario == "running" ? "running" : "idle"), "runtimeMode": .string("full-access")])])
             case "t3_attachment_prepare_upload":
                 #expect(body["params"]["arguments"]["upload"]["sizeBytes"].int == 3)
                 if scenario == "unauthorized" { return (401, [:], Data()) }
@@ -118,7 +118,7 @@ import DrawspeakCore
         let progress = Mutex<[Int]>([])
         do {
             let ack = try await service.send(threadId: "thread", text: "Review", attachments: files) { done, total in #expect(total == 2); progress.withLock { $0.append(done) } }
-            #expect(scenario == "success"); #expect(ack.messageId == "ack")
+            #expect(["success", "running"].contains(scenario)); #expect(ack.messageId == "ack")
         } catch {
             switch scenario {
             case "timeout": #expect(error == .outcomeUnknown)
@@ -127,7 +127,7 @@ import DrawspeakCore
             }
         }
         let recorded = order.withLock { $0 }
-        if ["success", "timeout", "sessionExpired"].contains(scenario) {
+        if ["success", "running", "timeout", "sessionExpired"].contains(scenario) {
             #expect(recorded == ["t3_thread_read", "t3_attachment_prepare_upload", "upload", "t3_attachment_prepare_upload", "upload", "t3_thread_send_attachments"])
             #expect(progress.withLock { $0 } == [1, 2])
         } else { #expect(!recorded.contains("t3_thread_send_attachments")) }
@@ -154,12 +154,12 @@ import DrawspeakCore
             let args = body["params"]["arguments"]
             #expect(args["allProjects"].bool); #expect(!args["includeSubagents"].bool); #expect(args["limit"].int == 100)
             let cursor = args["cursor"].int ?? 0; cursors.withLock { $0.append(cursor) }
-            let thread: JSONValue = .object(["threadId": .string("t\(cursor)"), "title": .string("Thread"), "projectTitle": .string("Project"), "status": .string("idle"), "updatedAt": .string("2026-11-04T12:00:00.000Z")])
-            return try Self.rpc(body, result: .object(["structuredContent": .object(["threads": .array([thread]), "nextCursor": .number(Double(cursor + 100))])]))
+            let thread: JSONValue = .object(["threadId": .string("t\(cursor)"), "title": .string("Thread"), "projectId": .string("p\(cursor)"), "projectTitle": .string("Project \(cursor)"), "status": .string("idle"), "updatedAt": .string("2026-11-04T12:00:00.000Z")])
+            return try Self.rpc(body, result: .object(["structuredContent": .object(["threads": .array([thread]), "nextCursor": cursor < 400 ? .number(Double(cursor + 100)) : .null])]))
         }
         let threads = try await T3ThreadService(client: MCPClient(credentials: credential(), session: session)).listThreads()
-        #expect(threads.count == 3); #expect(threads.first?.updatedAt != nil)
-        #expect(cursors.withLock { $0 } == [0, 100, 200])
+        #expect(threads.count == 5); #expect(Set(threads.compactMap(\.projectId)).count == 5); #expect(threads.first?.updatedAt != nil)
+        #expect(cursors.withLock { $0 } == [0, 100, 200, 300, 400])
     }
     @Test func validationHappensBeforeNetwork() async throws {
         let session = StubProtocol.session { _ in Issue.record("Invalid send reached network"); return (500, [:], Data()) }
@@ -176,6 +176,96 @@ import DrawspeakCore
         }
         let ack = try await T3ThreadService(client: MCPClient(credentials: credential(), session: session)).reconcile(threadId: "thread", batchId: "batch")
         #expect(ack != nil); #expect(ack?.messageId == nil)
+    }
+
+    @Test(arguments: ["user", "assistant", "prefix", "wrongProvenance", "failure"])
+    func reconcileExactOutgoingMarker(_ scenario: String) async throws {
+        let session = StubProtocol.session { request in
+            let body = try Self.body(request)
+            if let reply = try Self.handshake(request, body) { return reply }
+            let isRead = body["params"]["name"].string == "t3_thread_read"
+            if isRead && scenario == "failure" { return (500, [:], Data()) }
+            let item: JSONValue = .object([
+                "type": .string(scenario == "assistant" ? "assistant_message" : "user_message"),
+                "createdBy": .string(scenario == "wrongProvenance" ? "user" : "agent"),
+                "creationSource": .string("mcp"), "messageId": .string("sent"),
+                "text": .string(scenario == "prefix" ? "[drawspeak-batch:ds-10] Review" : "[drawspeak-batch:ds-1] Review")
+            ])
+            return try Self.rpc(body, result: .object(["structuredContent": .object([
+                "items": .array(isRead ? [item] : []), "hasMore": .bool(false)
+            ])]))
+        }
+        let service: any ThreadService = T3ThreadService(client: MCPClient(credentials: credential(), session: session))
+        #expect(service.hostURL == host)
+        do {
+            let ack = try await service.reconcile(threadId: "thread", batchId: "ds-1")
+            #expect(scenario != "failure")
+            if scenario == "user" { #expect(ack?.messageId == "sent") }
+            else { #expect(ack == nil) }
+        } catch {
+            #expect(scenario == "failure")
+        }
+    }
+
+    @Test @MainActor func reconnectUsesStoredCredential() async throws {
+        let store = T3CredentialStore()
+        #expect(store.save(credential()))
+        defer { store.remove(host: host) }
+        let unavailable = Mutex(true)
+        let session = StubProtocol.session { request in
+            #expect(request.url?.path == "/mcp")
+            #expect(request.value(forHTTPHeaderField: "Authorization") == "Bearer fake-token")
+            if request.httpMethod == "DELETE" { return (204, [:], Data()) }
+            if unavailable.withLock({ $0 }) { throw URLError(.notConnectedToInternet) }
+            let body = try Self.body(request)
+            return try Self.handshake(request, body) ?? Self.rpc(body, result: .object([:]))
+        }
+        let previousHost = UserDefaults.standard.string(forKey: "drawspeak.t3.host")
+        UserDefaults.standard.removeObject(forKey: "drawspeak.t3.host")
+        defer { UserDefaults.standard.set(previousHost, forKey: "drawspeak.t3.host") }
+        let connection = T3Connection(hostURL: host, session: session, store: store)
+        await connection.restore()
+        guard case .failed = connection.state else { Issue.record("Expected transient failure"); return }
+        #expect(connection.credentials?.accessToken == "fake-token")
+        #expect(connection.canReconnect)
+        unavailable.withLock { $0 = false }
+        await connection.reconnect()
+        #expect(connection.state == .connected(host))
+        #expect(connection.threadService != nil)
+    }
+
+    @Test @MainActor func unauthorizedReconnectRequiresPairing() async throws {
+        let store = T3CredentialStore()
+        #expect(store.save(credential()))
+        defer { store.remove(host: host) }
+        let calls = Mutex(0)
+        let session = StubProtocol.session { _ in
+            calls.withLock { $0 += 1 }
+            return (401, [:], Data())
+        }
+        let previousHost = UserDefaults.standard.string(forKey: "drawspeak.t3.host")
+        UserDefaults.standard.removeObject(forKey: "drawspeak.t3.host")
+        defer { UserDefaults.standard.set(previousHost, forKey: "drawspeak.t3.host") }
+        let connection = T3Connection(hostURL: host, session: session, store: store)
+        await connection.restore()
+        #expect(connection.state == .expired)
+        #expect(!connection.canReconnect)
+        await connection.reconnect()
+        #expect(calls.withLock { $0 } == 1)
+    }
+
+    @Test(arguments: ["running", "waiting", "starting", "preparing", "completed", "idle", "unreachable"])
+    func runningWarning(_ status: String) async throws {
+        let session = StubProtocol.session { request in
+            let body = try Self.body(request)
+            if let reply = try Self.handshake(request, body) { return reply }
+            if status == "unreachable" { throw URLError(.notConnectedToInternet) }
+            return try Self.rpc(body, result: .object(["structuredContent": .object([
+                "thread": .object(["status": .string(status)])
+            ])]))
+        }
+        let running = await T3ThreadService(client: MCPClient(credentials: credential(), session: session)).isThreadRunning(threadId: "thread")
+        #expect(running == ["running", "waiting", "starting", "preparing"].contains(status))
     }
 
 }

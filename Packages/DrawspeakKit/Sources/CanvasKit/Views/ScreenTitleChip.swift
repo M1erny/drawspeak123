@@ -12,6 +12,7 @@ struct ScreenTitleChip: View {
     let workspace: Workspace
     let dragState: ScreenDragState
 
+    @State private var isHovering = false
     @State private var isRenaming = false
     @State private var draftTitle = ""
 
@@ -19,13 +20,18 @@ struct ScreenTitleChip: View {
     static let accessibilityStep = 120.0
 
     var body: some View {
-        Label(screen.title, systemImage: "line.3.horizontal")
-            .font(.subheadline.bold())
+        HStack(spacing: 6) {
+            Image(systemName: "line.3.horizontal")
+                .opacity(isHovering || dragState.drag?.screenId == screen.id ? 1 : 0)
+                .accessibilityHidden(true)
+            Text(screen.title)
+        }
+            .font(.headline)
             .foregroundStyle(Theme.ink)
             .lineLimit(1)
             .padding(.horizontal, 12)
             .frame(minHeight: Theme.minTarget)
-            .paletteBackground()
+            .onHover { isHovering = $0 }
             .contentShape(.capsule)
             .hoverEffect(.highlight)
             .gesture(drag)

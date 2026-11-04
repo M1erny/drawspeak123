@@ -6,6 +6,7 @@ import T3Kit
 struct ThreadBindingSheet: View {
     let workspace: Workspace
     let connection: T3Connection
+    var onBound: () -> Void = {}
     @Environment(\.dismiss) private var dismiss
     @State private var rejected = false
 
@@ -17,6 +18,7 @@ struct ThreadBindingSheet: View {
                         guard let canvasId = workspace.currentCanvasId else { return }
                         if workspace.bindThread(binding, to: canvasId) {
                             dismiss()
+                            onBound()
                         } else {
                             rejected = true
                         }
