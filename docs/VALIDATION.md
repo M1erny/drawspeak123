@@ -83,3 +83,9 @@ Niezweryfikowane: fizyczny iPad i Apple Pencil (kalibracja nacisku, squeeze, odr
 - Na żywo z symulatora: Send → **New Thread** w projekcie Drawspeak (`t3_thread_launch`, threadId `mcp:launch:…`, stan `sent`). Agent w nowym wątku użył skilla `ui-review-variants` i `drawspeak_bundle.py`; **Pull** zaimportował 2 propozycje HTML obok Now.
 - Pull akceptuje teraz także luźne odpowiedzi (sam manifest + bloki ```html albo same bloki HTML), liczy hashe z otrzymanego tekstu i podaje powód, gdy nic nie znalazł.
 - `xcodebuild test -scheme DrawspeakKit-Package`: 227 testów, TEST SUCCEEDED.
+
+## v5 — Pull plików z workspace (2026-11-04)
+
+- Pull pobiera pliki zapisane przez agenta na Macu (HTML, PNG/JPEG, manifest) przez API T3 (`assets.createUrl`, token tylko do odczytu plików), nadal na jeden kod parowania. Szczegóły: T3-MCP-CONTRACT §10a.
+- Na żywo z symulatora: wątek „Redesign App and Extension Flows” → 17 wersji (12 plansz HTML, 2 stany bazowe, 3 porównania PNG), plansze na pełną wysokość (capture kafelkami ≤ 4096 px), bez nakładania wierszy.
+- `xcodebuild test -scheme DrawspeakKit-Package`: TEST SUCCEEDED.

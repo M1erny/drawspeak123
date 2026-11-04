@@ -7,8 +7,9 @@ import WebKit
 public enum HTMLCapture {
     public static let timeout = Duration.seconds(15)
 
-    /// Loads the document in an isolated, offline web view of viewport size, waits
-    /// for load, fonts and one frame, and snapshots it at `viewport.deviceScaleFactor`.
+    /// Loads at viewport width, then captures the full document height (up to
+    /// 8000 CSS pixels), reducing raster scale when needed to stay within 40 MP.
+    /// Tall pages are captured in slices of at most 4096 px and stitched.
     /// Throws `HTMLKitError.captureTimedOut` after 15 seconds.
     public static func capture(html: Data, policy: RenderPolicy, viewport: Viewport) async throws -> HTMLCaptureResult {
         let session = HTMLWebViewSession(viewport: viewport)
@@ -23,49 +24,53 @@ public enum HTMLCapture {
             session.load(html: html, policy: policy, viewport: viewport)
             try await session.waitUntilLoaded()
             try await inspector.settle()
-            let image = try await snapshot(of: session.webView, viewport: viewport)
+            let content = try await inspector.contentSize()
+            let size = HTMLCaptureSize(viewport: viewport, contentHeightCSS: content.height)
+            host.resize(to: CGSize(width: size.widthCSS, height: size.heightCSS))
+            try await inspector.settle()
+            let image = try await stitchedSnapshot(of: session.webView, size: size)
             let renderHash = try await inspector.renderHash()
-            return try encode(image, viewport: viewport, renderHash: renderHash)
+            return try encode(image, size: size, renderHash: renderHash)
         }
     }
 
-    static func pixelSize(of viewport: Viewport) -> (width: Int, height: Int) {
-        let scale = viewport.deviceScaleFactor.isFinite && viewport.deviceScaleFactor > 0 ? viewport.deviceScaleFactor : 1
-        return (
-            max(1, Int((Double(viewport.width) * scale).rounded())),
-            max(1, Int((Double(viewport.height) * scale).rounded()))
-        )
-    }
-
-    private static func snapshot(of webView: WKWebView, viewport: Viewport) async throws -> UIImage {
-        let configuration = WKSnapshotConfiguration()
-        configuration.rect = CGRect(origin: .zero, size: HTMLWebViewFactory.size(of: viewport))
-        configuration.afterScreenUpdates = true
+    /// Snapshots the page slice by slice (`HTMLCaptureSize.tiles`) and draws
+    /// each slice into one opaque sRGB bitmap of exactly the target pixel size
+    /// as it arrives, so at most one slice is held besides the bitmap.
+    private static func stitchedSnapshot(of webView: WKWebView, size: HTMLCaptureSize) async throws -> CGImage {
         let displayScale = webView.traitCollection.displayScale > 0 ? webView.traitCollection.displayScale : 1
-        configuration.snapshotWidth = NSNumber(value: Double(pixelSize(of: viewport).width) / displayScale)
-        do {
-            return try await webView.takeSnapshot(configuration: configuration)
-        } catch {
-            throw HTMLKitError.snapshotFailed
+        guard let colorSpace = CGColorSpace(name: CGColorSpace.sRGB),
+              let context = CGContext(
+                  data: nil, width: size.pixelWidth, height: size.pixelHeight, bitsPerComponent: 8, bytesPerRow: 0,
+                  space: colorSpace, bitmapInfo: CGImageAlphaInfo.noneSkipLast.rawValue
+              ) else { throw HTMLKitError.snapshotFailed }
+        // Transparent page backgrounds read as white, never as black.
+        context.setFillColor(CGColor(srgbRed: 1, green: 1, blue: 1, alpha: 1))
+        context.fill(CGRect(x: 0, y: 0, width: size.pixelWidth, height: size.pixelHeight))
+        context.interpolationQuality = .high
+        for tile in size.tiles() {
+            let configuration = WKSnapshotConfiguration()
+            configuration.rect = CGRect(x: 0, y: tile.minYCSS, width: size.widthCSS, height: tile.heightCSS)
+            configuration.afterScreenUpdates = true
+            configuration.snapshotWidth = NSNumber(value: Double(size.pixelWidth) / displayScale)
+            let slice: CGImage?
+            do {
+                slice = try await webView.takeSnapshot(configuration: configuration).cgImage
+            } catch {
+                throw HTMLKitError.snapshotFailed
+            }
+            guard let slice else { throw HTMLKitError.snapshotFailed }
+            // Core Graphics is bottom-left; tiles are listed top-down.
+            let y = size.pixelHeight - tile.pixelMinY - tile.pixelHeight
+            context.draw(slice, in: CGRect(x: 0, y: y, width: size.pixelWidth, height: tile.pixelHeight))
         }
+        guard let image = context.makeImage() else { throw HTMLKitError.snapshotFailed }
+        return image
     }
 
-    /// Encodes at exactly the viewport's pixel size, redrawing only when WebKit
-    /// returned another scale.
-    private static func encode(_ image: UIImage, viewport: Viewport, renderHash: String) throws -> HTMLCaptureResult {
-        let target = pixelSize(of: viewport)
-        var cgImage = image.cgImage
-        if cgImage?.width != target.width || cgImage?.height != target.height {
-            let format = UIGraphicsImageRendererFormat()
-            format.scale = 1
-            format.opaque = true
-            format.preferredRange = .standard
-            let size = CGSize(width: target.width, height: target.height)
-            let renderer = UIGraphicsImageRenderer(size: size, format: format)
-            cgImage = renderer.image { _ in image.draw(in: CGRect(origin: .zero, size: size)) }.cgImage
-        }
-        guard let cgImage, let png = UIImage(cgImage: cgImage).pngData() else { throw HTMLKitError.snapshotFailed }
-        return HTMLCaptureResult(pngData: png, pixelWidth: cgImage.width, pixelHeight: cgImage.height, renderHash: renderHash)
+    private static func encode(_ cgImage: CGImage, size: HTMLCaptureSize, renderHash: String) throws -> HTMLCaptureResult {
+        guard let png = UIImage(cgImage: cgImage).pngData() else { throw HTMLKitError.snapshotFailed }
+        return HTMLCaptureResult(pngData: png, pixelWidth: cgImage.width, pixelHeight: cgImage.height, renderHash: renderHash, contentHeightCSS: size.heightCSS)
     }
 }
 #endif

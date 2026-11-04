@@ -125,4 +125,110 @@ struct LayoutTests {
         for slot in layout.slots { #expect(bounds.contains(slot.frame)) }
         #expect(CanvasWorldLayout(canvas: makeWorkspace().currentCanvas!).contentBounds == nil)
     }
+
+    // MARK: Row stacking
+
+    /// Bottom of a row's cards and top of the next row's cards never meet.
+    private func expectRowsDoNotOverlap(_ layout: CanvasWorldLayout) {
+        for (index, row) in layout.rows.enumerated() {
+            for other in layout.rows[(index + 1)...] {
+                for a in row.slots { for b in other.slots { #expect(!a.frame.intersects(b.frame)) } }
+            }
+        }
+    }
+
+    @Test func tallSnapshotPushesTheNextScreenBelowIt() throws {
+        let ws = makeWorkspace()
+        let first = try addScreen(ws, id: "s1-now", title: "Setup")
+        let second = try addScreen(ws, id: "s2-now", title: "Vault")
+        // The board's height is known only after the second row was placed.
+        _ = try ws.importArtifact(
+            data: Data("<html><body>tall</body></html>".utf8), kind: .html, contentType: "text/html",
+            fileName: "tall.html", pixelSize: (width: 2683, height: 14907),
+            viewport: Viewport(width: 1440, height: 844, deviceScaleFactor: 2),
+            target: .proposal(screenId: first.screenId, proposalId: "A"), snapshotId: "tall"
+        )
+        let canvas = try #require(ws.currentCanvas)
+        let layout = CanvasWorldLayout(canvas: canvas)
+        let tall = try #require(layout.frame(forSnapshot: "tall"))
+        #expect(abs(tall.height - 420 * 14907 / 2683) < 1e-9)
+        let next = try #require(layout.rows.first { $0.id == second.screenId })
+        let nextTop = try #require(next.slots.map(\.frame.minY).min())
+        #expect(nextTop >= tall.maxY + CGFloat(CanvasLayout.rowSpacing + CanvasLayout.headerHeight) - 1e-9)
+        #expect(next.baseOrigin.y > canvas.screens[1].origin.y)
+        expectRowsDoNotOverlap(layout)
+        let bounds = try #require(layout.contentBounds)
+        #expect(bounds.contains(tall) && bounds.maxY >= nextTop)
+        // A new screen lands below the stacked rows, not below the stored origins.
+        #expect(CanvasLayout.nextScreenOrigin(in: canvas).y >= Double(next.slots.map(\.frame.maxY).max() ?? 0))
+    }
+
+    @Test func rowMovedAboveAnotherTakesItsPlace() throws {
+        var canvas = try TwoScreenFixture().canvas
+        canvas.screens[1].origin = WorldPoint(x: 0, y: -2_000)
+        let layout = CanvasWorldLayout(canvas: canvas)
+        #expect(layout.rows[1].baseOrigin == WorldPoint(x: 0, y: -2_000))
+        let movedBottom = try #require(layout.rows[1].slots.map(\.frame.maxY).max())
+        let firstTop = try #require(layout.rows[0].slots.map(\.frame.minY).min())
+        #expect(firstTop >= movedBottom + CGFloat(CanvasLayout.rowSpacing + CanvasLayout.headerHeight) - 1e-9)
+        expectRowsDoNotOverlap(layout)
+    }
+
+    @Test func rowMovedBesideAnotherKeepsItsHeight() throws {
+        var canvas = try TwoScreenFixture().canvas
+        canvas.screens[1].origin = WorldPoint(x: 5_000, y: 0)
+        let layout = CanvasWorldLayout(canvas: canvas)
+        #expect(layout.rows[1].baseOrigin == WorldPoint(x: 5_000, y: 0))
+    }
+
+    // MARK: Now lane
+
+    @Test func proposalOnlyScreenStartsWithItsFirstProposal() throws {
+        let fixture = try TwoScreenFixture()
+        var canvas = fixture.canvas
+        canvas.baselineRevisions.removeAll { $0.screenId == fixture.s1 }
+        canvas.snapshots.removeAll { $0.id == "s1-now" }
+        let layout = CanvasWorldLayout(canvas: canvas)
+        let row = try #require(layout.rows.first { $0.id == fixture.s1 })
+        #expect(row.slots.map(\.lane.key.proposalId) == ["A", "B"])
+        #expect(row.slots[0].laneIndex == 0)
+        #expect(row.slots[0].frame.minX == CGFloat(row.baseOrigin.x))
+        #expect(layout.frame(forSnapshot: fixture.proposalA.id)?.minX == CGFloat(row.baseOrigin.x))
+
+        // Promote to Now brings the Now lane back in front.
+        canvas.baselineRevisions.append(BaselineRevision(screenId: fixture.s1, snapshotId: fixture.proposalA.id, promotedFromSnapshotId: fixture.proposalA.id, createdAt: fixedDate))
+        let promoted = try #require(CanvasWorldLayout(canvas: canvas).rows.first { $0.id == fixture.s1 })
+        #expect(promoted.slots.map(\.lane.key.proposalId) == [nil, "A", "B"])
+        #expect(promoted.slots[0].snapshot?.id == fixture.proposalA.id)
+    }
+
+    @Test func screenWithoutVersionsKeepsItsNowPlaceholder() throws {
+        let fixture = try TwoScreenFixture()
+        var canvas = fixture.canvas
+        canvas.baselineRevisions.removeAll { $0.screenId == fixture.s2 }
+        canvas.snapshots.removeAll { $0.screenId == fixture.s2 }
+        let row = try #require(CanvasWorldLayout(canvas: canvas).rows.first { $0.id == fixture.s2 })
+        #expect(row.slots.count == 1)
+        #expect(row.slots[0].lane.key.isNow && row.slots[0].snapshot == nil)
+    }
+
+    // MARK: Screen chrome
+
+    @Test func chromeThatWouldCoverTheRowAboveIsLeftOut() throws {
+        let layout = CanvasWorldLayout(canvas: try TwoScreenFixture().canvas)
+        let clearances = RowChrome.clearances(rows: layout.rows)
+        #expect(clearances[layout.rows[0].id] == .infinity)
+        let gap = try #require(clearances[layout.rows[1].id])
+        #expect(abs(gap - CGFloat(CanvasLayout.rowSpacing + CanvasLayout.headerHeight)) < 1e-9)
+
+        let line: CGFloat = 46
+        let full = RowChrome(clearance: gap, zoom: 1, line: line)
+        #expect(full.showsHeaders && full.showsTitle && full.titleLines == 2)
+        let titleOnly = RowChrome(clearance: gap, zoom: 0.2, line: line)
+        #expect(!titleOnly.showsHeaders && titleOnly.showsTitle && titleOnly.titleLines == 1)
+        let none = RowChrome(clearance: gap, zoom: 0.1, line: line)
+        #expect(!none.showsHeaders && !none.showsTitle)
+        let top = RowChrome(clearance: .infinity, zoom: 0.01, line: line)
+        #expect(top.showsHeaders && top.showsTitle)
+    }
 }

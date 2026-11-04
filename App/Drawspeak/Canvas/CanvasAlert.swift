@@ -14,6 +14,11 @@ struct CanvasAlert: Identifiable, Equatable {
         CanvasAlert(title: String(localized: "Can't Pull Versions"), message: message)
     }
 
+    /// Pull found replies but no versions in them; `reason` says why.
+    static func noVersions(_ reason: String) -> CanvasAlert {
+        CanvasAlert(title: String(localized: "No versions found in the latest replies."), message: reason)
+    }
+
     static func saveFailed(_ message: String) -> CanvasAlert {
         CanvasAlert(title: String(localized: "Can't Save Changes"), message: message)
     }

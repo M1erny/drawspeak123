@@ -1616,15 +1616,25 @@ public final class Workspace {
         public var importedSnapshots: Int
         public var issues: [String]
         public var messagesChecked: Int
+        /// Set when nothing was imported because the replies hold no versions: why not.
+        public var noVersionsReason: String?
+
+        public init(importedSnapshots: Int, issues: [String], messagesChecked: Int, noVersionsReason: String? = nil) {
+            self.importedSnapshots = importedSnapshots; self.issues = issues
+            self.messagesChecked = messagesChecked; self.noVersionsReason = noVersionsReason
+        }
     }
 
     /// Renders an HTML capture: PNG bytes and pixel size.
     public typealias HTMLCapturer = @MainActor (Data, RenderPolicy, Viewport) async throws -> (png: Data, width: Int, height: Int)
 
-    /// Imports versions the agent returned as text bundles (manifest + HTML files)
-    /// in its replies. A message is marked pulled only after every valid entry was
-    /// stored (or already existed), so failed entries stay retryable. Pull never
-    /// changes Now of a screen that has one: returned baselines wait for Promote to Now.
+    /// Imports versions the agent returned in its replies: inline text bundles
+    /// (manifest + HTML files), a `drawspeak-bundle path="…"` pointer to a manifest in
+    /// the thread's workspace, or (latest reply only) linked local HTML/PNG/JPEG files,
+    /// downloaded from the Mac. A message is marked pulled only after every file was
+    /// downloaded and every valid entry was stored (or already existed), so failed
+    /// entries stay retryable. Pull never changes Now of a screen that has one:
+    /// returned baselines wait for Promote to Now.
     public func pull(canvasId: UUID, captureHTML: HTMLCapturer) async -> PullReport {
         guard let canvas = canvas(canvasId), let thread = canvas.thread else {
             return PullReport(importedSnapshots: 0, issues: ["Connect this canvas to a T3 thread first"], messagesChecked: 0)
@@ -1642,11 +1652,22 @@ public final class Workspace {
         var imported = 0
         var issues: [String] = []
         var diagnoses: [String] = []
-        for message in messages where message.role != "user" {
+        var downloads = WorkspaceDownloads(threadId: thread.threadId, service: threads)
+        let replies = messages.filter { $0.role != "user" }
+        for message in replies {
             guard !(self.canvas(canvasId)?.pulledMessageIds.contains(message.id) ?? true) else { continue }
             guard let current = self.canvas(canvasId) else { break }
-            // Tolerant reader: strict bundles, manifest + plain html blocks, or html blocks alone.
-            let bundle = PulledBundleReader.read(message.text, canvas: current)
+            // Tolerant reader: strict bundles, manifest + plain html blocks, or html blocks alone;
+            // then a workspace manifest pointer; linked local files only in the latest reply.
+            var bundle = PulledBundleReader.read(message.text, canvas: current, linkedFiles: message.id == replies.last?.id)
+            var downloaded = true
+            if bundle.entries.isEmpty, let remote = bundle.remote {
+                let fetched = await fetchRemoteBundle(remote, canvasId: canvasId, downloads: &downloads)
+                bundle.entries = fetched.bundle.entries
+                bundle.issues += fetched.bundle.issues
+                bundle.diagnosis = fetched.bundle.diagnosis
+                downloaded = fetched.complete
+            }
             issues.append(contentsOf: bundle.issues.map { issue in
                 issue.snapshotId.map { "\($0): \(issue.message)" } ?? issue.message
             })
@@ -1656,15 +1677,84 @@ public final class Workspace {
             }
             let outcome = await importPulledEntries(bundle.entries, canvasId: canvasId, messageId: message.id, captureHTML: captureHTML, issues: &issues)
             imported += outcome.imported
-            if outcome.complete {
+            if outcome.complete && downloaded {
                 mutateCanvas(canvasId) { $0.pulledMessageIds.append(message.id) }
             }
         }
+        var reason: String?
         if imported == 0, issues.isEmpty, let last = diagnoses.last {
             issues.append(last)
+            reason = last
         }
         await saveNow()
-        return PullReport(importedSnapshots: imported, issues: issues, messagesChecked: messages.count)
+        return PullReport(importedSnapshots: imported, issues: issues, messagesChecked: messages.count, noVersionsReason: reason)
+    }
+
+    /// Downloads for one Pull: at most `PulledBundleReader.maxRemoteFiles` files,
+    /// and none after the service reports that files are unavailable.
+    private struct WorkspaceDownloads {
+        let threadId: String
+        let service: any ThreadService
+        var remaining = PulledBundleReader.maxRemoteFiles
+        var unavailable: String?
+        var limitReported = false
+
+        mutating func fetch(_ path: String, issues: inout [ManifestIssue]) async -> Data? {
+            guard unavailable == nil else { return nil }
+            guard remaining > 0 else {
+                if !limitReported { issues.append(ManifestIssue(snapshotId: nil, message: "Pull downloads at most \(PulledBundleReader.maxRemoteFiles) files; Pull again for the rest")) }
+                limitReported = true
+                return nil
+            }
+            remaining -= 1
+            do {
+                let data = try await service.downloadWorkspaceFile(threadId: threadId, path: path)
+                guard data.count <= PulledBundleReader.maxRemoteFileBytes else {
+                    issues.append(ManifestIssue(snapshotId: nil, message: "\(path) exceeds the 10 MiB limit")); return nil
+                }
+                return data
+            } catch let error as WorkspaceFileUnavailable {
+                unavailable = error.message
+                issues.append(ManifestIssue(snapshotId: nil, message: error.message))
+                return nil
+            } catch {
+                issues.append(ManifestIssue(snapshotId: nil, message: "\(path): \(error.localizedDescription)"))
+                return nil
+            }
+        }
+    }
+
+    /// Downloads the files a reply points to and builds its entries. `complete` is
+    /// false when a file could not be downloaded, so the reply stays retryable.
+    private func fetchRemoteBundle(_ remote: PulledBundle.Remote, canvasId: UUID, downloads: inout WorkspaceDownloads) async -> (bundle: PulledBundle, complete: Bool) {
+        var issues: [ManifestIssue] = []
+        var missing = 0
+        switch remote {
+        case .manifest(let path):
+            guard let manifest = await downloads.fetch(path, issues: &issues) else {
+                return (PulledBundle(entries: [], issues: issues, diagnosis: nil), false)
+            }
+            let listed = PulledBundleReader.manifestFiles(manifest)
+            issues += listed.issues
+            var files: [String: Data] = [:]
+            for relative in listed.paths {
+                guard let full = WorkspaceFilePath.sibling(relative, of: path) else {
+                    issues.append(ManifestIssue(snapshotId: nil, message: "\(relative): path is unsafe")); continue
+                }
+                if let data = await downloads.fetch(full, issues: &issues) { files[relative] = data } else { missing += 1 }
+            }
+            guard let canvas = canvas(canvasId) else { return (PulledBundle(entries: [], issues: issues, diagnosis: nil), false) }
+            let bundle = PulledBundleReader.read(manifest: manifest, files: files, canvas: canvas)
+            return (PulledBundle(entries: bundle.entries, issues: issues + bundle.issues, diagnosis: bundle.diagnosis), missing == 0)
+        case .files(let linked):
+            var files: [String: Data] = [:]
+            for file in linked {
+                if let data = await downloads.fetch(file.path, issues: &issues) { files[file.path] = data } else { missing += 1 }
+            }
+            guard let canvas = canvas(canvasId) else { return (PulledBundle(entries: [], issues: issues, diagnosis: nil), false) }
+            let bundle = PulledBundleReader.read(linked: linked, files: files, canvas: canvas)
+            return (PulledBundle(entries: bundle.entries, issues: issues + bundle.issues, diagnosis: bundle.diagnosis), missing == 0)
+        }
     }
 
     private func ensureScreen(id: String, title: String, canvasId: UUID) -> String {
@@ -1692,7 +1782,9 @@ public final class Workspace {
             if canvas(canvasId)?.snapshots.contains(where: { $0.id == entry.snapshotId }) == true { continue }
             var capture: (data: Data, contentType: String)?
             var pixelSize = (entry.widthPx, entry.heightPx)
-            if let rendered = try? await captureHTML(entry.html, entry.renderPolicy, entry.viewport) {
+            if entry.kind == .image {
+                // Image versions are their own capture.
+            } else if let rendered = try? await captureHTML(entry.html, entry.renderPolicy, entry.viewport) {
                 capture = (rendered.png, "image/png")
                 pixelSize = (rendered.width, rendered.height)
             } else {
@@ -1704,14 +1796,15 @@ public final class Workspace {
                 : .proposal(screenId: screenId, proposalId: entry.proposalId ?? "a")
             let promote = canvas(canvasId).map { CanvasLayout.now(in: $0, screenId: screenId) == nil } ?? false
             do {
+                let isImage = entry.kind == .image
                 try storeArtifact(
                     into: canvasId,
-                    data: entry.html,
-                    kind: .html,
-                    contentType: "text/html",
-                    fileName: entry.snapshotId + ".html",
+                    data: isImage ? entry.image ?? Data() : entry.html,
+                    kind: entry.kind,
+                    contentType: isImage ? entry.imageContentType ?? "image/png" : "text/html",
+                    fileName: entry.snapshotId + (isImage ? (entry.imageContentType == "image/jpeg" ? ".jpg" : ".png") : ".html"),
                     pixelSize: pixelSize,
-                    viewport: entry.viewport,
+                    viewport: isImage ? nil : entry.viewport,
                     target: target,
                     origin: .t3Pull(messageId: messageId, manifestReviewId: nil),
                     snapshotId: entry.snapshotId,
@@ -1720,7 +1813,7 @@ public final class Workspace {
                     parentSnapshotId: entry.parentSnapshotId,
                     capturedAt: nil,
                     captureImage: capture,
-                    renderPolicy: entry.renderPolicy,
+                    renderPolicy: isImage ? nil : entry.renderPolicy,
                     promoteBaseline: promote
                 )
                 mutateCanvas(canvasId) { canvas in

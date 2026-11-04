@@ -3,8 +3,10 @@ import DrawspeakCore
 
 nonisolated public struct T3ThreadService: ThreadService, Sendable {
     public let client: MCPClient
+    /// Workspace file downloads; nil when the credential has no usable files token.
+    public let files: T3WorkspaceFiles?
     public var hostURL: URL { client.credentials.hostURL }
-    public init(client: MCPClient) { self.client = client }
+    public init(client: MCPClient, files: T3WorkspaceFiles? = nil) { self.client = client; self.files = files }
     public func listThreads() async throws -> [ThreadSummary] {
         var threads: [ThreadSummary] = [], cursor: Int?
         var seenCursors = Set<Int>()
@@ -206,6 +208,12 @@ nonisolated public struct T3ThreadService: ThreadService, Sendable {
         return nil
     }
     public func downloadAttachment(threadId: String, attachment: ThreadAttachment) async throws -> Data { throw MCPError.unsupported }
+    public func downloadWorkspaceFile(threadId: String, path: String) async throws -> Data {
+        guard let files else { throw WorkspaceFileUnavailable(T3FileError.notPaired.localizedDescription) }
+        do { return try await files.download(threadId: threadId, path: path, client: client) }
+        catch T3FileError.unauthorized { throw WorkspaceFileUnavailable(T3FileError.unauthorized.localizedDescription) }
+        catch MCPError.unauthorized { throw WorkspaceFileUnavailable(MCPError.unauthorized.localizedDescription) }
+    }
     /// Display-only warning: sending to an active thread can steer the running agent.
     public func isThreadRunning(threadId: String) async -> Bool {
         guard let value = try? await client.callTool(name: "t3_thread_read", arguments: .object(["threadId": .string(threadId), "limit": .number(1), "runLimit": .number(1)])) else { return false }

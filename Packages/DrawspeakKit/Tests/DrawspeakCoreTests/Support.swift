@@ -165,6 +165,16 @@ struct FakeThreadService: ThreadService {
         return MessageAck(messageId: "msg-1", acknowledgedAt: fixedDate)
     }
     func downloadAttachment(threadId: String, attachment: ThreadAttachment) async throws -> Data { Data() }
+    /// Files in the thread's workspace, by the path the reply names.
+    var workspaceFiles: [String: Data] = [:]
+    /// Thrown by every workspace download when set.
+    var workspaceUnavailable: WorkspaceFileUnavailable?
+    func downloadWorkspaceFile(threadId: String, path: String) async throws -> Data {
+        log.record("download:\(path)")
+        if let workspaceUnavailable { throw workspaceUnavailable }
+        guard let data = workspaceFiles[path] else { throw CocoaError(.fileNoSuchFile) }
+        return data
+    }
     func reconcile(threadId: String, batchId: String) async throws -> MessageAck? {
         log.record("reconcile")
         switch reconcileResult {

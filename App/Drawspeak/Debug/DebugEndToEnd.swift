@@ -8,13 +8,20 @@ import T3Kit
 /// Feedback and Pull buttons against a real T3 thread and writes a JSON report
 /// to Documents/e2e-result.json.
 ///
-/// Environment: DRAWSPEAK_E2E_THREAD=<threadId>, DRAWSPEAK_E2E_ACTION=send|pull;
+/// Environment (or launch arguments `-KEY value`): DRAWSPEAK_E2E_THREAD=<threadId>, DRAWSPEAK_E2E_ACTION=send|pull;
 /// or DRAWSPEAK_E2E_ACTION=sendNew with DRAWSPEAK_E2E_PROJECT=<projectId>, which sends the
 /// ready notes of a canvas without a thread to a new thread "Drawspeak E2E new thread".
 @MainActor
 enum DebugEndToEnd {
+    /// An environment variable, or the same key passed as a launch argument (`-KEY value`),
+    /// for launchers that cannot set the environment.
+    static func setting(_ key: String) -> String? {
+        ProcessInfo.processInfo.environment[key] ?? UserDefaults.standard.volatileDomain(forName: UserDefaults.argumentDomain)[key] as? String
+    }
+
     static func runIfRequested(workspace: Workspace, connection: T3Connection) async {
-        let environment = ProcessInfo.processInfo.environment
+        let keys = ["DRAWSPEAK_E2E_ACTION", "DRAWSPEAK_E2E_PROJECT", "DRAWSPEAK_E2E_THREAD"]
+        let environment = Dictionary(uniqueKeysWithValues: keys.compactMap { key in setting(key).map { (key, $0) } })
         if environment["DRAWSPEAK_E2E_ACTION"] == "sendNew" {
             guard let projectId = environment["DRAWSPEAK_E2E_PROJECT"], !projectId.isEmpty else { return }
             await sendToNewThread(workspace: workspace, connection: connection, projectId: projectId)
@@ -55,6 +62,10 @@ enum DebugEndToEnd {
             report["imported"] = String(result.importedSnapshots)
             report["issues"] = result.issues.joined(separator: " | ")
             report["messagesChecked"] = String(result.messagesChecked)
+            report["noVersionsReason"] = result.noVersionsReason ?? ""
+            if let canvas = workspace.canvas(canvasId) {
+                report["snapshots"] = canvas.snapshots.map { "\($0.screenId)/\($0.proposalId ?? "baseline")#\($0.iteration) \($0.kind.rawValue) \($0.widthPx)x\($0.heightPx)\($0.image == nil ? " no-capture" : "")" }.joined(separator: " | ")
+            }
         default:
             report["error"] = "unknown action"
         }

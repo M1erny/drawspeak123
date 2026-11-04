@@ -6,12 +6,16 @@ import DrawspeakCore
 nonisolated struct CanvasWorldLayout: Equatable, Sendable {
     var rows: [ScreenRow]
 
+    /// Rows are stacked by `CanvasLayout.screenOrigins`. A live drag moves only
+    /// the dragged row; the others keep their places until the drag ends.
     init(canvas: ReviewCanvas, drag: ScreenDrag? = nil) {
+        let origins = CanvasLayout.screenOrigins(in: canvas)
         rows = canvas.screens.map { screen in
-            let baseOrigin = screen.origin
+            let baseOrigin = origins[screen.id] ?? screen.origin
             var screen = screen
+            screen.origin = baseOrigin
             if let drag, drag.screenId == screen.id {
-                screen.origin = WorldPoint(x: screen.origin.x + drag.dx, y: screen.origin.y + drag.dy)
+                screen.origin = WorldPoint(x: baseOrigin.x + drag.dx, y: baseOrigin.y + drag.dy)
             }
             let slots = CanvasLayout.lanes(in: canvas, screen: screen).enumerated().map { index, lane in
                 LaneSlot(

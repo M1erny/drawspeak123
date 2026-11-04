@@ -22,9 +22,10 @@ struct CardsLayer: View {
         let camera = interaction.camera
         let visible = camera.settledVisibleWorld
         let zoom = camera.settled.zoom
-        let bucket = ImageCache.bucket(worldWidth: CanvasLayout.laneWidth, zoom: zoom, displayScale: displayScale)
         ForEach(slots) { slot in
             let snapshot = slot.snapshot
+            // Decode sizes bound the longer side, so tall boards size by height.
+            let bucket = ImageCache.bucket(worldWidth: max(slot.frame.width, slot.frame.height), zoom: zoom, displayScale: displayScale)
             let isLive = snapshot?.kind == .html && slot.frame.intersects(visible)
                 && (snapshot?.id == interactingSnapshotId || zoom >= Self.liveHTMLMinimumZoom || tool == .component || snapshot?.image == nil)
             let count = snapshot.map { commentCounts[$0.id] ?? 0 } ?? 0

@@ -18,7 +18,8 @@ actor ImageCache {
         return cache
     }()
 
-    /// The bucket for a card `worldWidth` wide at `zoom` on a `displayScale` screen.
+    /// The bucket for a card whose longer side is `worldWidth` world points,
+    /// at `zoom` on a `displayScale` screen.
     nonisolated static func bucket(worldWidth: Double, zoom: Double, displayScale: Double) -> Int {
         let needed = worldWidth * max(zoom, 0) * max(displayScale, 1)
         return buckets.first { Double($0) >= needed } ?? buckets[buckets.count - 1]

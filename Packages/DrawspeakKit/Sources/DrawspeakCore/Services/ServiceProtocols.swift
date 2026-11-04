@@ -96,6 +96,13 @@ public enum DeliveryFailure: Error, Sendable, Hashable {
     case notAuthorized
 }
 
+/// No workspace file can be downloaded right now, whatever the path.
+public struct WorkspaceFileUnavailable: Error, LocalizedError, Sendable, Hashable {
+    public var message: String
+    public init(_ message: String) { self.message = message }
+    public var errorDescription: String? { message }
+}
+
 /// An attachment found in a thread, available for Pull.
 public struct ThreadAttachment: Sendable, Hashable {
     public var id: String
@@ -193,6 +200,11 @@ public protocol ThreadService: Sendable {
     /// Must throw `DeliveryFailure.outcomeUnknown` when the launch request may have reached the server.
     func launchThread(projectId: String, title: String, text: String, attachments: [OutgoingAttachment], clientRequestId: String, progress: @Sendable (Int, Int) -> Void) async throws(DeliveryFailure) -> LaunchedThread
     func downloadAttachment(threadId: String, attachment: ThreadAttachment) async throws -> Data
+    /// Downloads a file the agent wrote in the thread's workspace on the Mac, at most
+    /// `PulledBundleReader.maxRemoteFileBytes`. `path` is workspace-relative or absolute
+    /// inside the thread's workspace; other paths are refused. Throws
+    /// `WorkspaceFileUnavailable` when no file can be downloaded (for example, not paired for files).
+    func downloadWorkspaceFile(threadId: String, path: String) async throws -> Data
     /// Finds the outgoing user message (or accepted queue item) carrying the exact
     /// batch marker `[drawspeak-batch:<batchId>]`. Nil when no such message exists.
     /// Throws when the thread cannot be read, so uncertainty is preserved.

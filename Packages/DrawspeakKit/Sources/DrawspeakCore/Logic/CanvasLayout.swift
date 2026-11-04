@@ -4,7 +4,7 @@ import Foundation
 public enum CanvasLayout {
     public static let laneWidth: Double = 420
     public static let laneSpacing: Double = 64
-    public static let rowSpacing: Double = 160
+    public static let rowSpacing: Double = 240
     public static let headerHeight: Double = 56
 
     /// Snapshot ids of every baseline revision of a screen, oldest first.
@@ -61,8 +61,13 @@ public enum CanvasLayout {
         let nowKey = LaneKey(screenId: screen.id, proposalId: nil)
         let nowSelected = canvas.laneSelections[nowKey.description].flatMap { id in nowVersions.first { $0.id == id } }
             ?? baseline.last ?? nowVersions.last
-        lanes.append(Lane(key: nowKey, title: "Now", versions: nowVersions, selected: nowSelected))
-        for proposalId in proposalIds(in: canvas, screen: screen) {
+        let proposals = proposalIds(in: canvas, screen: screen)
+        // An empty Now lane only stands in for a screen with no versions at all;
+        // proposals start at the first lane until something is promoted to Now.
+        if !nowVersions.isEmpty || proposals.isEmpty {
+            lanes.append(Lane(key: nowKey, title: "Now", versions: nowVersions, selected: nowSelected))
+        }
+        for proposalId in proposals {
             let key = LaneKey(screenId: screen.id, proposalId: proposalId)
             let versions = proposalIterations(in: canvas, screenId: screen.id, proposalId: proposalId)
             let selected = canvas.laneSelections[key.description].flatMap { id in versions.first { $0.id == id } } ?? versions.last
@@ -77,18 +82,54 @@ public enum CanvasLayout {
         return laneWidth / snapshot.aspectRatio
     }
 
+    /// World-space width of a row with `laneCount` lanes.
+    public static func rowWidth(laneCount: Int) -> Double {
+        let count = Double(max(laneCount, 1))
+        return count * laneWidth + (count - 1) * laneSpacing
+    }
+
+    /// World-space height of a row: the header plus its tallest card.
+    public static func rowHeight(lanes: [Lane]) -> Double {
+        headerHeight + (lanes.map { contentHeight(for: $0.selected) }.max() ?? laneWidth * 0.75)
+    }
+
+    /// Where every screen row is drawn. A stored origin is the row's preferred
+    /// position; rows are taken top to bottom (by stored y, then canvas order)
+    /// and each is pushed below every earlier row it overlaps horizontally, so
+    /// cards whose height is known only after capture never cover the next row.
+    public static func screenOrigins(in canvas: ReviewCanvas) -> [String: WorldPoint] {
+        let order = canvas.screens.enumerated().sorted { lhs, rhs in
+            (lhs.element.origin.y, lhs.offset) < (rhs.element.origin.y, rhs.offset)
+        }
+        var placed: [(minX: Double, maxX: Double, bottom: Double)] = []
+        var origins: [String: WorldPoint] = [:]
+        for (_, screen) in order {
+            let lanes = lanes(in: canvas, screen: screen)
+            let minX = screen.origin.x
+            let maxX = minX + rowWidth(laneCount: lanes.count)
+            var y = screen.origin.y
+            for row in placed where row.minX < maxX && minX < row.maxX {
+                y = max(y, row.bottom + rowSpacing)
+            }
+            origins[screen.id] = WorldPoint(x: minX, y: y)
+            placed.append((minX, maxX, y + rowHeight(lanes: lanes)))
+        }
+        return origins
+    }
+
     /// The origin for a new screen row below every existing row.
     public static func nextScreenOrigin(in canvas: ReviewCanvas) -> WorldPoint {
+        let origins = screenOrigins(in: canvas)
         var maxY = 0.0
         for screen in canvas.screens {
-            let lanes = lanes(in: canvas, screen: screen)
-            let tallest = lanes.map { contentHeight(for: $0.selected) }.max() ?? laneWidth
-            maxY = max(maxY, screen.origin.y + headerHeight + tallest + rowSpacing)
+            let y = origins[screen.id]?.y ?? screen.origin.y
+            maxY = max(maxY, y + rowHeight(lanes: lanes(in: canvas, screen: screen)) + rowSpacing)
         }
         return WorldPoint(x: 0, y: maxY)
     }
 
-    /// World-space frame of a lane's content (below the header).
+    /// World-space frame of a lane's content (below the header). `screen.origin`
+    /// must be the laid-out origin (`screenOrigins`), not the stored one.
     public static func laneContentFrame(screen: Screen, laneIndex: Int, snapshot: Snapshot?) -> (x: Double, y: Double, width: Double, height: Double) {
         let x = screen.origin.x + Double(laneIndex) * (laneWidth + laneSpacing)
         let y = screen.origin.y + headerHeight

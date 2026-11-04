@@ -32,6 +32,12 @@ public enum T3Pairing {
             }
             let environment = try await request(origin.appending(path: ".well-known/t3/environment"), session: session)
             let endpoint = T3Endpoint(origin: origin, issuer: issuer, resource: resourceName, environmentId: environment["environmentId"].string, serverVersion: environment["serverVersion"].string)
+            // One user code: mint the approval code and the files code from it (T3PairingSetup).
+            let userCode = code.trimmingCharacters(in: .whitespacesAndNewlines).uppercased()
+            var approvalCode = userCode, filesCode: String?
+            if case .minted(let approval, let files) = try await setUp(origin: origin, code: userCode, accessLevel: accessLevel, session: session) {
+                approvalCode = approval; filesCode = files
+            }
             let client = try await request(registration, body: .object(["client_name": .string("Drawspeak (iPad)"), "redirect_uris": .array([.string(redirectURI)])]), session: session)
             guard let clientId = client["client_id"].string else { throw T3PairingError.invalidResponse }
             let verifier = try random(32), state = try random(24)
@@ -40,7 +46,7 @@ public enum T3Pairing {
             let decisionURL = authorizationURL.deletingLastPathComponent().appending(path: "decision")
             let decision = try await request(decisionURL, body: .object([
                 "authorization": .object(["response_type": .string("code"), "client_id": .string(clientId), "redirect_uri": .string(redirectURI), "code_challenge": .string(challenge), "code_challenge_method": .string("S256"), "state": .string(state), "resource": .string(resourceName)]),
-                "decision": .object(["_tag": .string("pairing-code"), "access": .string(accessLevel), "code": .string(code.trimmingCharacters(in: .whitespacesAndNewlines).uppercased())])
+                "decision": .object(["_tag": .string("pairing-code"), "access": .string(accessLevel), "code": .string(approvalCode)])
             ]), session: session, approval: true)
             guard let redirect = decision["redirectTo"].string.flatMap(URLComponents.init(string:)) else { throw T3PairingError.invalidResponse }
             let query = redirect.queryItems ?? []
@@ -56,7 +62,11 @@ public enum T3Pairing {
             let token = try await request(tokenURL, form: form, session: session)
             guard let accessToken = token["access_token"].string, let seconds = token["expires_in"].int, seconds > 0,
                   token["token_type"].string?.lowercased() == "bearer", let scope = token["scope"].string else { throw T3PairingError.invalidResponse }
-            return T3Credentials(hostURL: origin, clientId: clientId, accessToken: accessToken, scope: scope, expiresAt: Date.now.addingTimeInterval(Double(seconds)), accessLevel: accessLevel, endpoint: endpoint)
+            var credential = T3Credentials(hostURL: origin, clientId: clientId, accessToken: accessToken, scope: scope, expiresAt: Date.now.addingTimeInterval(Double(seconds)), accessLevel: accessLevel, endpoint: endpoint)
+            if let filesCode, let files = await exchangeFilesCode(origin: origin, code: filesCode, session: session) {
+                credential.filesToken = files.token; credential.filesTokenExpiresAt = files.expiresAt
+            }
+            return credential
         } catch let error as T3PairingError { throw error }
         catch { throw .unreachable }
     }

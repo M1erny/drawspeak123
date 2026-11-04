@@ -2,7 +2,7 @@ import Foundation
 
 public actor MCPClient {
     public nonisolated let credentials: T3Credentials
-    private let session: URLSession
+    nonisolated let session: URLSession
     private var sessionId: String?
     private var nextId = 0
     private var deliveryAttempts: [String: T3DeliveryAttempt] = [:]

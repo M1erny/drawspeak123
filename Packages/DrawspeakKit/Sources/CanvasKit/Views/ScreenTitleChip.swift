@@ -6,7 +6,7 @@ import SwiftUI
 /// the move is saved when the drag ends.
 struct ScreenTitleChip: View {
     let screen: Screen
-    /// The persisted origin; `screen.origin` may include the live drag.
+    /// The laid-out origin; `screen.origin` may include the live drag.
     let baseOrigin: WorldPoint
     let zoom: Double
     let workspace: Workspace

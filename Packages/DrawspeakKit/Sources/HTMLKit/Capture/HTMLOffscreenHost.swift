@@ -31,6 +31,15 @@ final class HTMLOffscreenHost {
         self.window = window
     }
 
+    func resize(to size: CGSize) {
+        let frame = CGRect(origin: .zero, size: size)
+        window?.frame = frame
+        window?.rootViewController?.view.frame = frame
+        webView.frame = frame
+        webView.setNeedsLayout()
+        webView.layoutIfNeeded()
+    }
+
     func remove() {
         webView.removeFromSuperview()
         window?.isHidden = true

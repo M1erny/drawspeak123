@@ -24,8 +24,8 @@ import Observation
         ThreadListCache.shared.invalidate(host: credentials?.hostURL ?? hostURL)
         ThreadListCache.shared.invalidate(host: host)
         generation = UUID(); let operation = generation; state = .connecting
-        let previousClient = threadService?.client; threadService = nil
-        await previousClient?.close()
+        let previousClient = threadService?.client, previousFiles = threadService?.files?.rpc; threadService = nil
+        await previousClient?.close(); await previousFiles?.close()
         do {
             let credential = try await T3Pairing.pair(host: host, code: code, accessLevel: accessLevel, session: session)
             guard generation == operation else { return }
@@ -36,8 +36,8 @@ import Observation
     }
     public func restore() async {
         generation = UUID(); let operation = generation
-        let previousClient = threadService?.client; threadService = nil; credentials = nil
-        await previousClient?.close()
+        let previousClient = threadService?.client, previousFiles = threadService?.files?.rpc; threadService = nil; credentials = nil
+        await previousClient?.close(); await previousFiles?.close()
         if let saved = UserDefaults.standard.string(forKey: "drawspeak.t3.host"), let url = try? T3Pairing.normalizeHost(saved) { hostURL = url }
         guard let credential = store.load(host: hostURL) else { state = .notPaired; return }
         credentials = credential
@@ -57,8 +57,8 @@ import Observation
         guard credential.expiresAt > Date.now else { state = .expired; threadService = nil; return }
         generation = UUID(); let operation = generation
         state = .connecting
-        let previousClient = threadService?.client; threadService = nil
-        await previousClient?.close()
+        let previousClient = threadService?.client, previousFiles = threadService?.files?.rpc; threadService = nil
+        await previousClient?.close(); await previousFiles?.close()
         guard generation == operation else { return }
         await connect(credential, generation: operation)
     }
@@ -68,16 +68,19 @@ import Observation
         do {
             try await client.initialize()
             guard generation == operation else { await client.close(); return }
-            threadService = T3ThreadService(client: client); state = .connected(hostURL)
+            let files = credential.usableFilesToken.map { token in
+                T3WorkspaceFiles(origin: credential.hostURL, rpc: T3WebSocketAssetRPC(origin: credential.hostURL, token: token, session: session), session: session)
+            }
+            threadService = T3ThreadService(client: client, files: files); state = .connected(hostURL)
         } catch { if generation == operation { threadService = nil; if case .unauthorized = error { state = .expired } else { state = .failed(error.localizedDescription) } } }
     }
     public func disconnect() {
         ThreadListCache.shared.invalidate(host: credentials?.hostURL ?? hostURL)
         generation = UUID()
-        let client = threadService?.client
+        let client = threadService?.client, files = threadService?.files?.rpc
         store.remove(host: credentials?.hostURL ?? hostURL)
         credentials = nil; threadService = nil; state = .notPaired
         UserDefaults.standard.removeObject(forKey: "drawspeak.t3.host")
-        Task { await client?.close() }
+        Task { await client?.close(); await files?.close() }
     }
 }

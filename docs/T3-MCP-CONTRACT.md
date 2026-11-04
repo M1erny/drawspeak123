@@ -515,7 +515,40 @@ Options (decision needed; not implemented here):
 | B. Second, read-only non-MCP credential | `POST /oauth/token` (RFC 8693, form) with `grant_type=urn:ietf:params:oauth:grant-type:token-exchange`, `subject_token=<pairing code>`, `subject_token_type=urn:t3:params:oauth:token-type:environment-bootstrap`, `requested_token_type=urn:ietf:params:oauth:token-type:access_token`, `scope=orchestration:read filesystem:read`, `client_label=Drawspeak (iPad)` (B:4357–4359, B:4393–4402, B:20508–20512, B:134841–134869). Then the WS RPC `assets.createUrl` with `{"_tag":"workspace-file","threadId","path"}` (needs `filesystem:read`), or `attachment` / `tool-output-image` (needs `orchestration:read`), then `GET <origin><relativeUrl>` (B:34969–35018, B:328140–328146). | Second pairing code, second API family (WebSocket with Effect RPC, protocol header `2`). Needs its own contract spike. A narrow scope list keeps it read-only. |
 | C. Companion service on the Mac | Agent writes the bundle to a folder; a small service serves it over the tailnet. | New component and new auth. |
 
-Recommendation: plan **A for the manifest and HTML text plus B for images**, and run the B spike before the native pull is built. Until then, P-12 and AC-15 cannot be met for screenshots over MCP alone.
+Decision (2026-11-04): option B is implemented with **one** pairing code; see section 10a. Option A stays for small inline bundles.
+
+## 10a. Workspace file access (one pairing code)
+
+**Verified (code+live), 2026-11-04.** This replaces option B of section 10 and lets Pull download HTML, PNG/JPEG and the review manifest that an agent wrote to disk on the Mac. Implemented in `T3PairingSetup.swift`, `T3DPoP.swift` and `T3WorkspaceFiles.swift` (T3Kit).
+
+### 10a.1 One code gives both credentials
+
+The MCP approval needs a one-time pairing code that carries the MCP scopes (`consumeMcpApprovalCode`, B:135039). A browser-session approval needs a cookie and CSRF token, so an iPad cannot approve with a token (B:4599–4609). An environment token with `access:write`, however, can **mint** new one-time codes (`POST /api/auth/pairing-token`, B:20522, B:313176–313182): every requested scope must be held by the calling session, otherwise HTTP 403 `insufficient_scope` (live: minting `orchestration:operate` with a token that lacks it gave 403). Codes made by **Create pairing link** or `t3 auth pairing create` carry the standard scopes, including `access:write` and `filesystem:read` (B:4339–4356). So the user enters **one code**:
+
+1. `POST /oauth/token` (RFC 8693, form; B:4393–4402, B:20508, B:313151–313166) with a **DPoP** proof (ES256, ephemeral key; B:134228–134300). Fields: `grant_type=urn:ietf:params:oauth:grant-type:token-exchange`, `subject_token=<user code>`, `subject_token_type=urn:t3:params:oauth:token-type:environment-bootstrap`, `requested_token_type=urn:ietf:params:oauth:token-type:access_token`, `scope=access:write <MCP scopes of the access level> filesystem:read`, `client_label`, `client_device_type=tablet`, `client_os`. Granted scopes are the intersection with the code (B:134841–134868). A proof-bound token is `token_type: "DPoP"` with a **1 h** lifetime (B:134854), so this setup token is used and discarded; it cannot revoke itself (B:134954–134957), it just expires. Live: `200 {"token_type":"DPoP","expires_in":3600,"scope":"access:write orchestration:read filesystem:read"}`.
+2. With `Authorization: DPoP <setup token>` plus a proof carrying `ath`, mint (a) a code with the MCP scopes of the access level (B:4517–4530), used in the normal `/oauth/mcp/decision` (section 3.1), and (b) a code with `orchestration:read filesystem:read`. Live: 200 `{id, credential, label, expiresAt}` (5 min).
+3. Exchange (b) at `/oauth/token` **without** DPoP: Bearer **files token**, `expires_in: 2592000` (30 days, `DEFAULT_SESSION_TTL`, B:131083), scope `orchestration:read filesystem:read`. Read-only: no operate, write, access or terminal scope. Stored with the MCP token in the same Keychain item (`T3Credentials.filesToken`).
+
+Errors at step 1: 401 with `dpopFailureReason` means the proof was refused before the code was checked, so Drawspeak falls back to approving MCP with the user code (no file access). 401 without it: unknown, expired or used code. 400 `invalid_scope`/`scope_not_granted`: the code cannot grant the scopes. If the exchange is missing (404) Drawspeak uses the user code directly. Settings → Sharing & access then lists "Drawspeak (iPad)" (MCP), "Drawspeak (iPad) files" (30 days) and "Drawspeak (iPad) setup" (expires within 1 h).
+
+MCP tokens stay rejected outside `/mcp` (B:134678), and the files token is rejected at `/mcp` (only `mcp-client` sessions, B:135007–135014), so each credential works only on its own surface.
+
+### 10a.2 Downloading a file
+
+1. `GET wss://<host>/ws?orchestrationProtocol=2` with `Authorization: Bearer <files token>` (a `wsTicket` query from `POST /api/auth/websocket-ticket/rpc` also works; B:134974–135000). Without the query parameter: HTTP 426 (B:334439–334446, B:332985). The socket speaks Effect RPC with JSON serialization (`layerJson`, B:167928; one JSON message per frame, possibly an array).
+2. Send `{"_tag":"Request","id":"1","tag":"assets.createUrl","payload":{"resource":<resource>},"headers":[]}`. Answer: `{"_tag":"Exit","requestId":"1","exit":{"_tag":"Success","value":{"relativeUrl":"/api/assets/<token>/<name>","expiresAt":…,"imageDimensions"?…}}}` or `"exit":{"_tag":"Failure","cause":[{"_tag":"Fail","error":{"_tag":"Asset…Error",…}}]}`. Answer `{"_tag":"Ping"}` with `{"_tag":"Pong"}`. Scope: `filesystem:read` for `workspace-file`/`media-file` (B:328140–328146).
+3. `GET <origin><relativeUrl>`: no credential (the signed URL is the capability), valid **1 h** (`ASSET_TOKEN_TTL_MS`, B:312028; route B:313394). Live: 200 with the exact bytes (`text/html; charset=utf-8`, `image/png`, `application/octet-stream`).
+
+Resources (B:34969–35018) and allowed paths:
+
+| Resource | Root and path rules | Types |
+|---|---|---|
+| `{"_tag":"workspace-file","threadId","path"}` | Root = thread `worktreePath` ?? project `workspaceRoot` (B:334238–334271). `path` workspace-relative, or absolute inside the root (made relative). Traversal and symlinks out of the root are refused after `realPath` (B:312192–312210, B:312266–312290). Live: `../drawspeak/README.md` and an absolute path outside gave `AssetWorkspacePathValidationError` ("must be relative to the project root"). | Preview types only: HTML/HTM/PDF, images, fonts, office, some binaries (B:188063). `.json` gave `AssetPreviewTypeValidationError`. For HTML the URL also serves sibling assets of the same folder (claim `baseRelativePath`). |
+| `{"_tag":"media-file","threadId","path","disposition":"attachment"}` | An absolute, non-network path is served directly, **without a root check** (B:334240, B:312219–312265); only server-internal paths are refused. | Any file with `disposition: "attachment"`. |
+
+Drawspeak therefore checks every path itself first (`WorkspaceFilePath`: no `..`, `~`, URLs or backslashes; absolute paths must be under the thread's worktree or project root, read with `t3_thread_read` and `t3_project_read`). It uses `workspace-file` for HTML and images (the server checks again) and `media-file` only for the JSON manifest. Limits in Drawspeak: 10 MiB per file, 40 files per Pull, 2 MiB per HTML.
+
+Live probe (L7, thread `741ae2a6…`, project root `/Users/rafalw/Dev/apassy`): one CLI code → DPoP setup token → minted files code → files token → `/ws`: `prototypes/a/ios-setup.html` (relative) 149 552 B, `prototypes/b/ios-setup.html` (absolute) 144 109 B, `screens/compare/compare-ios.png` 263 713 B and `review-manifest.json` as `media-file` 20 836 B, all byte-identical to the files on disk. The probe's files session was then revoked with the setup token; nothing was sent to any thread and no setting changed.
 
 ## 11. Limits (this build)
 
@@ -563,8 +596,9 @@ Recommendation: plan **A for the manifest and HTML text plus B for images**, and
 | L4 | `GET /connect-agent`; `POST /oauth/mcp/approval` without a cookie; `GET /mcp` | 200 HTML; `{"clientName":"drawspeak-probe","redirectHost":"127.0.0.1","environmentHost":"rafals-mac-mini.tail71fdd0.ts.net"}` (no csrfToken, so a pairing code is needed); 401 |
 | L5 | `POST /oauth/mcp/decision` with an unknown `client_id` | 400 `{"_tag":"AuthMcpApprovalError","message":"This sign-in link names an unknown app. …"}`. No pairing code was checked. |
 | L6 | `POST /oauth/mcp/token` with `grant_type=refresh_token`; with a JSON body | 400 `unsupported_grant_type`; 415 |
+| L7 | One pairing code → DPoP token exchange → minted codes → files token → `/ws` `assets.createUrl` → GET (section 10a) | Files byte-identical; traversal, outside-root and `.json` as `workspace-file` refused; probe session revoked afterwards |
 
-Not done (by design): approval, pairing, token issue, `initialize`, any tool call, upload or send.
+Not done in L1–L6 (by design): approval, pairing, token issue, `initialize`, any tool call, upload or send. L7 issued tokens with one CLI pairing code (section 10a) but sent nothing.
 
 ## 14. Open items before the native MVP
 
@@ -572,5 +606,5 @@ Not done (by design): approval, pairing, token issue, `initialize`, any tool cal
 2. Upload, then `t3_thread_send_attachments` to an **isolated test thread**: check the ACK shape, `status` per thread state (idle, running, waiting), and the queue preview containing the marker.
 3. Network drop during the send on the iPad: check that reconciliation finds the message.
 4. Long-request behavior through Tailscale Serve (to choose the `t3_thread_wait` chunk size).
-5. Spike for option B (section 10), or a product decision to accept option A only.
+5. Done: option B (section 10a). Still open: the files flow on a physical iPad.
 6. Repeat the code checks for each new T3 Nightly build: confirm the `serverVersion` and repeat the greps for the constants in section 11 and the lines cited here.

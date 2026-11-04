@@ -80,8 +80,8 @@ final class AppModel {
     private func connectAndRunHooks() async {
         await connection.restore()
         #if DEBUG && targetEnvironment(simulator)
-        if let code = ProcessInfo.processInfo.environment["DRAWSPEAK_T3_PAIRING_CODE"], !code.isEmpty,
-           connection.threadService == nil {
+        if let code = DebugEndToEnd.setting("DRAWSPEAK_T3_PAIRING_CODE"), !code.isEmpty,
+           connection.threadService == nil || connection.credentials?.usableFilesToken == nil {
             await connection.pair(host: connection.hostURL, code: code)
         }
         #endif

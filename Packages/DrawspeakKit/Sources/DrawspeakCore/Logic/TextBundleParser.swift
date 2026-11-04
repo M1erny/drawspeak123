@@ -2,8 +2,8 @@ import Foundation
 
 /// Extracts a review manifest and text files from an agent reply.
 ///
-/// T3 Code does not let an MCP client download thread files, so the
-/// ui-review-variants skill returns them as fenced blocks in its reply:
+/// Small bundles come inline as fenced blocks in the reply (larger ones are
+/// written to the workspace and referenced with a `drawspeak-bundle` pointer):
 ///
 ///     ````drawspeak-manifest
 ///     { "schemaVersion": 1, ... }

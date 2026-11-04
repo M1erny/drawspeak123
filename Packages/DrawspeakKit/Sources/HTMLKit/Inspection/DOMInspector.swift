@@ -62,6 +62,25 @@ public final class DOMInspector {
         _ = try await webView.callAsyncJavaScript(DOMProbeScript.settleBody, in: nil, contentWorld: DOMProbeScript.world)
     }
 
+    /// Measures both axes without entering the page's script world.
+    func contentSize() async throws -> CGSize {
+        let (webView, _) = try readyTarget()
+        let value = try await webView.callAsyncJavaScript(
+            """
+            return {
+                width: Math.max(document.documentElement.scrollWidth, document.body?.scrollWidth ?? 0),
+                height: Math.max(document.documentElement.scrollHeight, document.body?.scrollHeight ?? 0)
+            };
+            """,
+            in: nil,
+            contentWorld: DOMProbeScript.world
+        )
+        guard let size = value as? [String: Double],
+              let width = size["width"], let height = size["height"],
+              width.isFinite, height.isFinite else { throw HTMLKitError.invalidProbeResponse }
+        return CGSize(width: width, height: height)
+    }
+
     func attach(_ webView: WKWebView, viewport: Viewport, isReady: Bool) {
         self.webView = webView
         self.viewport = viewport

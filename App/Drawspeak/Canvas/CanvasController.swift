@@ -298,6 +298,8 @@ final class CanvasController {
                 show(CanvasStatus(text: AttributedString(localized: "Added ^[\(report.importedSnapshots) version](inflect: true)",
                                                          comment: "Count of versions pulled from the thread.")))
                 fitAll()
+            } else if let reason = report.noVersionsReason {
+                alert = .noVersions(reason)
             } else if report.issues.isEmpty {
                 show(CanvasStatus(text: AttributedString(localized: "No New Versions")))
             } else {

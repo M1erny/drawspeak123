@@ -51,7 +51,7 @@ This is a file contract owned by Drawspeak, not an existing T3 Code endpoint. Th
 
 Validation rules for the future importer: unique snapshot IDs; positive dimensions; matching checksums; matching review/thread binding; role `baseline` or `proposal`; proposal iterations start at 1; references resolve to this manifest or stored prior snapshots; parent belongs to the same proposal and screen. Never replace bytes under an existing snapshot ID. Resolve paths inside the artifact bundle and reject traversal. Missing files or invalid entries remain quarantined with an actionable error; do not silently add partial versions. Allowed status: `ready_for_review`, `partial`, `failed`. Check result: `passed`, `failed`, `pending`, `not_run`.
 
-Thread attachments can carry this manifest. The current T3 server does not inherently turn a manifest into a version catalog; that parser belongs to the planned app.
+Drawspeak reads this manifest from the workspace (pointer) or from the reply (inline); T3 Code itself does not parse it.
 
 ## HTML artifact extension
 
@@ -61,9 +61,19 @@ Use `static-no-script` for the current inspector. A future isolated scripted ren
 
 A note's `domTarget` references the snapshot and hashes, has a version-local locator (prefer unique data-review-id), human label, hit-to-root chain, depth/layer and normalized capture bounds. Pressure changes parent depth; a separate layer choice selects underneath stacked elements. Never carry a locator into a new iteration as stable identity.
 
-## Text bundle in a reply
+## Bundles in a reply
 
-T3 Code does not let the app download thread attachments over MCP (see docs/T3-MCP-CONTRACT.md section 10). The skill therefore returns HTML proposals inline. Example:
+Drawspeak downloads files from the thread's workspace on the Mac (docs/T3-MCP-CONTRACT.md, "Workspace file access"), so a reply carries one of:
+
+1. **Pointer (default).** `drawspeak_bundle.py --out <review dir>` writes `review-manifest.json` into the review folder and prints:
+
+   ````text
+   ```drawspeak-bundle path="/Users/me/Dev/app/output/review/review-manifest.json"
+   ```
+   ````
+
+   The path is absolute or workspace-relative and must be inside the thread's workspace. Manifest paths (`htmlPath`, `imagePath`) are relative to the manifest. Image entries (`artifactKind: "image"`, `imagePath`, `sha256`) import as image versions. Limits: 40 files per Pull, 10 MiB per file, 2 MiB per HTML.
+2. **Inline bundle (small HTML only).** Manifest and HTML as fences in the reply:
 
 `````text
 ````drawspeak-manifest
@@ -79,4 +89,6 @@ T3 Code does not let the app download thread attachments over MCP (see docs/T3-M
 ````
 `````
 
-Rules: the file text between the fence lines is hashed as UTF-8, without the newline before the closing fence. Paths are relative and inside the bundle. `imagePath`/`sha256` are optional for HTML entries; when present the image must be in the same message as an attachment the app can read (not available over MCP today), so omit them. Each reply is imported once. Use `screenId` values that already exist on the canvas to add iterations next to Now; a new `screenId` creates a new row.
+   The file text between the fence lines is hashed as UTF-8, without the newline before the closing fence. Paths are relative. Omit `imagePath`/`sha256` (inline images are not readable).
+
+Fallback: when the latest reply has neither, Drawspeak imports the local `.html`/`.png`/`.jpg` files it links (markdown links or absolute paths). `prototypes/a/…` gives proposal `a`, a `baseline/` or `current/` folder gives a baseline, and the file stem names the screen. Each reply is imported once. Use `screenId` values that already exist on the canvas to add iterations next to Now; a new `screenId` creates a new row.

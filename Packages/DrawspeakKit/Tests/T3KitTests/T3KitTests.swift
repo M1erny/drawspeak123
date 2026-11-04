@@ -39,10 +39,32 @@ import DrawspeakCore
         #expect(throws: T3PairingError.self) { try T3Pairing.normalizeHost("http://fake.test") }
         #expect(try T3Pairing.normalizeHost("http://localhost:123").port == 123)
     }
-    @Test @MainActor func pairingPKCE() async throws {
+    /// One user code: DPoP setup exchange, two minted codes, MCP approval with the first,
+    /// files token from the second. "legacy": no token exchange, the user code approves MCP.
+    @Test(arguments: ["minted", "legacy"]) @MainActor func pairingPKCE(_ scenario: String) async throws {
         let challenge = Mutex("")
+        let minted = Mutex<[String]>([])
         let session = StubProtocol.session { request in
             switch request.url!.path {
+            case "/oauth/token":
+                if scenario == "legacy" { return (404, [:], Data()) }
+                let fields = Self.form(request)
+                #expect(fields["grant_type"] == "urn:ietf:params:oauth:grant-type:token-exchange")
+                #expect(fields["subject_token_type"] == "urn:t3:params:oauth:token-type:environment-bootstrap")
+                if fields["subject_token"] == "ABCDEFGHIJKL" {
+                    try Self.verifyDPoP(request, url: "https://fake.test/oauth/token", token: nil)
+                    #expect(Set(fields["scope"]!.split(separator: " ").map(String.init)) == ["access:write", "orchestration:read", "orchestration:operate", "settings:write", "source-control:write", "filesystem:read"])
+                    return try Self.json(.object(["access_token": .string("setup.tok"), "token_type": .string("DPoP"), "expires_in": .number(3600), "scope": .string(fields["scope"]!)]))
+                }
+                #expect(fields["subject_token"] == "FILES-CODE"); #expect(request.value(forHTTPHeaderField: "DPoP") == nil)
+                #expect(fields["scope"] == "orchestration:read filesystem:read")
+                return try Self.json(.object(["access_token": .string("files.tok"), "token_type": .string("Bearer"), "expires_in": .number(2_592_000), "scope": .string("orchestration:read filesystem:read")]))
+            case "/api/auth/pairing-token":
+                #expect(request.value(forHTTPHeaderField: "Authorization") == "DPoP setup.tok")
+                try Self.verifyDPoP(request, url: "https://fake.test/api/auth/pairing-token", token: "setup.tok")
+                let scopes = try Self.body(request)["scopes"].array.compactMap(\.string)
+                minted.withLock { $0.append(scopes.joined(separator: " ")) }
+                return try Self.json(.object(["id": .string("p"), "credential": .string(scopes.contains("filesystem:read") ? "FILES-CODE" : "MCP-CODE"), "expiresAt": .string("2030-01-01T00:00:00Z")]))
             case "/.well-known/oauth-protected-resource": return try Self.json(.object(["resource": .string("https://fake.test/mcp"), "authorization_servers": .array([.string("https://fake.test")])]))
             case "/.well-known/oauth-authorization-server": return try Self.json(.object(["issuer": .string("https://fake.test"), "registration_endpoint": .string("https://fake.test/oauth/mcp/register"), "authorization_endpoint": .string("https://fake.test/oauth/mcp/authorize"), "token_endpoint": .string("https://fake.test/oauth/mcp/token"), "grant_types_supported": .array([.string("authorization_code")]), "code_challenge_methods_supported": .array([.string("S256")])]))
             case "/.well-known/t3/environment": return try Self.json(.object(["environmentId": .string("fake"), "serverVersion": .string("0.1.7-nightly.20261101.4016")]))
@@ -52,7 +74,7 @@ import DrawspeakCore
                 return try Self.json(.object(["client_id": .string("a+b&c")]), status: 201)
             case "/oauth/mcp/decision":
                 let body = try Self.body(request); challenge.withLock { $0 = body["authorization"]["code_challenge"].string! }
-                #expect(body["decision"]["code"].string == "ABCDEFGHIJKL")
+                #expect(body["decision"]["code"].string == (scenario == "legacy" ? "ABCDEFGHIJKL" : "MCP-CODE"))
                 let state = body["authorization"]["state"].string!
                 return try Self.json(.object(["redirectTo": .string("http://127.0.0.1/drawspeak/oauth/callback?code=code&state=\(state)&iss=https%3A%2F%2Ffake.test")]))
             default:
@@ -70,6 +92,45 @@ import DrawspeakCore
         }
         let value = try await T3Pairing.pair(host: host, code: "abcdefghijkl", session: session)
         #expect(value.clientId == "a+b&c"); #expect(value.expiresAt > Date().addingTimeInterval(2_591_900))
+        if scenario == "legacy" {
+            #expect(value.filesToken == nil)
+        } else {
+            #expect(minted.withLock { $0 } == ["orchestration:read orchestration:operate settings:write source-control:write", "orchestration:read filesystem:read"])
+            #expect(value.filesToken == "files.tok"); #expect(value.usableFilesToken == "files.tok")
+            #expect((value.filesTokenExpiresAt ?? .distantPast) > Date().addingTimeInterval(2_591_900))
+        }
+    }
+    static func form(_ request: URLRequest) -> [String: String] {
+        var data = request.httpBody ?? Data()
+        if data.isEmpty, let stream = request.httpBodyStream {
+            stream.open(); defer { stream.close() }; var buffer = [UInt8](repeating: 0, count: 4096)
+            while stream.hasBytesAvailable { let n = stream.read(&buffer, maxLength: 4096); if n <= 0 { break }; data.append(contentsOf: buffer.prefix(n)) }
+        }
+        let items = URLComponents(string: "https://fake.test/?" + String(decoding: data, as: UTF8.self))?.queryItems ?? []
+        return Dictionary(items.map { ($0.name, $0.value ?? "") }, uniquingKeysWith: { $1 })
+    }
+    static func base64url(_ text: Substring) -> Data? {
+        var value = text.replacingOccurrences(of: "-", with: "+").replacingOccurrences(of: "_", with: "/")
+        while value.count % 4 != 0 { value += "=" }
+        return Data(base64Encoded: value)
+    }
+    /// Checks the ES256 signature, `htm`, `htu` and (for a bound token) `ath`.
+    static func verifyDPoP(_ request: URLRequest, url: String, token: String?) throws {
+        let proof = try #require(request.value(forHTTPHeaderField: "DPoP"))
+        let parts = proof.split(separator: ".")
+        try #require(parts.count == 3)
+        let header = try JSONDecoder().decode(JSONValue.self, from: try #require(base64url(parts[0])))
+        let claims = try JSONDecoder().decode(JSONValue.self, from: try #require(base64url(parts[1])))
+        #expect(header["typ"].string == "dpop+jwt"); #expect(header["alg"].string == "ES256")
+        let x = try #require(base64url(Substring(header["jwk"]["x"].string ?? ""))), y = try #require(base64url(Substring(header["jwk"]["y"].string ?? "")))
+        let key = try P256.Signing.PublicKey(x963Representation: Data([4]) + x + y)
+        let signature = try P256.Signing.ECDSASignature(rawRepresentation: try #require(base64url(parts[2])))
+        #expect(key.isValidSignature(signature, for: Data((parts[0] + "." + parts[1]).utf8)))
+        #expect(claims["htm"].string == "POST"); #expect(claims["htu"].string == url)
+        if let token {
+            let hash = Data(SHA256.hash(data: Data(token.utf8))).base64EncodedString().replacingOccurrences(of: "+", with: "-").replacingOccurrences(of: "/", with: "_").replacingOccurrences(of: "=", with: "")
+            #expect(claims["ath"].string == hash)
+        } else { #expect(claims["ath"] == .null) }
     }
     @Test func sseAndSessionRecovery() async throws {
         let calls = Mutex(0)
