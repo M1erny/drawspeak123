@@ -1,5 +1,7 @@
 # Releasing Drawspeak to TestFlight
 
+Run releases through Apassy: `apassy_run_with_secrets` with items 104 and 105 and the command `scripts/release-testflight.sh` (cwd: repo root). Approve once with “remember” for the Drawspeak project.
+
 One script archives, exports, validates and uploads the iPad app:
 
 ```sh
