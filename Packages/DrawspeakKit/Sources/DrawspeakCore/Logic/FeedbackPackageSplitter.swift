@@ -60,8 +60,10 @@ public enum FeedbackPackageSplitter {
     private static func splitByText(_ groups: [FeedbackPackage.Group], template: FeedbackPackage) -> [[FeedbackPackage.Group]] {
         var probe = template
         probe.groups = groups
-        // A part header is a few hundred characters at most; measure with the longest one.
-        probe.part = FeedbackPackage.Part(index: 99, count: 99, seriesId: template.batchId)
+        // A part header is a few hundred characters at most; measure with the longest one
+        // (a part that is not the last, with a suffixed batch id).
+        probe.batchId = "\(template.batchId)-99"
+        probe.part = FeedbackPackage.Part(index: 98, count: 99, seriesId: template.batchId)
         guard groups.count > 1, FeedbackPackageBuilder.messageText(for: probe).count > maxMessageCharacters else { return [groups] }
         let middle = groups.count / 2
         return splitByText(Array(groups[..<middle]), template: template) + splitByText(Array(groups[middle...]), template: template)

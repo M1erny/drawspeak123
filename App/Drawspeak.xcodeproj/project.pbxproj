@@ -24,6 +24,7 @@
 		4BC1867C16B29F452EDA85E1 /* RootView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 47C1A23D5CFEB9A13558B99C /* RootView.swift */; };
 		4CC0188F1E668AA6B38355DC /* NoCanvasView.swift in Sources */ = {isa = PBXBuildFile; fileRef = FB80BFFE4CE9FC9CB04178FB /* NoCanvasView.swift */; };
 		51FFCB81CA55822BF1F42B84 /* CanvasAlert.swift in Sources */ = {isa = PBXBuildFile; fileRef = D529415A94A9F46E65BB1493 /* CanvasAlert.swift */; };
+		572C95301FDBF93379E80ABD /* DebugFakeThreads.swift in Sources */ = {isa = PBXBuildFile; fileRef = D6A4D624F1690766F92F4053 /* DebugFakeThreads.swift */; };
 		5B021807825BAE0C6D792AA7 /* CanvasSidebarRow.swift in Sources */ = {isa = PBXBuildFile; fileRef = DD359A1C4533863AC9CDFF85 /* CanvasSidebarRow.swift */; };
 		5C5706C8B6C77569CA8CCF63 /* RefineKit in Frameworks */ = {isa = PBXBuildFile; productRef = F075803C1E81434965C49627 /* RefineKit */; };
 		6140A784E80F839E16411004 /* CanvasKit in Frameworks */ = {isa = PBXBuildFile; productRef = 6236E16418C85716B1AF964E /* CanvasKit */; };
@@ -125,6 +126,7 @@
 		CC15179CC35F65F97C6C1E4B /* DebugOpenState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DebugOpenState.swift; sourceTree = "<group>"; };
 		D3E65FDFF3AC7940DF4DEAFD /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		D529415A94A9F46E65BB1493 /* CanvasAlert.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CanvasAlert.swift; sourceTree = "<group>"; };
+		D6A4D624F1690766F92F4053 /* DebugFakeThreads.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DebugFakeThreads.swift; sourceTree = "<group>"; };
 		D8361ABB3067E5EF8A7FC90E /* ImportChoice.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ImportChoice.swift; sourceTree = "<group>"; };
 		DD359A1C4533863AC9CDFF85 /* CanvasSidebarRow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CanvasSidebarRow.swift; sourceTree = "<group>"; };
 		E4AE16034F7E7E65797CF428 /* MainSplitView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MainSplitView.swift; sourceTree = "<group>"; };
@@ -217,6 +219,7 @@
 			children = (
 				EEDAF1C1CFD010606BD2AAA6 /* CanvasController+DebugLaunch.swift */,
 				316AB0722C72FACC26D723A6 /* DebugEndToEnd.swift */,
+				D6A4D624F1690766F92F4053 /* DebugFakeThreads.swift */,
 				7E5CCA45EC340E0486EFA6F2 /* DebugLaunch.swift */,
 				CC15179CC35F65F97C6C1E4B /* DebugOpenState.swift */,
 				2D7B1642E79DAEBCA66DE766 /* DemoContent.swift */,
@@ -435,6 +438,7 @@
 				64456860912D7C6D5539834E /* CanvasToolbar.swift in Sources */,
 				0417A6F5F3BD3213694C00C3 /* CommentsColumn.swift in Sources */,
 				EF9FD73DACB8D6FAE4F2FC19 /* DebugEndToEnd.swift in Sources */,
+				572C95301FDBF93379E80ABD /* DebugFakeThreads.swift in Sources */,
 				C9A3AFEC5CD2321136204459 /* DebugLaunch.swift in Sources */,
 				792C4E0555AB73F818931439 /* DebugOpenState.swift in Sources */,
 				65A2A296B037CF574856D9E5 /* DemoContent.swift in Sources */,

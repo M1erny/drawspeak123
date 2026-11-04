@@ -297,6 +297,7 @@ public final class Workspace {
     }
 
     public func deleteCanvas(_ id: UUID) {
+        commentSelection = nil
         if activeRecording?.canvasId == id {
             activeRecording = nil
             voice?.discard()
@@ -1399,7 +1400,7 @@ public final class Workspace {
     @discardableResult
     public func sendSeries(
         _ parts: [FeedbackPackage], canvasId: UUID, newThread: NewThreadRequest? = nil,
-        render: (FeedbackPackage) async throws -> [OutgoingAttachment]
+        render: @MainActor (FeedbackPackage) async throws -> [OutgoingAttachment]
     ) async throws -> [OutboxEntry] {
         for (index, original) in parts.enumerated() {
             var part = original

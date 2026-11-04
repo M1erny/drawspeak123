@@ -37,6 +37,9 @@ final class AppModel {
             if ProcessInfo.processInfo.arguments.contains("-DrawspeakSeedDemo") {
                 DemoContent.seed(into: workspace)
             }
+            if ProcessInfo.processInfo.arguments.contains("-DrawspeakSeedLarge") {
+                DemoContent.seedLargeReview(into: workspace)
+            }
             DemoContent.importFromEnvironment(into: workspace)
             #endif
         } catch {
@@ -86,6 +89,12 @@ final class AppModel {
         }
         #endif
         workspace?.threads = connection.threadService
+        #if DEBUG
+        if ProcessInfo.processInfo.arguments.contains("-DrawspeakFakeThreads"), let workspace {
+            workspace.threads = DebugFakeThreads()
+            if let canvasId = workspace.currentCanvasId { _ = workspace.bindThread(DebugFakeThreads.binding, to: canvasId) }
+        }
+        #endif
         #if DEBUG && targetEnvironment(simulator)
         if let workspace { await DebugEndToEnd.runIfRequested(workspace: workspace, connection: connection) }
         #endif
@@ -113,6 +122,9 @@ final class AppModel {
 
     /// Called whenever the T3 connection changes.
     func connectionChanged() {
+        #if DEBUG
+        if ProcessInfo.processInfo.arguments.contains("-DrawspeakFakeThreads") { return }
+        #endif
         workspace?.threads = connection.threadService
     }
 }

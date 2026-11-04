@@ -128,11 +128,11 @@ struct FeedbackSeriesTests {
         let second = try await ws.sendSeries(parts, canvasId: ws.currentCanvasId!) { fakeAttachments($0) }
 
         #expect(second.map(\.state) == [.sent, .sent, .sent])
-        let markers = service.sentMessages.calls.map { $0.split(separator: ":")[2] }
-        #expect(markers.count == 3)
-        #expect(markers.contains { $0.contains("ds-series-1]") })
-        #expect(markers.contains { $0.contains("ds-series-2]") })
-        #expect(markers.contains { $0.contains("ds-series-3]") })
+        let calls = service.sentMessages.calls
+        #expect(calls.count == 3)
+        for index in 1...3 {
+            #expect(calls.count { $0.contains("[drawspeak-batch:ds-series-\(index)]") } == 1)
+        }
         #expect(ids.allSatisfy { ws.note($0)?.isSentAtCurrentRevision == true })
     }
 

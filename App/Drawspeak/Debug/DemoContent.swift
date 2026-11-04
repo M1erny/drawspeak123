@@ -43,6 +43,36 @@ enum DemoContent {
         workspace.focusedNoteId = nil
     }
 
+    /// Twelve screens with sixteen comments: more than one T3 message carries (launch
+    /// argument -DrawspeakSeedLarge), for screenshots of a split send.
+    static func seedLargeReview(into workspace: Workspace) {
+        guard workspace.currentCanvas?.screens.isEmpty ?? false else { return }
+        let titles = ["Welcome", "Sign In", "Vault", "Search", "Item Detail", "Edit Item", "Share Sheet",
+                      "Requests", "Answer Request", "Settings", "Lock", "Extension"]
+        let comments = [
+            "Make the primary button full width and pin it to the bottom.",
+            "The secondary text is too light; use the standard secondary label color.",
+            "Group these rows into one inset section with a header.",
+            "Replace the custom back arrow with the system back button.",
+        ]
+        let accents: [Color] = [.blue, .indigo, .teal, .orange]
+        for (index, title) in titles.enumerated() {
+            guard let data = png(title: title, accent: accents[index % accents.count], button: "Continue"),
+                  let snapshot = try? workspace.importArtifact(
+                    data: data, kind: .image, contentType: "image/png", fileName: "screen-\(index + 1).png",
+                    pixelSize: (780, 1688), target: .newScreen(title: "iPhone · \(title)")
+                  ) else { continue }
+            let count = index % 3 == 0 ? 2 : 1
+            for offset in 0..<count {
+                let y = 0.2 + Double(offset) * 0.35
+                guard let id = workspace.addNote(snapshotId: snapshot.id, shape: .region(NRect(x: 0.08, y: y, width: 0.84, height: 0.12)),
+                                                 autoVoice: false) else { continue }
+                workspace.updateNoteText(id, text: comments[(index + offset) % comments.count])
+            }
+        }
+        workspace.focusedNoteId = nil
+    }
+
     private static func png(title: String, accent: Color, button: String) -> Data? {
         let view = VStack(spacing: 24) {
             Text(title).font(.largeTitle.bold())

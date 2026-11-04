@@ -47,6 +47,8 @@ struct CanvasDetail: View {
             .onChange(of: undoManager) { workspace.undoManager = undoManager }
             .onChange(of: model.connection.state) { model.connectionChanged() }
             .onChange(of: workspace.focusedNoteId) { _, noteId in controller.focusedNoteChanged(noteId) }
+            // Select mode belongs to the open Comments list; pins act normally again once it closes.
+            .onChange(of: controller.showsInspector) { _, shown in if !shown { workspace.commentSelection = nil } }
             .onChange(of: workspace.lastSaveError) { _, message in controller.saveFailed(message) }
             .onChange(of: scenePhase) { _, phase in scenePhaseChanged(phase) }
             .onReceive(NotificationCenter.default.publisher(for: .NSUndoManagerDidCloseUndoGroup)) { _ in controller.undoStackChanged() }

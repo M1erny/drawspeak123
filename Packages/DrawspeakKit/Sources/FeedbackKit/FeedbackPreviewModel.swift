@@ -62,7 +62,16 @@ final class FeedbackPreviewModel {
     private(set) var reasons: [UUID: String] = [:]
     /// Once Send is tapped the sheet shows delivery progress and the result instead of the list.
     var showsResult: Bool { savedCount != nil || preparationFailed || !series.isEmpty }
-    var recipient: ThreadBinding? { entries.last(where: { !$0.thread.threadId.isEmpty })?.thread ?? workspace.canvas(canvasId)?.thread }
+    var recipient: ThreadBinding? {
+        if let sent = entries.last(where: { !$0.thread.threadId.isEmpty })?.thread { return sent }
+        // A series that starts a thread names it before the server has returned it.
+        if let request = seriesNewThread, let host = workspace.threads?.hostURL {
+            return ThreadBinding(hostURL: host, threadId: "", threadTitle: request.title, projectId: request.projectId, projectTitle: request.projectTitle)
+        }
+        return workspace.canvas(canvasId)?.thread
+    }
+    /// Some messages of the series arrived and others did not.
+    var isPartiallySent: Bool { sentCount > 0 && !allSent }
     var canStartNewThread: Bool { workspace.threads != nil }
     var newThreadReady: Bool {
         startsNewThread && canStartNewThread && newThreadProjectId != nil
