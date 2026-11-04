@@ -1,6 +1,6 @@
 # Review manifest v1 (proposed app contract)
 
-This is a file contract owned by Review Canvas, not an existing T3 Code endpoint. The iPad app will validate it before importing artifacts. Example values are synthetic; compute real hashes and dimensions for actual exports.
+This is a file contract owned by Drawspeak, not an existing T3 Code endpoint. The iPad app will validate it before importing artifacts. Example values are synthetic; compute real hashes and dimensions for actual exports.
 
 ```json
 {

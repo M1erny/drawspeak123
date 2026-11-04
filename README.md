@@ -1,6 +1,6 @@
-# Review Canvas
+# Drawspeak
 
-Nowy projekt aplikacji iPad do review UI: obrazy i makiety HTML na canvasie, zaznaczenia Apple Pencilem, komentarze głosowe i wymiana wersji z T3 Code przez Tailscale. Nazwa robocza.
+Projekt aplikacji Drawspeak na iPada do review UI: obrazy i makiety HTML na canvasie, zaznaczenia Apple Pencilem, komentarze głosowe i wymiana wersji z T3 Code przez Tailscale.
 
 Pierwszy etap: specyfikacja i interaktywny prototyp kluczowej interakcji. Aplikacja SwiftUI, rzeczywisty Pencil Pro, nagrywanie/transkrypcja oraz połączenie T3 Code to kolejne etapy opisane w specyfikacji.
 
@@ -55,3 +55,9 @@ Kierunek nowej wersji i uzasadnienie: [docs/DESIGN-V2.md](docs/DESIGN-V2.md). Kr
 Wyniki i zakres faktycznie uruchomionych sprawdzeń: [docs/VALIDATION.md](docs/VALIDATION.md). Podgląd HTML nie jest dowodem działania natywnego iPada, Pencil Pro, speech ani Tailscale.
 
 Do sprawdzenia elementów pod nakładką: importuj prototype/fixtures/stacked-components.html, wybierz Select HTML Component, wskaż niebieską nakładkę, potem Views and Layers → warstwę pod spodem. Nacisk/suwak zmienia rodzica wybranej warstwy.
+
+## Licencja
+
+Drawspeak jest udostępniany na [licencji Apache 2.0](LICENSE). Copyright 2026 Rafał Wyderka. Informacje o prawach autorskich zawiera [NOTICE](NOTICE).
+
+Cytaty i materiały osób trzecich wskazane w dokumentacji zachowują własne prawa i nie są objęte licencją tego projektu.

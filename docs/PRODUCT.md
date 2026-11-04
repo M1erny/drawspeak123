@@ -1,6 +1,6 @@
 # Specyfikacja produktu
 
-Aktualnym źródłem wymagań jest [PRD — Review Canvas](PRD.md), a decyzje są zapisane w [rejestrze ADR](adr/README.md).
+Aktualnym źródłem wymagań jest [PRD — Drawspeak](PRD.md), a decyzje są zapisane w [rejestrze ADR](adr/README.md).
 
 Wcześniejszy dokument łączący etapy v1–v3 zachowano jako [archiwum PRODUCT-v1-v3](archive/PRODUCT-v1-v3.md). Nie opisuje on najnowszego przyjętego flow.
 

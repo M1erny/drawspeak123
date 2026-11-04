@@ -1,4 +1,4 @@
-# Rejestr ADR — Review Canvas
+# Rejestr ADR — Drawspeak
 
 Data decyzji: 2026-11-04. Źródło: ustalenia z użytkownikiem w wątku projektu. Status „Przyjęte” opisuje kierunek produktu/architektury, nie zakończenie implementacji lub testów live.
 

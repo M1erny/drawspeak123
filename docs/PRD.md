@@ -1,6 +1,6 @@
-# PRD — Review Canvas
+# PRD — Drawspeak
 
-Data: 2026-11-04. Status: przyjęty kierunek produktu i wymagania docelowe. Nazwa robocza: Review Canvas. Odbiorca MVP: jedna osoba pracująca z T3 Code na własnym iPadzie.
+Data: 2026-11-04. Status: przyjęty kierunek produktu i wymagania docelowe. Nazwa: Drawspeak. Odbiorca MVP: jedna osoba pracująca z T3 Code na własnym iPadzie.
 
 Ten dokument konsoliduje ustalenia rozmowy i zastępuje wcześniejszą specyfikację PRODUCT v1–v3. Powiązane decyzje są w [rejestrze ADR](adr/README.md). Status przyjętego wymagania nie oznacza, że funkcja jest zaimplementowana; stan kodu opisuje sekcja 12.
 

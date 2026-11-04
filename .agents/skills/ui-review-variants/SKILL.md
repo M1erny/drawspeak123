@@ -1,6 +1,6 @@
 ---
 name: ui-review-variants
-description: Create clickable UI or feature alternatives on fixture data and export versioned screenshots for the iPad Review Canvas and T3 Code review loop. Use when the user requests current-versus-proposal exploration or returns a review batch for iteration.
+description: Create clickable UI or feature alternatives on fixture data and export versioned screenshots for the Drawspeak iPad app and T3 Code review loop. Use when the user requests current-versus-proposal exploration or returns a review batch for iteration.
 ---
 
 # UI review variants
