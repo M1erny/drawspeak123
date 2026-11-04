@@ -9,7 +9,7 @@ extension CanvasController {
             try? await Task.sleep(for: .seconds(1))
             switch state {
             case .feedback: openFeedback()
-            case .settings: showSettings()
+            case .settings, .pairing: showSettings()
             case .history: showHistory()
             case .comments:
                 workspace.focusedNoteId = workspace.currentCanvas?.notes.first?.id

@@ -3,7 +3,7 @@ import Foundation
 
 /// States for `-DrawspeakOpen <state>` (scripts/sim-shots.sh).
 enum DebugOpenState: String {
-    case feedback, settings, history, comments, addRegion, threads, canvases, component
+    case feedback, settings, pairing, history, comments, addRegion, threads, canvases, component
 
     init?(argument: String) {
         switch argument {

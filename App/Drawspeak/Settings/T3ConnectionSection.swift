@@ -4,7 +4,8 @@ import T3Kit
 
 struct T3ConnectionSection: View {
     let connection: T3Connection
-    @State private var showsPairing = false
+    /// Pushes the pairing screen in the Settings stack.
+    let onPair: () -> Void
 
     var body: some View {
         Section("T3 Code") {
@@ -18,7 +19,7 @@ struct T3ConnectionSection: View {
             }
             switch connection.state {
             case .connected:
-                Button("Pair Again…", action: showPairing)
+                Button("Pair Again…", action: onPair)
                 Button("Disconnect", role: .destructive, action: connection.disconnect)
             case .connecting:
                 ProgressView()
@@ -26,16 +27,10 @@ struct T3ConnectionSection: View {
                 if connection.canReconnect {
                     Button("Reconnect", action: reconnect)
                 }
-                Button("Connect…", action: showPairing)
+                Button("Connect…", action: onPair)
             }
         }
-        .sheet(isPresented: $showsPairing) {
-            T3PairingSheet(connection: connection, onClose: hidePairing)
-        }
     }
-
-    private func showPairing() { showsPairing = true }
-    private func hidePairing() { showsPairing = false }
 
     private func reconnect() {
         Task { await connection.reconnect() }

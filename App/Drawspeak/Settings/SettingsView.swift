@@ -8,9 +8,10 @@ struct SettingsView: View {
     @AppStorage(AppPreferences.drawWithFinger) private var drawWithFinger = false
     @AppStorage(AppPreferences.transcriptionLanguage) private var language = TranscriptionLanguage.automatic.rawValue
     @AppStorage(AppPreferences.refineWithClaude) private var refineWithClaude = true
+    @State private var path: [SettingsRoute] = []
 
     var body: some View {
-        NavigationStack {
+        NavigationStack(path: $path) {
             Form {
                 Section {
                     Toggle("Record After Marking", isOn: $autoVoice).tint(Theme.actionFill)
@@ -33,13 +34,28 @@ struct SettingsView: View {
                     Toggle("Draw with Finger", isOn: $drawWithFinger).tint(Theme.actionFill)
                 }
 
-                T3ConnectionSection(connection: model.connection)
+                T3ConnectionSection(connection: model.connection) { path.append(.pairing) }
 
                 Section("About") {
                     LabeledContent("Version", value: Bundle.main.versionDescription)
                 }
             }
+            .navigationDestination(for: SettingsRoute.self) { route in
+                switch route {
+                case .pairing: T3PairingDestination(connection: model.connection)
+                }
+            }
             .navigationTitle("Settings")
+            #if DEBUG
+            .task {
+                // Simulator check: push pairing, then change the connection state the way
+                // pairing does, and confirm the pushed screen stays.
+                guard DebugLaunch.requestedState == .pairing else { return }
+                path = [.pairing]
+                try? await Task.sleep(for: .seconds(1))
+                await model.connection.reconnect()
+            }
+            #endif
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {

@@ -20,6 +20,7 @@
 		415E079EAEB9CE5C99385EFD /* T3ConnectionSection.swift in Sources */ = {isa = PBXBuildFile; fileRef = 73ABD0751107E9263C126BAF /* T3ConnectionSection.swift */; };
 		4908FBA7DC826F138208055E /* CanvasStatusBar.swift in Sources */ = {isa = PBXBuildFile; fileRef = E599C58A7555C3128D1E8263 /* CanvasStatusBar.swift */; };
 		4A10F3DEA642DF707BDEC53C /* AppPreferences.swift in Sources */ = {isa = PBXBuildFile; fileRef = F3DFEDB9713FF2DB560F14CE /* AppPreferences.swift */; };
+		4B96BB516BEE8D5306A84F42 /* T3PairingDestination.swift in Sources */ = {isa = PBXBuildFile; fileRef = A6D5DD2A1316CC861911DA1D /* T3PairingDestination.swift */; };
 		4BC1867C16B29F452EDA85E1 /* RootView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 47C1A23D5CFEB9A13558B99C /* RootView.swift */; };
 		4CC0188F1E668AA6B38355DC /* NoCanvasView.swift in Sources */ = {isa = PBXBuildFile; fileRef = FB80BFFE4CE9FC9CB04178FB /* NoCanvasView.swift */; };
 		51FFCB81CA55822BF1F42B84 /* CanvasAlert.swift in Sources */ = {isa = PBXBuildFile; fileRef = D529415A94A9F46E65BB1493 /* CanvasAlert.swift */; };
@@ -38,8 +39,8 @@
 		7AF8EED8418198BA3A81FF12 /* HTMLKit in Frameworks */ = {isa = PBXBuildFile; productRef = E112867C26FB283C9CB750CD /* HTMLKit */; };
 		7B8469FE647F9B00151682C3 /* PendingImport.swift in Sources */ = {isa = PBXBuildFile; fileRef = 38B48378852355DDB7CB242F /* PendingImport.swift */; };
 		851BE346FC00C95F94FC7536 /* CanvasDetail.swift in Sources */ = {isa = PBXBuildFile; fileRef = A0B8921D039E34EE1D513E86 /* CanvasDetail.swift */; };
-		89C0CDCEF3A3DBD00D2700DE /* T3PairingSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = FB018F887B0F2FABFB65771D /* T3PairingSheet.swift */; };
 		89E71C56EC62D199CFB141C9 /* CanvasRow.swift in Sources */ = {isa = PBXBuildFile; fileRef = A056EFAF56A26F062757B7F7 /* CanvasRow.swift */; };
+		92FA03EE8ACB9D24F30644D0 /* SettingsRoute.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5C33ACCDB9A5E2B03A3EE5B1 /* SettingsRoute.swift */; };
 		9D54544C4DAF6D252C481021 /* ImportCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1A9A4FE4E4D0A26B777D9590 /* ImportCoordinator.swift */; };
 		A797EAD5F21FDD541B05D170 /* UndoRedoButtons.swift in Sources */ = {isa = PBXBuildFile; fileRef = CABC2C10280A573285CB9F3A /* UndoRedoButtons.swift */; };
 		A82AE8929AAD6D4E81D3AE26 /* Bundle+Version.swift in Sources */ = {isa = PBXBuildFile; fileRef = 51F7DF0CA8B36C6A10608161 /* Bundle+Version.swift */; };
@@ -92,6 +93,7 @@
 		51F7DF0CA8B36C6A10608161 /* Bundle+Version.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Bundle+Version.swift"; sourceTree = "<group>"; };
 		52B3AB3A16038AFA32941F6E /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
 		5932ED39A605AA142979333E /* AppModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppModel.swift; sourceTree = "<group>"; };
+		5C33ACCDB9A5E2B03A3EE5B1 /* SettingsRoute.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsRoute.swift; sourceTree = "<group>"; };
 		5DFA8ABB7270B35A118682F7 /* ScreenTargetModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScreenTargetModel.swift; sourceTree = "<group>"; };
 		5E185A29C9B4EEA0B5BCDD91 /* ScreenTargetSection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScreenTargetSection.swift; sourceTree = "<group>"; };
 		64D060A5ADA4BFD77517FE6C /* ShellMetrics.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShellMetrics.swift; sourceTree = "<group>"; };
@@ -112,6 +114,7 @@
 		A0B8921D039E34EE1D513E86 /* CanvasDetail.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CanvasDetail.swift; sourceTree = "<group>"; };
 		A0F095C8880D083ED10D4967 /* TranscriptionLanguage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TranscriptionLanguage.swift; sourceTree = "<group>"; };
 		A51B3EFD9B9BCDBCC01D9213 /* CanvasController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CanvasController.swift; sourceTree = "<group>"; };
+		A6D5DD2A1316CC861911DA1D /* T3PairingDestination.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = T3PairingDestination.swift; sourceTree = "<group>"; };
 		A720C7339CA875A4C1A344F2 /* CanvasAlerts.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CanvasAlerts.swift; sourceTree = "<group>"; };
 		ABBE68682557957D3887C2D2 /* CommentsColumn.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CommentsColumn.swift; sourceTree = "<group>"; };
 		ABF128E331AC2E83CFCFE69D /* ThreadBindingSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ThreadBindingSheet.swift; sourceTree = "<group>"; };
@@ -132,7 +135,6 @@
 		EE848559F663F87DC7EE990F /* MarkStylePreview.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MarkStylePreview.swift; sourceTree = "<group>"; };
 		EEDAF1C1CFD010606BD2AAA6 /* CanvasController+DebugLaunch.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "CanvasController+DebugLaunch.swift"; sourceTree = "<group>"; };
 		F3DFEDB9713FF2DB560F14CE /* AppPreferences.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppPreferences.swift; sourceTree = "<group>"; };
-		FB018F887B0F2FABFB65771D /* T3PairingSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = T3PairingSheet.swift; sourceTree = "<group>"; };
 		FB80BFFE4CE9FC9CB04178FB /* NoCanvasView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NoCanvasView.swift; sourceTree = "<group>"; };
 		FDF247E2BA6EA580A95A29FA /* ImportTargetSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ImportTargetSheet.swift; sourceTree = "<group>"; };
 		FF191F0A6F23EFA765278876 /* CanvasAddMenu.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CanvasAddMenu.swift; sourceTree = "<group>"; };
@@ -255,9 +257,10 @@
 				89574CB1BEA1A2146A3E9509 /* MarksSettingsSection.swift */,
 				EE848559F663F87DC7EE990F /* MarkStylePreview.swift */,
 				988D301BF1B18B9F16B44D3C /* RefineInstructionsView.swift */,
+				5C33ACCDB9A5E2B03A3EE5B1 /* SettingsRoute.swift */,
 				52B3AB3A16038AFA32941F6E /* SettingsView.swift */,
 				73ABD0751107E9263C126BAF /* T3ConnectionSection.swift */,
-				FB018F887B0F2FABFB65771D /* T3PairingSheet.swift */,
+				A6D5DD2A1316CC861911DA1D /* T3PairingDestination.swift */,
 				4F5DD24C19F0D722C4426F62 /* T3StatusText.swift */,
 			);
 			path = Settings;
@@ -457,11 +460,12 @@
 				4BC1867C16B29F452EDA85E1 /* RootView.swift in Sources */,
 				C76A68EB89BF04563FA0E559 /* ScreenTargetModel.swift in Sources */,
 				BC157EFCB01BA67986C58282 /* ScreenTargetSection.swift in Sources */,
+				92FA03EE8ACB9D24F30644D0 /* SettingsRoute.swift in Sources */,
 				FCF10E406461F183B4081512 /* SettingsView.swift in Sources */,
 				F2F8001BA14FF766133CE331 /* ShellMetrics.swift in Sources */,
 				AAC3AB17CAACB3CEF9674C3C /* SqueezeToolPalette.swift in Sources */,
 				415E079EAEB9CE5C99385EFD /* T3ConnectionSection.swift in Sources */,
-				89C0CDCEF3A3DBD00D2700DE /* T3PairingSheet.swift in Sources */,
+				4B96BB516BEE8D5306A84F42 /* T3PairingDestination.swift in Sources */,
 				A89574EB569D7C859AAF6CCE /* T3StatusText.swift in Sources */,
 				09561680BD9931CE22F245C7 /* ThreadBindingSheet.swift in Sources */,
 				FBCBEE1E6C6AF13BD011E94A /* TranscriptionLanguage.swift in Sources */,
@@ -528,7 +532,7 @@
 				GCC_WARN_UNUSED_VARIABLE = YES;
 				IPHONEOS_DEPLOYMENT_TARGET = 27.0;
 				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
-				MARKETING_VERSION = 0.4.2;
+				MARKETING_VERSION = 0.5.0;
 				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
 				MTL_FAST_MATH = YES;
 				ONLY_ACTIVE_ARCH = YES;
@@ -614,7 +618,7 @@
 				GCC_WARN_UNUSED_VARIABLE = YES;
 				IPHONEOS_DEPLOYMENT_TARGET = 27.0;
 				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
-				MARKETING_VERSION = 0.4.2;
+				MARKETING_VERSION = 0.5.0;
 				MTL_ENABLE_DEBUG_INFO = NO;
 				MTL_FAST_MATH = YES;
 				PRODUCT_NAME = "$(TARGET_NAME)";
