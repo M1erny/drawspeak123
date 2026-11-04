@@ -29,13 +29,16 @@ final class ThreadListCache {
         let projectTitle: String?
         let status: String?
         let updatedAt: Date?
+        let settled: Bool?
+        let snoozed: Bool?
         init(_ thread: ThreadSummary) {
             id = thread.id; title = thread.title; projectId = thread.projectId
             projectTitle = thread.projectTitle; status = thread.status; updatedAt = thread.updatedAt
+            settled = thread.settled; snoozed = thread.snoozed
         }
         var summary: ThreadSummary {
             ThreadSummary(id: id, title: title, projectId: projectId, projectTitle: projectTitle,
-                          status: status, updatedAt: updatedAt)
+                          status: status, updatedAt: updatedAt, settled: settled ?? false, snoozed: snoozed ?? false)
         }
     }
     private struct Stored: Codable {

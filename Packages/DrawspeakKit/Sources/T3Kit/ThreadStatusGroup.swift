@@ -1,28 +1,29 @@
 import Foundation
 import DrawspeakCore
 
+/// Sections of the thread picker, in the same order and with the same rules as
+/// the T3 Code sidebar: snoozed and settled threads have their own shelves,
+/// threads where the agent is running are Working, everything else needs attention.
 struct ThreadStatusGroup: Identifiable, Equatable {
     enum Status: String, CaseIterable {
-        case running, waiting, recent, stopped, older
+        case needsAttention, working, snoozed, settled
 
         var title: String {
             switch self {
-            case .running: String(localized: "Running", bundle: .module)
-            case .waiting: String(localized: "Waiting", bundle: .module)
-            case .recent: String(localized: "Recent", bundle: .module)
-            case .stopped: String(localized: "Stopped", bundle: .module)
-            case .older: String(localized: "Older", bundle: .module)
+            case .needsAttention: String(localized: "Needs Attention", bundle: .module)
+            case .working: String(localized: "Working", bundle: .module)
+            case .snoozed: String(localized: "Snoozed", bundle: .module)
+            case .settled: String(localized: "Settled", bundle: .module)
             }
         }
 
+        static let workingStatuses: Set<String> = ["running", "starting", "preparing", "queued"]
+
         static func classify(_ thread: ThreadSummary, now: Date) -> Self {
-            switch thread.status {
-            case "running", "starting", "preparing", "queued": .running
-            case "waiting": .waiting
-            case "interrupted", "failed", "cancelled", "rolled_back": .stopped
-            case "completed": (thread.updatedAt ?? .distantPast) >= now.addingTimeInterval(-7 * 86_400) ? .recent : .older
-            default: .recent
-            }
+            if thread.snoozed { return .snoozed }
+            if thread.settled { return .settled }
+            if workingStatuses.contains(thread.status ?? "") { return .working }
+            return .needsAttention
         }
     }
     let id: Status

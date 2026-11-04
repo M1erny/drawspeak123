@@ -13,26 +13,25 @@ struct ThreadPickerModelTests {
         #expect(ThreadPickerModel.statusGroups(threads: threads, search: "  ").flatMap(\.threads).count == 2)
     }
 
-    @Test func statusOrderAndSevenDayBoundary() {
-        let now = Date(timeIntervalSince1970: 1_000_000)
+    @Test func groupsLikeTheT3CodeSidebar() {
         let threads = [
-            thread("older", status: "completed", date: now.addingTimeInterval(-7 * 86_400 - 1)),
-            thread("boundary", status: "completed", date: now.addingTimeInterval(-7 * 86_400)),
-            thread("idle", status: "idle", date: now), thread("waiting", status: "waiting"),
-            thread("failed", status: "failed"), thread("interrupted", status: "interrupted"),
-            thread("cancelled", status: "cancelled"), thread("rolled_back", status: "rolled_back"),
-            thread("running", status: "running"), thread("starting", status: "starting"),
-            thread("preparing", status: "preparing"), thread("queued", status: "queued")
+            thread("done", status: "completed", settled: true),
+            thread("nap", status: "completed", snoozed: true),
+            thread("running", status: "running"), thread("queued", status: "queued"),
+            thread("waiting", status: "waiting"), thread("failed", status: "failed"),
+            thread("finished", status: "completed"), thread("idle", status: "idle"),
         ]
-        let groups = ThreadPickerModel.statusGroups(threads: threads, search: "", now: now)
-        #expect(groups.map(\.id) == [.running, .waiting, .recent, .stopped, .older])
-        #expect(groups[0].threads.count == 4)
-        #expect(groups[2].threads.map(\.id) == ["idle", "boundary"])
-        #expect(groups[3].threads.count == 4)
-        #expect(groups[4].threads.map(\.id) == ["older"])
+        let groups = ThreadPickerModel.statusGroups(threads: threads, search: "")
+        #expect(groups.map(\.id) == [.needsAttention, .working, .snoozed, .settled])
+        #expect(Set(groups[0].threads.map(\.id)) == ["waiting", "failed", "finished", "idle"])
+        #expect(Set(groups[1].threads.map(\.id)) == ["running", "queued"])
+        #expect(groups[2].threads.map(\.id) == ["nap"])
+        #expect(groups[3].threads.map(\.id) == ["done"])
     }
 
-    private func thread(_ id: String, title: String = "Thread", projectTitle: String? = nil, status: String? = nil, date: Date? = nil) -> ThreadSummary {
-        ThreadSummary(id: id, title: title, projectId: "project", projectTitle: projectTitle, status: status, updatedAt: date)
+    private func thread(_ id: String, title: String = "Thread", projectTitle: String? = nil, status: String? = nil, date: Date? = nil,
+                        settled: Bool = false, snoozed: Bool = false) -> ThreadSummary {
+        ThreadSummary(id: id, title: title, projectId: "project", projectTitle: projectTitle, status: status, updatedAt: date,
+                      settled: settled, snoozed: snoozed)
     }
 }

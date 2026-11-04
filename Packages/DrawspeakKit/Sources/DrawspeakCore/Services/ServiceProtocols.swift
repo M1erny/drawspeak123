@@ -134,14 +134,21 @@ public struct ThreadSummary: Sendable, Hashable, Identifiable {
     public var projectTitle: String?
     public var status: String?
     public var updatedAt: Date?
+    /// Marked done in T3 Code (manually or by auto-settle).
+    public var settled: Bool
+    /// Snoozed in T3 Code until a later time.
+    public var snoozed: Bool
 
-    public init(id: String, title: String, projectId: String?, projectTitle: String?, status: String?, updatedAt: Date?) {
+    public init(id: String, title: String, projectId: String?, projectTitle: String?, status: String?, updatedAt: Date?,
+                settled: Bool = false, snoozed: Bool = false) {
         self.id = id
         self.title = title
         self.projectId = projectId
         self.projectTitle = projectTitle
         self.status = status
         self.updatedAt = updatedAt
+        self.settled = settled
+        self.snoozed = snoozed
     }
 }
 

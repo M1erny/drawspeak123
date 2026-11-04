@@ -15,7 +15,7 @@ nonisolated public struct T3ThreadService: ThreadService, Sendable {
             for item in page["threads"].array {
                 guard let id = item["threadId"].string else { throw MCPError.invalidResponse }
                 if !threads.contains(where: { $0.id == id }) {
-                    threads.append(ThreadSummary(id: id, title: item["title"].string ?? String(localized: "Untitled Thread", bundle: .module), projectId: item["projectId"].string, projectTitle: item["projectTitle"].string, status: item["status"].string, updatedAt: date(item["updatedAt"])))
+                    threads.append(ThreadSummary(id: id, title: item["title"].string ?? String(localized: "Untitled Thread", bundle: .module), projectId: item["projectId"].string, projectTitle: item["projectTitle"].string, status: item["status"].string, updatedAt: date(item["updatedAt"]), settled: item["settled"].bool, snoozed: item["snoozed"].bool))
                 }
             }
             guard let next = page["nextCursor"].int else { break }

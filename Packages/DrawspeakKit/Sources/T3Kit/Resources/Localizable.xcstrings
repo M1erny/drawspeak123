@@ -13,6 +13,7 @@
       }
     },
     "%@ · %@": {
+      "comment": "Project title and relative update time for a thread.",
       "extractionState": "manual",
       "localizations": {
         "en": {
@@ -21,8 +22,7 @@
             "value": "%@ · %@"
           }
         }
-      },
-      "comment": "Project title and relative update time for a thread."
+      }
     },
     "Access": {
       "extractionState": "manual",
@@ -223,6 +223,7 @@
       }
     },
     "Full Access": {
+      "comment": "T3 Code access policy permitting all agent actions.",
       "extractionState": "manual",
       "localizations": {
         "en": {
@@ -231,8 +232,7 @@
             "value": "Full Access"
           }
         }
-      },
-      "comment": "T3 Code access policy permitting all agent actions."
+      }
     },
     "Host": {
       "extractionState": "manual",
@@ -322,6 +322,7 @@
         }
       }
     },
+    "Needs Attention": {},
     "Needs Input": {
       "extractionState": "manual",
       "localizations": {
@@ -340,17 +341,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "No Threads"
-          }
-        }
-      }
-    },
-    "Older": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Older"
           }
         }
       }
@@ -399,39 +389,8 @@
         }
       }
     },
-    "Recent": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Recent"
-          }
-        }
-      }
-    },
-    "Running": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Running"
-          }
-        }
-      }
-    },
-    "Stopped": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Stopped"
-          }
-        }
-      }
-    },
+    "Settled": {},
+    "Snoozed": {},
     "T3 Code rejected the authorization request.": {
       "extractionState": "manual",
       "localizations": {
@@ -630,17 +589,7 @@
         }
       }
     },
-    "Waiting": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Waiting"
-          }
-        }
-      }
-    }
+    "Working": {}
   },
   "version": "1.0"
 }
