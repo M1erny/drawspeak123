@@ -145,16 +145,33 @@ struct FakeThreadService: ThreadService {
     func threadStatus(threadId: String) async throws -> String? { log.record("threadStatus"); return nil }
 }
 
-/// A microphone double that writes a small temporary file on Stop.
+/// A microphone double that writes a small temporary file on Stop. Live events are
+/// sent with `emit`; by default nothing arrives until the test sends it.
 @MainActor
 final class FakeVoice: VoiceCapturing {
     private(set) var scope: RecordingScope?
     private(set) var discardCount = 0
+    private(set) var startCount = 0
     private(set) var lastFile: URL?
+    private(set) var lastLanguage: String?
+    private(set) var onEvent: (@MainActor (LiveTranscriptEvent) -> Void)?
+    var hasPermission = true
+    var permissionGranted = true
+    /// Sent right after Stop, as a live session finishing in the background would.
+    var eventsAfterStop: [LiveTranscriptEvent] = []
     let directory = makeTempRoot()
 
-    func requestPermission() async -> Bool { true }
-    func start(scope: RecordingScope) throws { self.scope = scope }
+    func requestPermission() async -> Bool {
+        if permissionGranted { hasPermission = true }
+        return permissionGranted
+    }
+    func start(scope: RecordingScope, language: String?, onEvent: @escaping @MainActor (LiveTranscriptEvent) -> Void) throws {
+        self.scope = scope
+        lastLanguage = language
+        startCount += 1
+        self.onEvent = onEvent
+    }
+    func emit(_ event: LiveTranscriptEvent) { onEvent?(event) }
     func stop() -> CapturedAudio? {
         guard let scope else { return nil }
         self.scope = nil
@@ -162,10 +179,15 @@ final class FakeVoice: VoiceCapturing {
         let url = directory.appending(path: "\(UUID().uuidString).m4a")
         try? Data("audio-\(scope.recordingId)".utf8).write(to: url)
         lastFile = url
+        let pending = eventsAfterStop
+        if let onEvent, !pending.isEmpty {
+            Task { for event in pending { onEvent(event) } }
+        }
         return CapturedAudio(scope: scope, fileURL: url, contentType: "audio/mp4", duration: 1.5)
     }
     func discard() {
         scope = nil
+        onEvent = nil
         discardCount += 1
     }
     var isRecording: Bool { scope != nil }

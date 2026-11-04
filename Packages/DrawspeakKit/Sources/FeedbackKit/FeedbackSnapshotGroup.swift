@@ -1,47 +1,45 @@
 import SwiftUI
 import DrawspeakCore
-import ImageIO
 
 struct FeedbackSnapshotGroup: View {
-    let snapshot: Snapshot?
-    let title: String
-    let notes: [Note]
+    let group: FeedbackPreviewGroup
     @Bindable var model: FeedbackPreviewModel
-    @Environment(\.horizontalSizeClass) private var sizeClass
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @State private var thumbnail: CGImage?
     @State private var renderError: String?
-    private var items: [BatchItem] { notes.filter { model.selection.contains($0.id) }.map(BatchItem.init(note:)) }
+    @State private var availableWidth: CGFloat = 0
+
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Text(title).font(.headline)
-            let layout = sizeClass == .compact
-                ? AnyLayout(VStackLayout(alignment: .leading, spacing: 12))
-                : AnyLayout(HStackLayout(alignment: .top, spacing: 16))
-            layout {
-                Group {
-                    if let thumbnail {
-                        Image(decorative: thumbnail, scale: 1).resizable().scaledToFit()
-                            .frame(maxHeight: 200)
-                    } else if let renderError { Text(renderError).font(.caption).foregroundStyle(.red) }
-                    else { ProgressView("Rendering snapshot…") }
+        let horizontal = availableWidth >= FeedbackLayout.horizontalThreshold && !dynamicTypeSize.isAccessibilitySize
+        let layout = horizontal ? AnyLayout(HStackLayout(alignment: .top, spacing: FeedbackLayout.spacing))
+            : AnyLayout(VStackLayout(alignment: .leading, spacing: FeedbackLayout.spacing))
+        layout {
+            FeedbackThumbnail(image: thumbnail, error: renderError)
+                .frame(maxWidth: horizontal ? FeedbackLayout.thumbnailWidth : .infinity)
+            VStack(alignment: .leading, spacing: FeedbackLayout.spacing) {
+                ForEach(group.notes) { note in
+                    FeedbackNoteRow(note: note, reason: model.reason(for: note), selection: $model.selection)
                 }
-                .frame(width: 200)
-                .accessibilityHidden(true)
-                VStack(alignment: .leading, spacing: 12) {
-                    ForEach(notes) { note in
-                        FeedbackNoteRow(note: note, reason: model.reason(for: note), selection: $model.selection)
-                    }
-                }.frame(maxWidth: .infinity, alignment: .leading)
-            }
+            }.frame(maxWidth: .infinity, alignment: .leading)
         }
-        .task(id: items) {
-            thumbnail = nil; renderError = nil
-            guard let snapshot else { renderError = "Snapshot is missing"; return }
-            do {
-                let png = try await CompositeRenderer.render(snapshot: snapshot, items: items, blobs: model.workspace.blobs, maxLongSide: 900)
-                guard !Task.isCancelled else { return }
-                thumbnail = CGImageSourceCreateWithData(png as CFData, nil).flatMap { CGImageSourceCreateImageAtIndex($0, 0, nil) }
-            } catch { if !Task.isCancelled { renderError = error.localizedDescription } }
+        .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { availableWidth = $0 }
+        .task(id: group) { await renderThumbnail() }
+    }
+
+    private func renderThumbnail() async {
+        thumbnail = nil
+        renderError = nil
+        guard let snapshot = group.snapshot else {
+            renderError = String(localized: "Screen missing", bundle: .module)
+            return
+        }
+        do {
+            let png = try await CompositeRenderer.render(snapshot: snapshot, items: group.items, blobs: model.workspace.blobs, maxLongSide: 900)
+            let decoded = try await FeedbackImageWorker.decode(png)
+            try Task.checkCancellation()
+            thumbnail = decoded
+        } catch {
+            if !Task.isCancelled { renderError = error.localizedDescription }
         }
     }
 }

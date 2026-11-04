@@ -16,10 +16,10 @@ public enum T3Pairing {
     public static func pair(host: URL, code: String, accessLevel: String = "full-access", session: URLSession = .shared) async throws(T3PairingError) -> T3Credentials {
         do {
             let origin = try normalizeHost(host.absoluteString)
-            let resource = try await request(origin.appendingPathComponent(".well-known/oauth-protected-resource"), session: session)
+            let resource = try await request(origin.appending(path: ".well-known/oauth-protected-resource"), session: session)
             guard let server = resource["authorization_servers"].array.first?.string.flatMap(URL.init(string:)),
                   let resourceName = resource["resource"].string else { throw T3PairingError.invalidResponse }
-            let metadata = try await request(server.appendingPathComponent(".well-known/oauth-authorization-server"), session: session)
+            let metadata = try await request(server.appending(path: ".well-known/oauth-authorization-server"), session: session)
             guard metadata["grant_types_supported"].array.contains(.string("authorization_code")),
                   metadata["code_challenge_methods_supported"].array.contains(.string("S256")),
                   let issuer = metadata["issuer"].string,
@@ -30,14 +30,14 @@ public enum T3Pairing {
             for url in [server, registration, tokenURL, authorizationURL] {
                 guard url.scheme == origin.scheme, url.host == origin.host, url.port == origin.port else { throw T3PairingError.invalidResponse }
             }
-            let environment = try await request(origin.appendingPathComponent(".well-known/t3/environment"), session: session)
+            let environment = try await request(origin.appending(path: ".well-known/t3/environment"), session: session)
             let endpoint = T3Endpoint(origin: origin, issuer: issuer, resource: resourceName, environmentId: environment["environmentId"].string, serverVersion: environment["serverVersion"].string)
             let client = try await request(registration, body: .object(["client_name": .string("Drawspeak (iPad)"), "redirect_uris": .array([.string(redirectURI)])]), session: session)
             guard let clientId = client["client_id"].string else { throw T3PairingError.invalidResponse }
             let verifier = try random(32), state = try random(24)
             let challenge = base64url(Data(SHA256.hash(data: Data(verifier.utf8))))
-            let started = Date()
-            let decisionURL = authorizationURL.deletingLastPathComponent().appendingPathComponent("decision")
+            let started = Date.now
+            let decisionURL = authorizationURL.deletingLastPathComponent().appending(path: "decision")
             let decision = try await request(decisionURL, body: .object([
                 "authorization": .object(["response_type": .string("code"), "client_id": .string(clientId), "redirect_uri": .string(redirectURI), "code_challenge": .string(challenge), "code_challenge_method": .string("S256"), "state": .string(state), "resource": .string(resourceName)]),
                 "decision": .object(["_tag": .string("pairing-code"), "access": .string(accessLevel), "code": .string(code.trimmingCharacters(in: .whitespacesAndNewlines).uppercased())])
@@ -47,16 +47,16 @@ public enum T3Pairing {
             func value(_ key: String) -> String? { query.first { $0.name == key }?.value }
             guard value("state") == state, value("iss") == issuer,
                   redirect.scheme == "http", redirect.host == "127.0.0.1", redirect.path == "/drawspeak/oauth/callback" else { throw T3PairingError.invalidResponse }
-            if value("error") != nil { throw T3PairingError.approvalRejected(value("error_description") ?? "T3 Code rejected the authorization request.") }
+            if value("error") != nil { throw T3PairingError.approvalRejected(value("error_description") ?? String(localized: "T3 Code rejected the authorization request.", bundle: .module)) }
             guard let authCode = value("code") else { throw T3PairingError.invalidResponse }
-            guard Date().timeIntervalSince(started) < 60 else { throw T3PairingError.expired }
+            guard Date.now.timeIntervalSince(started) < 60 else { throw T3PairingError.expired }
             let fields = ["grant_type": "authorization_code", "code": authCode, "redirect_uri": redirectURI, "client_id": clientId, "code_verifier": verifier, "resource": resourceName]
             let allowed = CharacterSet.alphanumerics.union(CharacterSet(charactersIn: "-._~"))
             let form = fields.sorted { $0.key < $1.key }.map { $0.key + "=" + ($0.value.addingPercentEncoding(withAllowedCharacters: allowed) ?? "") }.joined(separator: "&")
             let token = try await request(tokenURL, form: form, session: session)
             guard let accessToken = token["access_token"].string, let seconds = token["expires_in"].int, seconds > 0,
                   token["token_type"].string?.lowercased() == "bearer", let scope = token["scope"].string else { throw T3PairingError.invalidResponse }
-            return T3Credentials(hostURL: origin, clientId: clientId, accessToken: accessToken, scope: scope, expiresAt: Date().addingTimeInterval(Double(seconds)), accessLevel: accessLevel, endpoint: endpoint)
+            return T3Credentials(hostURL: origin, clientId: clientId, accessToken: accessToken, scope: scope, expiresAt: Date.now.addingTimeInterval(Double(seconds)), accessLevel: accessLevel, endpoint: endpoint)
         } catch let error as T3PairingError { throw error }
         catch { throw .unreachable }
     }
@@ -79,5 +79,5 @@ public enum T3Pairing {
         guard SecRandomCopyBytes(kSecRandomDefault, count, &bytes) == errSecSuccess else { throw T3PairingError.invalidResponse }
         return base64url(Data(bytes))
     }
-    private static func base64url(_ data: Data) -> String { data.base64EncodedString().replacingOccurrences(of: "+", with: "-").replacingOccurrences(of: "/", with: "_").replacingOccurrences(of: "=", with: "") }
+    private static func base64url(_ data: Data) -> String { data.base64EncodedString().replacing("+", with: "-").replacing("/", with: "_").replacing("=", with: "") }
 }

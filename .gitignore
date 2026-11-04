@@ -5,3 +5,4 @@ xcuserdata/
 .DS_Store
 Packages/DrawspeakKit/.build/
 Packages/DrawspeakKit/.swiftpm/
+App/Config/Secrets.xcconfig

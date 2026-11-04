@@ -1,28 +1,23 @@
 import SwiftUI
 import DrawspeakCore
-import ImageIO
-import UniformTypeIdentifiers
 
 /// Isolated synthetic data. No account, network service, or user library is opened.
 enum FeedbackPreviewFixtures {
-    static func workspace() -> Workspace {
+    static func workspace() async -> Workspace {
         let root = FileManager.default.temporaryDirectory.appending(path: "Drawspeak-feedback-preview-\(UUID())")
         let blobs = BlobStore(root: root.appending(path: "blobs"))
         let store = LibraryStore(fileURL: root.appending(path: "library.json"))
-        let now = Date()
+        let now = Date.now
         let thread = ThreadBinding(hostURL: URL(string: "https://preview.example.test")!, threadId: "fixture-thread", threadTitle: "iPad review", projectId: nil, projectTitle: "Drawspeak")
         let workspace = Workspace(document: LibraryDocument(), blobs: blobs, store: store)
         _ = workspace.createCanvas(title: "Checkout review", thread: thread)
         let renderer = ImageRenderer(content: FeedbackFixtureImage().frame(width: 640, height: 480))
         renderer.scale = 1
         if let image = renderer.cgImage {
-            let data = NSMutableData()
-            if let destination = CGImageDestinationCreateWithData(data, UTType.png.identifier as CFString, 1, nil) {
-                CGImageDestinationAddImage(destination, image, nil)
-                if CGImageDestinationFinalize(destination), let snapshot = try? workspace.importArtifact(data: data as Data, kind: .image, contentType: "image/png", fileName: "Checkout.png", pixelSize: (640, 480), target: .newScreen(title: "Checkout")) {
-                    for (index, text) in ["Give the primary action more space.", "Explain when payment is collected.", "Keep the summary visible."].enumerated() {
-                        if let id = workspace.addNote(snapshotId: snapshot.id, shape: .region(NRect(x: 0.1, y: 0.15 + Double(index) * 0.22, width: 0.7, height: 0.15)), autoVoice: false) { workspace.updateNoteText(id, text: text) }
-                    }
+            if let data = try? await FeedbackImageWorker.encode(image),
+               let snapshot = try? workspace.importArtifact(data: data, kind: .image, contentType: "image/png", fileName: "Checkout.png", pixelSize: (640, 480), target: .newScreen(title: "Checkout")) {
+                for (index, text) in ["Give the primary action more space.", "Explain when payment is collected.", "Keep the summary visible."].enumerated() {
+                    if let id = workspace.addNote(snapshotId: snapshot.id, shape: .region(NRect(x: 0.1, y: 0.15 + Double(index) * 0.22, width: 0.7, height: 0.15)), autoVoice: false) { workspace.updateNoteText(id, text: text) }
                 }
             }
         }
@@ -45,13 +40,25 @@ enum FeedbackPreviewFixtures {
 }
 
 #Preview("Feedback button") {
-    FeedbackButton(workspace: FeedbackPreviewFixtures.workspace(), action: {})
+    @Previewable @State var workspace: Workspace?
+    Group {
+        if let workspace { SendFeedbackButton(workspace: workspace, action: {}) }
+        else { ProgressView() }
+    }.task { workspace = await FeedbackPreviewFixtures.workspace() }
 }
 #Preview("Feedback package") {
-    let workspace = FeedbackPreviewFixtures.workspace()
-    FeedbackPreviewSheet(workspace: workspace, canvasId: workspace.currentCanvasId!, onClose: {})
+    @Previewable @State var workspace: Workspace?
+    Group {
+        if let workspace, let id = workspace.currentCanvasId {
+            FeedbackPreviewSheet(workspace: workspace, canvasId: id, onClose: {})
+        } else { ProgressView() }
+    }.task { workspace = await FeedbackPreviewFixtures.workspace() }
 }
 #Preview("Drafts and delivery history") {
-    let workspace = FeedbackPreviewFixtures.workspace()
-    DraftsAndHistoryView(workspace: workspace, canvasId: workspace.currentCanvasId!, onResumeDraft: { _ in })
+    @Previewable @State var workspace: Workspace?
+    Group {
+        if let workspace, let id = workspace.currentCanvasId {
+            DraftsAndHistoryView(workspace: workspace, canvasId: id, onResumeDraft: { _ in })
+        } else { ProgressView() }
+    }.task { workspace = await FeedbackPreviewFixtures.workspace() }
 }

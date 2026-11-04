@@ -44,7 +44,7 @@ public actor MCPClient {
                 result = try await rpc(method: "tools/call", params: .object(["name": .string(name), "arguments": arguments])).0
             }
             let content = result["structuredContent"] != .null ? result["structuredContent"] : result["content"].array.first?["text"].string.flatMap { try? JSONDecoder().decode(JSONValue.self, from: Data($0.utf8)) } ?? .null
-            if result["isError"].bool { throw MCPError.tool(code: content["code"].string ?? "unknown", message: content["message"].string ?? "T3 Code rejected the request.") }
+            if result["isError"].bool { throw MCPError.tool(code: content["code"].string ?? "unknown", message: content["message"].string ?? String(localized: "T3 Code rejected the request.", bundle: .module)) }
             guard content != .null else { throw MCPError.invalidResponse }; return content
         } catch let error as MCPError { throw error } catch { throw .transport }
     }
@@ -52,7 +52,7 @@ public actor MCPClient {
         nextId += 1; let id = JSONValue.number(Double(nextId))
         var body: [String: JSONValue] = ["jsonrpc": .string("2.0"), "method": .string(method)]
         if !notification { body["id"] = id }; if let params { body["params"] = params }
-        var request = URLRequest(url: credentials.hostURL.appendingPathComponent("mcp"))
+        var request = URLRequest(url: credentials.hostURL.appending(path: "mcp"))
         request.httpMethod = "POST"; request.httpShouldHandleCookies = false; request.timeoutInterval = 60
         request.setValue("Bearer " + credentials.accessToken, forHTTPHeaderField: "Authorization")
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
@@ -66,14 +66,14 @@ public actor MCPClient {
         if notification { return (.null, response) }
         let messages: [JSONValue]
         if response.value(forHTTPHeaderField: "Content-Type")?.lowercased().contains("text/event-stream") == true {
-            let text = String(decoding: data, as: UTF8.self).replacingOccurrences(of: "\r\n", with: "\n")
+            let text = String(decoding: data, as: UTF8.self).replacing("\r\n", with: "\n")
             messages = text.components(separatedBy: "\n\n").compactMap { event in
                 let payload = event.components(separatedBy: "\n").filter { $0.hasPrefix("data:") }.map { String($0.dropFirst(5)).trimmingCharacters(in: .whitespaces) }.joined(separator: "\n")
                 return try? JSONDecoder().decode(JSONValue.self, from: Data(payload.utf8))
             }
         } else { messages = [try JSONDecoder().decode(JSONValue.self, from: data)] }
         guard let message = messages.first(where: { $0["id"] == id }) else { throw MCPError.invalidResponse }
-        if message["error"] != .null { throw MCPError.rpc(code: message["error"]["code"].int ?? -1, message: message["error"]["message"].string ?? "JSON-RPC error") }
+        if message["error"] != .null { throw MCPError.rpc(code: message["error"]["code"].int ?? -1, message: message["error"]["message"].string ?? String(localized: "JSON-RPC error", bundle: .module)) }
         guard message["result"] != .null else { throw MCPError.invalidResponse }
         return (message["result"], response)
     }
@@ -92,7 +92,7 @@ public actor MCPClient {
     }
     public func close() async {
         guard let sessionId else { return }; self.sessionId = nil
-        var request = URLRequest(url: credentials.hostURL.appendingPathComponent("mcp")); request.httpMethod = "DELETE"; request.httpShouldHandleCookies = false
+        var request = URLRequest(url: credentials.hostURL.appending(path: "mcp")); request.httpMethod = "DELETE"; request.httpShouldHandleCookies = false
         request.setValue("Bearer " + credentials.accessToken, forHTTPHeaderField: "Authorization"); request.setValue(sessionId, forHTTPHeaderField: "Mcp-Session-Id")
         _ = try? await session.data(for: request)
     }

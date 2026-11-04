@@ -1,45 +1,68 @@
 import DrawspeakCore
 import SwiftUI
 
-/// Where an imported file goes: a new screen, a new Now, or a proposal iteration.
+/// Where an imported file goes: a new screen, a new Now, or a proposal version.
 struct ImportTargetSheet: View {
     let workspace: Workspace
     let pending: PendingImport
     let onChoose: (Workspace.ImportTarget) -> Void
     @Environment(\.dismiss) private var dismiss
     @State private var newScreenTitle = ""
+    @State private var choice: ImportChoice = .newScreen
+    @State private var screens: [ScreenTargetModel] = []
 
     var body: some View {
         NavigationStack {
             Form {
                 Section {
                     LabeledContent("File", value: pending.fileName)
-                    LabeledContent("Size", value: "\(pending.pixelSize.width) × \(pending.pixelSize.height) px")
                     if pending.containsScripts {
-                        Text("Scripts in this HTML do not run. Drawspeak shows it as a static mockup.")
-                            .font(.footnote)
-                            .foregroundStyle(Theme.secondaryInk)
+                        Text("Scripts won't run.")
+                            .foregroundStyle(.secondary)
                     }
                 }
                 Section("New Screen") {
-                    TextField("Screen title", text: $newScreenTitle)
-                    Button("Add as New Screen", systemImage: "rectangle.badge.plus") {
-                        let title = newScreenTitle.trimmingCharacters(in: .whitespaces)
-                        onChoose(.newScreen(title: title.isEmpty ? pending.suggestedTitle : title))
-                    }
+                    ImportTargetRow(title: Text("New Screen"), isSelected: choice == .newScreen, action: chooseNewScreen)
+                    TextField("Title", text: $newScreenTitle)
+                        .disabled(choice != .newScreen)
                 }
-                ForEach(workspace.canvas(pending.canvasId)?.screens ?? []) { screen in
-                    ScreenTargetSection(canvas: workspace.canvas(pending.canvasId), screen: screen, onChoose: onChoose)
+                ForEach(screens) { screen in
+                    ScreenTargetSection(model: screen, choice: $choice)
                 }
             }
             .navigationTitle("Add to Canvas")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button("Cancel") { dismiss() }
+                    Button(role: .close, action: dismiss.callAsFunction)
+                }
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Add", action: add)
                 }
             }
-            .onAppear { newScreenTitle = pending.suggestedTitle }
+            .onAppear(perform: prepare)
+            .onChange(of: workspace.canvas(pending.canvasId)) { _, canvas in screens = ScreenTargetModel.make(canvas) }
+        }
+        .tint(.primary)
+        .presentationSizing(.form)
+    }
+
+    private func prepare() {
+        newScreenTitle = pending.suggestedTitle
+        screens = ScreenTargetModel.make(workspace.canvas(pending.canvasId))
+    }
+
+    private func chooseNewScreen() {
+        choice = .newScreen
+    }
+
+    private func add() {
+        switch choice {
+        case .newScreen:
+            let title = newScreenTitle.trimmingCharacters(in: .whitespaces)
+            onChoose(.newScreen(title: title.isEmpty ? pending.suggestedTitle : title))
+        case .existing(let target):
+            onChoose(target)
         }
     }
 }

@@ -2,80 +2,56 @@
 import DrawspeakCore
 import SwiftUI
 
-/// Version history and the selected version's change report.
+/// Version history belongs to the lane title; single-version lanes have no menu.
 struct VersionMenu: View {
     let lane: Lane
     let workspace: Workspace
     @State private var selectedId = ""
+    @State private var model = VersionMenuModel()
 
     var body: some View {
-        if let selected = lane.selected {
-            Group {
-                if lane.key.isNow, lane.versions.count == 1, !isReturned(selected) {
-                    Text("Now").font(.subheadline).foregroundStyle(Theme.secondaryInk)
-                } else {
-                    Menu {
-                        Picker("Version", selection: $selectedId) {
-                            ForEach(lane.versions.reversed()) { version in
-                                Text(iterationLabel(version)).tag(version.id)
-                            }
-                        }
-                        .pickerStyle(.inline)
-                        Section("Changes") {
-                            Text(selected.changeSummary ?? "No change summary supplied")
-                            if !addressedComments(selected).isEmpty {
-                                Text("Addressed comments: \(addressedComments(selected))")
-                            }
-                        }
-                        if !lane.key.isNow || isReturned(selected) {
-                            Button("Promote to Now", systemImage: "arrow.up.to.line") {
-                                workspace.promoteToNow(selected.id)
-                            }
-                        }
-                    } label: {
-                        HStack(spacing: 4) {
-                            Text(versionTitle(selected)).lineLimit(1)
-                            Image(systemName: "chevron.down").imageScale(.small).accessibilityHidden(true)
-                        }
-                        .font(.subheadline)
-                        .padding(.horizontal, 10)
-                        .frame(minHeight: Theme.minTarget)
-                        .contentShape(.rect)
-                    }
-                    .menuStyle(.button)
-                    .buttonStyle(.plain)
-                    .foregroundStyle(Theme.action)
-                    .accessibilityLabel("\(lane.title) version and changes")
-                    .accessibilityValue(versionTitle(selected))
+        Menu {
+            Picker(selection: $selectedId) {
+                ForEach(model.entries) { entry in
+                    VersionMenuRow(entry: entry).tag(entry.id)
                 }
+            } label: { Text("Version", bundle: .module) }
+            .pickerStyle(.inline)
+            if let summary = lane.selected?.changeSummary, !summary.isEmpty {
+                Section {
+                    Text(summary)
+                    if !model.addressedComments.isEmpty {
+                        Text("Addresses \(model.addressedComments)", bundle: .module, comment: "List of comment numbers addressed by this version.")
+                    }
+                } header: { Text("Changes", bundle: .module) }
             }
-            .onChange(of: selected.id, initial: true) { selectedId = selected.id }
-            .onChange(of: selectedId) {
-                guard !selectedId.isEmpty, selectedId != lane.selected?.id else { return }
-                workspace.selectVersion(selectedId, lane: lane.key)
+            if model.canPromote {
+                Button(String(localized: "Promote to Now", bundle: .module), systemImage: "arrow.up.to.line", action: promote)
             }
+        } label: {
+            HStack(spacing: CanvasMetrics.spacing) {
+                LaneTitle(lane: lane)
+                Image(systemName: "chevron.down").imageScale(.small).accessibilityHidden(true)
+            }
+            .font(.headline)
+            .frame(minHeight: Theme.minTarget)
         }
+        .foregroundStyle(.primary)
+        .buttonStyle(.plain)
+        .onChange(of: lane, initial: true, update)
+        .onChange(of: workspace.currentCanvas, update)
+        .onChange(of: selectedId, selectVersion)
     }
-
-    private func isReturned(_ snapshot: Snapshot) -> Bool {
-        guard let canvas = workspace.currentCanvas else { return false }
-        return CanvasLayout.isUnpromotedBaseline(snapshot, in: canvas)
+    private func update() {
+        model.update(lane: lane, canvas: workspace.currentCanvas)
+        selectedId = lane.selected?.id ?? ""
     }
-
-    private func versionTitle(_ snapshot: Snapshot) -> String {
-        isReturned(snapshot) ? "Returned capture" : CanvasLabels.versionTitle(of: snapshot, in: lane)
+    private func selectVersion() {
+        guard !selectedId.isEmpty, selectedId != lane.selected?.id else { return }
+        workspace.selectVersion(selectedId, lane: lane.key)
     }
-
-    private func iterationLabel(_ snapshot: Snapshot) -> String {
-        var label = "\(versionTitle(snapshot)) · \(snapshot.capturedAt.formatted(.dateTime.month(.abbreviated).day().hour().minute()))"
-        if let summary = snapshot.changeSummary, !summary.isEmpty { label += " — \(summary)" }
-        return label
-    }
-
-    private func addressedComments(_ snapshot: Snapshot) -> String {
-        let ids = Set(snapshot.addressedNoteIds.compactMap(UUID.init(uuidString:)))
-        return (workspace.currentCanvas?.notes ?? []).filter { ids.contains($0.id) }
-            .map(\.ordinal).sorted().map { "#\($0)" }.joined(separator: ", ")
+    private func promote() {
+        if let selected = lane.selected { workspace.promoteToNow(selected.id) }
     }
 }
 #endif

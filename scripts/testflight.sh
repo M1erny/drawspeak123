@@ -113,6 +113,16 @@ for want in "CODE_SIGN_STYLE: Manual" "CODE_SIGN_IDENTITY: $SIGN_IDENTITY" "PROV
     || die "App/project.yml lacks '$want' in the Drawspeak Release config (see docs/RELEASE.md)"
 done
 
+# ---------------------------------------------------------------- built-in key
+# The ElevenLabs key comes from the environment (run this script through Apassy with
+# DRAWSPEAK_ELEVENLABS_API_KEY set). It is written to a git-ignored xcconfig only for
+# the archive and removed on exit. It is never printed.
+SECRETS="$APP_DIR/Config/Secrets.xcconfig"
+[ -n "${DRAWSPEAK_ELEVENLABS_API_KEY:-}" ] || die "DRAWSPEAK_ELEVENLABS_API_KEY is not set (run via Apassy)"
+trap 'rm -f "$SECRETS"' EXIT
+umask 077
+printf 'ELEVENLABS_API_KEY = %s\n' "$DRAWSPEAK_ELEVENLABS_API_KEY" >"$SECRETS"
+
 # ---------------------------------------------------------------- generate
 step "xcodegen generate"
 (cd "$APP_DIR" && xcodegen generate --spec project.yml --quiet)
@@ -154,6 +164,8 @@ echo "CFBundleIdentifier=$IPA_BUNDLE CFBundleShortVersionString=$IPA_VERSION CFB
 [ "$IPA_BUNDLE" = "$BUNDLE_ID" ] || die "bundle id is '$IPA_BUNDLE', expected $BUNDLE_ID"
 [ "$IPA_BUILD" = "$BUILD" ] || die "CFBundleVersion is '$IPA_BUILD', expected $BUILD"
 [ "$IPA_ENCRYPTION" = "false" ] || die "ITSAppUsesNonExemptEncryption must be false, got '$IPA_ENCRYPTION'"
+[ "$(plist_get DSElevenLabsAPIKey "$INFO")" = "$DRAWSPEAK_ELEVENLABS_API_KEY" ] \
+  || die "built-in ElevenLabs key missing from the IPA Info.plist"
 [ -n "$(plist_get 'CFBundleIcons~ipad.CFBundlePrimaryIcon.CFBundleIconName' "$INFO")" ] \
   || die "no compiled iPad app icon in Info.plist (CFBundleIcons~ipad)"
 security cms -D -i "$APP/embedded.mobileprovision" >"$WORK/embedded.plist"

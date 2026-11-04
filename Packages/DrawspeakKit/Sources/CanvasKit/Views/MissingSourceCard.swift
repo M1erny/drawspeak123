@@ -8,9 +8,9 @@ struct MissingSourceCard: View {
 
     var body: some View {
         ContentUnavailableView {
-            Label("Source file is missing", systemImage: "exclamationmark.triangle")
+            Label(String(localized: "File Missing", bundle: .module), systemImage: "exclamationmark.triangle")
         } description: {
-            Text("Expected \(snapshot.kind == .html ? "HTML" : "image") file: \(expectedFileName). Comments stay with this version. Import the original file again to review it.")
+            Text("Import \(expectedFileName) again.", bundle: .module, comment: "Filename to import again.")
         }
         .foregroundStyle(Theme.secondaryInk)
     }

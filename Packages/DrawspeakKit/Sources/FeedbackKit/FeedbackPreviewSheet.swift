@@ -2,6 +2,7 @@ import SwiftUI
 import DrawspeakCore
 
 public struct FeedbackPreviewSheet: View {
+    @Environment(\.scenePhase) private var scenePhase
     @State private var model: FeedbackPreviewModel
     private let initialSelection: Set<UUID>?
     private let onChooseThread: (() -> Void)?
@@ -13,80 +14,31 @@ public struct FeedbackPreviewSheet: View {
     }
     public var body: some View {
         NavigationStack {
-            ScrollView {
-                VStack(alignment: .leading, spacing: 20) {
-                    LabeledContent("To") {
-                        if let thread = model.recipient {
-                            VStack(alignment: .trailing) {
-                                Text(thread.displayName)
-                                Text(thread.hostURL.host() ?? thread.hostURL.absoluteString)
-                                    .font(.subheadline).foregroundStyle(.secondary)
-                            }
-                        } else {
-                            Button("Choose Thread…") { onChooseThread?() }
-                                .tint(Theme.action).disabled(onChooseThread == nil || model.busy)
-                                .frame(minHeight: 44)
+            FeedbackPreviewContent(model: model, onChooseThread: onChooseThread)
+                .navigationTitle(Text("Send Feedback", bundle: .module))
+                .navigationBarTitleDisplayMode(.inline)
+                .toolbar {
+                    ToolbarItem(placement: .cancellationAction) {
+                        Button(role: .close, action: onClose).disabled(model.busy)
+                    }
+                    ToolbarItem(placement: .confirmationAction) {
+                        if !model.showsResult {
+                            FeedbackSendAction(model: model, onChooseThread: onChooseThread)
                         }
                     }
-                    Text("^[\(model.selected.count) comment](inflect: true) · ^[\(model.selectedSnapshotCount) snapshot](inflect: true) → \(model.recipient?.displayName ?? "No recipient")")
-                        .font(.subheadline)
-                    if let count = model.savedCount {
-                        Label("Draft Saved", systemImage: "doc.badge.checkmark").font(.title2)
-                        Text("Saved as draft · ^[\(count) comment](inflect: true). Nothing was sent.")
-                        Button("Back to Canvas", action: onClose).frame(minHeight: 44)
-                    } else if let entry = model.entry {
-                        FeedbackDeliveryResult(model: model, entry: entry, onClose: onClose)
-                    } else {
-                        if model.pendingCount > 0 { Text("\(model.pendingCount) comments still recording or transcribing stay on the canvas").font(.subheadline) }
-                        if !model.newNotes.isEmpty {
-                            Button("\(model.newNotes.count) new comments are ready — Add", action: model.addNew).frame(minHeight: 44)
-                        }
-                        if model.repeatCount > 0 { Label("Includes comments already sent (\(model.repeatCount))", systemImage: "arrow.trianglehead.2.clockwise").font(.subheadline) }
-                        if let canvas = model.frozenCanvas {
-                            ForEach(snapshotIds, id: \.self) { id in
-                                FeedbackSnapshotGroup(snapshot: canvas.snapshots.first { $0.id == id },
-                                    title: groupTitle(id), notes: model.candidates.filter { $0.snapshotId == id }, model: model)
-                            }
-                        }
-                        if model.candidates.isEmpty { ContentUnavailableView("No Ready Comments", systemImage: "text.bubble", description: Text("Add text to a comment on the canvas.")) }
-                    }
-                    if let error = model.error { Text(error).foregroundStyle(.red) }
-                    if let error = model.workspace.lastSaveError { Text(error).foregroundStyle(.red) }
-                }.padding()
-            }
-            .scrollEdgeEffectStyle(.soft, for: .bottom)
-            .navigationTitle("Feedback")
-            .toolbar { ToolbarItem(placement: .cancellationAction) { Button(role: .close, action: onClose).disabled(model.busy) } }
-            .safeAreaInset(edge: .bottom) {
-                if model.savedCount == nil && model.entry == nil {
-                    VStack(spacing: 12) {
-                        if model.busy { ProgressView("Preparing feedback…") }
-                        Button("Send to Agent") { Task { await model.send() } }
-                            .buttonStyle(.glassProminent).tint(Theme.actionFill)
-                            .disabled(model.busy || model.sendBlock != nil).frame(minHeight: 44)
-                        Button("Save Draft") { Task { await model.save() } }
-                            .buttonStyle(.bordered).tint(Theme.action)
-                            .disabled(model.busy || model.selection.isEmpty).frame(minHeight: 44)
-                        if let reason = model.sendBlock {
-                            Text(reason).font(.footnote).foregroundStyle(.secondary)
-                                .fixedSize(horizontal: false, vertical: true)
-                        }
-                    }.frame(maxWidth: .infinity).padding()
                 }
-            }
+                .safeAreaBar(edge: .bottom) {
+                    if !model.showsResult {
+                        FeedbackPreviewActions(model: model)
+                    }
+                }
         }
+        .tint(.primary)
         .interactiveDismissDisabled(model.busy)
-        .presentationDragIndicator(.hidden)
+        .presentationSizing(.form)
         .task { model.open(initialSelection: initialSelection) }
-    }
-    private var snapshotIds: [String] {
-        var ids = model.package?.groups.map { $0.snapshot.id } ?? []
-        for note in model.candidates where !ids.contains(note.snapshotId) { ids.append(note.snapshotId) }
-        return ids
-    }
-    private func groupTitle(_ id: String) -> String {
-        guard let snapshot = model.frozenCanvas?.snapshots.first(where: { $0.id == id }) else { return "Missing snapshot" }
-        let screen = model.frozenCanvas?.screens.first { $0.id == snapshot.screenId }?.title ?? snapshot.screenId
-        return "\(screen) · \(snapshot.role == .baseline ? "Now" : "\(snapshot.proposalId ?? "Proposal") · Iteration \(snapshot.iteration)")"
+        .onChange(of: model.workspace.canvas(model.canvasId)) { model.refresh() }
+        .onChange(of: model.workspace.threads == nil) { model.refresh() }
+        .onChange(of: scenePhase) { if scenePhase == .active { model.refresh() } }
     }
 }

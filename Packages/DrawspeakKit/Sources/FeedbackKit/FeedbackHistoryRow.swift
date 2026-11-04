@@ -8,35 +8,37 @@ struct FeedbackHistoryRow: View {
     @State private var busy = false
     @State private var notice: String?
     var body: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            Text(String(entry.id.suffix(12))).font(.headline).textSelection(.enabled)
-            Text("\(entry.items.count) comments · \(entry.thread.displayName)").font(.subheadline)
-            Text(entry.state.feedbackLabel).font(.caption.bold()).padding(6).background(.quaternary, in: .capsule)
-            if let receipt = entry.receipt { Text(receipt.acknowledgedAt, format: .dateTime.month().day().hour().minute()).font(.caption) }
-            if let status = entry.agentStatus { Text("Agent: \(status)").font(.subheadline) }
+        VStack(alignment: .leading, spacing: FeedbackLayout.spacing) {
+            Text(entry.thread.displayName).font(.headline)
+            Text(entry.createdAt, format: .relative(presentation: .named)).font(.subheadline)
+            Text("^[\(entry.items.count) comment](inflect: true)", bundle: .module).font(.subheadline)
+            Text(entry.state.feedbackLabel).font(.caption.bold()).padding(FeedbackLayout.rowPadding).background(.quaternary, in: .capsule)
+            if let status = entry.agentStatus { Text("Agent: \(status)", bundle: .module).font(.subheadline) }
             switch entry.state {
             case .deliveryUnknown:
-                Button("Check Thread") { Task { await check() } }.disabled(busy).frame(minHeight: 44)
+                Button(action: startCheck) { Text("Check Thread", bundle: .module) }.disabled(busy).frame(minHeight: Theme.minTarget)
             case .readyToSend:
-                Text("If a previous delivery was uncertain, sending again might duplicate it if the thread check was wrong.").font(.caption)
-                Button("Send") { Task { await send() } }.disabled(busy).frame(minHeight: 44)
+                Text(String(localized: "May send twice.", bundle: .module)).font(.caption)
+                Button(action: startSend) { Text("Send", bundle: .module) }.disabled(busy).frame(minHeight: Theme.minTarget)
             case .failed(let reason):
-                Text(reason).foregroundStyle(.red)
-                Button("Try Again") { Task { await send() } }.disabled(busy).frame(minHeight: 44)
+                Text(reason).foregroundStyle(.secondary)
+                Button(action: startSend) { Text("Try Again", bundle: .module) }.disabled(busy).frame(minHeight: Theme.minTarget)
             case .uploading(let done, let total): ProgressView(value: Double(done), total: Double(max(total, 1)))
-            case .sending: ProgressView("Sending…")
+            case .sending: ProgressView()
             case .sent: EmptyView()
             }
             if busy { ProgressView() }
-            if let notice { Text(notice).font(.subheadline).foregroundStyle(.red) }
-        }.padding(.vertical, 6)
+            if let notice { Text(notice).font(.subheadline).foregroundStyle(.secondary) }
+        }.padding(.vertical, FeedbackLayout.rowPadding)
     }
+    private func startCheck() { Task { await check() } }
+    private func startSend() { Task { await send() } }
     private func check() async {
         guard !busy else { return }
         busy = true
         defer { busy = false }
         let result = await workspace.reconcile(batchId: entry.id, canvasId: canvasId)
-        notice = result == .notFound ? "No message found. A resend may duplicate delivery if the thread check was wrong." : result == .unavailable ? "Could not check the thread. Reconnect and try again." : nil
+        notice = result == .notFound ? String(localized: "Not found in thread. Sending again may duplicate it.", bundle: .module) : result == .unavailable ? String(localized: "Can't reach thread.", bundle: .module) : nil
         await workspace.saveNow()
     }
     private func send() async {
@@ -47,7 +49,7 @@ struct FeedbackHistoryRow: View {
             if !workspace.hasStagedPayload(batchId: entry.id) {
                 guard var canvas = workspace.canvas(canvasId), entry.items.allSatisfy({ item in canvas.notes.contains { $0.id == item.noteId } }),
                       entry.items.allSatisfy({ item in canvas.snapshots.contains { $0.id == item.snapshotId && workspace.isSourceAvailable($0) } }) else {
-                    notice = "Open the draft again to rebuild"; return
+                    notice = String(localized: "Open draft to resend", bundle: .module); return
                 }
                 // Restore frozen revisions into a value copy, never into the live workspace.
                 canvas.notes = entry.items.map { item in

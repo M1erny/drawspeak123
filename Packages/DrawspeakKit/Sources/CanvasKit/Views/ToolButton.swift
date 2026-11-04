@@ -1,30 +1,27 @@
 #if canImport(UIKit)
 import DrawspeakCore
 import SwiftUI
-import UIKit
 
-/// One tool in the palette, with its single-key shortcut.
+/// A monochrome tool toggle with a shape cue as well as selected semantics.
 struct ToolButton: View {
     let tool: CanvasTool
     let isSelected: Bool
     let action: () -> Void
 
-    private var symbol: String {
-        tool == .pen && UIImage(systemName: tool.systemImage) == nil ? "scribble" : tool.systemImage
-    }
-
     var body: some View {
-        Button(tool.title, systemImage: symbol, action: action)
+        Button(tool.title, systemImage: tool.systemImage, action: action)
             .labelStyle(.iconOnly)
             .font(.title3)
-            .foregroundStyle(isSelected ? Theme.action : Theme.ink)
-            .frame(width: Theme.minTarget, height: Theme.minTarget)
-            .background(isSelected ? Theme.action.opacity(0.16) : .clear, in: .capsule)
+            .foregroundStyle(.primary)
+            .frame(minWidth: Theme.minTarget, minHeight: Theme.minTarget)
+            .background(isSelected ? Color.primary.opacity(0.12) : .clear, in: .capsule)
+            .overlay { Capsule().strokeBorder(.primary, lineWidth: isSelected ? 1.5 : 0) }
             .contentShape(.capsule)
             .hoverEffect(.highlight)
             .keyboardShortcut(KeyEquivalent(tool.shortcutKey), modifiers: [])
-            .help("\(tool.title) (\(String(tool.shortcutKey).uppercased()))")
+            .help(tool.title)
             .accessibilityAddTraits(isSelected ? .isSelected : [])
+            .accessibilityShowsLargeContentViewer()
     }
 }
 #endif

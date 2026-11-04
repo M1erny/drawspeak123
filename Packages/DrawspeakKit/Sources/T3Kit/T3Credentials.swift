@@ -1,6 +1,6 @@
 import Foundation
 
-nonisolated public struct T3Credentials: Codable, Sendable {
+nonisolated public struct T3Credentials: Codable, Sendable, Equatable {
     public var hostURL: URL
     public var clientId: String
     public var accessToken: String

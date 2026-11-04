@@ -3,19 +3,12 @@ import DrawspeakCore
 
 struct RecordingActions: View {
     let workspace: Workspace
-
     var body: some View {
-        HStack {
-            Button("Stop", systemImage: "stop.fill") { workspace.stopRecording() }
-                .buttonStyle(.borderedProminent).tint(Theme.action)
-                .keyboardShortcut(.space, modifiers: [])
-                .accessibilityHint("Saves audio and starts transcription")
-            Button("Discard", systemImage: "xmark") { workspace.discardRecording() }
-                .buttonStyle(.bordered)
-                .accessibilityHint("Removes this recording and its empty region. Undo can restore the region.")
+        Button(action: workspace.stopRecording) {
+            Label { Text("Stop", bundle: .module) } icon: { Image(systemName: "stop.fill") }
         }
-        .buttonBorderShape(.capsule).controlSize(.large)
+        .tint(.red)
+        .keyboardShortcut(.space, modifiers: [])
+        .frame(minHeight: Theme.minTarget)
     }
 }
-
-#Preview { RecordingActions(workspace: NotesPreview.workspace()) }

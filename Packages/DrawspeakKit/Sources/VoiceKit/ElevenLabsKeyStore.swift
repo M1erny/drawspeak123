@@ -1,58 +1,53 @@
 import DrawspeakCore
 import Foundation
 
-/// The person's own ElevenLabs API key, kept in the iPad Keychain (ADR-0007).
+/// The app's built-in ElevenLabs API key (ADR-0008), injected at build time into
+/// Info.plist as `DSElevenLabsAPIKey`. People never enter a key.
 /// The key is never logged, printed, exported or placed in an error.
 nonisolated public struct ElevenLabsKeyStore: Sendable {
-    public static let service = "com.wydrox.drawspeak.elevenlabs"
-    public static let account = "api-key"
+    public static let infoDictionaryKey = "DSElevenLabsAPIKey"
+    /// The Keychain item used by builds that asked people for their own key.
+    static let legacyService = "com.wydrox.drawspeak.elevenlabs"
+    static let legacyAccount = "api-key"
 
-    private enum Source: Sendable {
-        case keychain(KeychainStore)
-        case fixed(String?)
-    }
+    private let value: String?
 
-    private let source: Source
-
+    /// Reads the key from the main bundle. Simulator debug builds prefer
+    /// `DRAWSPEAK_ELEVENLABS_API_KEY` from the environment when it is set.
     public init() {
-        source = .keychain(KeychainStore(service: Self.service))
-    }
-
-    /// Test-only: a store that holds a fixed key and never touches the Keychain.
-    init(fixedKey: String?) {
-        source = .fixed(fixedKey)
-    }
-
-    public var hasKey: Bool { key() != nil }
-
-    /// For the transcriber only. Do not surface the value in UI or logs.
-    func key() -> String? {
-        let value: String? = switch source {
-        case .keychain(let store): store.string(for: Self.account)
-        case .fixed(let key): key
+        #if DEBUG && targetEnvironment(simulator)
+        if let override = Self.sanitized(ProcessInfo.processInfo.environment["DRAWSPEAK_ELEVENLABS_API_KEY"]) {
+            value = override
+            return
         }
-        guard let trimmed = value?.trimmingCharacters(in: .whitespacesAndNewlines), !trimmed.isEmpty else { return nil }
+        #endif
+        value = Self.sanitized(Bundle.main.object(forInfoDictionaryKey: Self.infoDictionaryKey) as? String)
+    }
+
+    /// Reads the key from an Info dictionary (tests and other bundles).
+    init(infoDictionary: [String: Any]) {
+        value = Self.sanitized(infoDictionary[Self.infoDictionaryKey] as? String)
+    }
+
+    /// Test-only: a store that holds a fixed key.
+    init(fixedKey: String?) {
+        value = Self.sanitized(fixedKey)
+    }
+
+    public var hasKey: Bool { value != nil }
+
+    /// For the transcribers only. Do not surface the value in UI or logs.
+    func key() -> String? { value }
+
+    /// Deletes a key a person saved in an earlier build; the built-in key replaces it.
+    public static func removeLegacyKeychainKey() {
+        KeychainStore(service: legacyService).remove(legacyAccount)
+    }
+
+    /// Trimmed and non-empty; an unexpanded build setting such as `$(ELEVENLABS_API_KEY)` means no key.
+    static func sanitized(_ raw: String?) -> String? {
+        guard let trimmed = raw?.trimmingCharacters(in: .whitespacesAndNewlines),
+              !trimmed.isEmpty, !trimmed.hasPrefix("$(") else { return nil }
         return trimmed
     }
-
-    /// Trims whitespace and rejects an empty value. Returns false when nothing was saved.
-    @discardableResult
-    public func save(_ key: String) -> Bool {
-        let trimmed = key.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty, case .keychain(let store) = source else { return false }
-        return store.set(trimmed, for: Self.account)
-    }
-
-    public func remove() {
-        guard case .keychain(let store) = source else { return }
-        store.remove(Self.account)
-    }
-
-    #if DEBUG && targetEnvironment(simulator)
-    /// Simulator testing only: saves `DRAWSPEAK_ELEVENLABS_API_KEY` when it is set. Never prints it.
-    public static func bootstrapFromEnvironment() {
-        guard let value = ProcessInfo.processInfo.environment["DRAWSPEAK_ELEVENLABS_API_KEY"], !value.isEmpty else { return }
-        ElevenLabsKeyStore().save(value)
-    }
-    #endif
 }

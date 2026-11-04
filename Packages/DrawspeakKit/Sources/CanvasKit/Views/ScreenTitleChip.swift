@@ -20,48 +20,46 @@ struct ScreenTitleChip: View {
     static let accessibilityStep = 120.0
 
     var body: some View {
-        HStack(spacing: 6) {
-            Image(systemName: "line.3.horizontal")
-                .opacity(isHovering || dragState.drag?.screenId == screen.id ? 1 : 0)
-                .accessibilityHidden(true)
-            Text(screen.title)
-        }
+        Text(screen.title)
+            .overlay(alignment: .leading) {
+                Image(systemName: "line.3.horizontal")
+                    .offset(x: -Theme.minTarget / 2)
+                    .opacity(isHovering || dragState.drag?.screenId == screen.id ? 1 : 0)
+                    .accessibilityHidden(true)
+            }
             .font(.headline)
             .foregroundStyle(Theme.ink)
             .lineLimit(1)
-            .padding(.horizontal, 12)
             .frame(minHeight: Theme.minTarget)
             .onHover { isHovering = $0 }
             .contentShape(.capsule)
             .hoverEffect(.highlight)
             .gesture(drag)
             .contextMenu {
-                Button("Rename Screen…", systemImage: "pencil", action: beginRename)
+                Button(String(localized: "Rename Screen…", bundle: .module), systemImage: "pencil", action: beginRename)
             }
-            .alert("Rename Screen", isPresented: $isRenaming) {
-                TextField("Title", text: $draftTitle)
-                Button("Rename", action: rename)
-                Button("Cancel", role: .cancel) {}
+            .alert(String(localized: "Rename Screen", bundle: .module), isPresented: $isRenaming) {
+                TextField(String(localized: "Title", bundle: .module), text: $draftTitle)
+                Button(String(localized: "Rename", bundle: .module), action: rename)
+                Button(String(localized: "Cancel", bundle: .module), role: .cancel) {}
             }
             .accessibilityElement(children: .ignore)
-            .accessibilityLabel("Screen \(screen.title)")
-            .accessibilityHint("Drag to move this row. Swipe up or down to move it.")
+            .accessibilityLabel(Text("Screen \(screen.title)", bundle: .module, comment: "User-assigned screen title."))
+            .accessibilityHint(Text("Drag to move this row. Swipe up or down to move it.", bundle: .module))
             .accessibilityAdjustableAction(moveRow)
     }
 
     private var drag: some Gesture {
         DragGesture(minimumDistance: 4, coordinateSpace: .global)
-            .onChanged { value in
-                dragState.drag = ScreenDrag(
-                    screenId: screen.id,
-                    dx: value.translation.width / zoom,
-                    dy: value.translation.height / zoom
-                )
-            }
-            .onEnded { value in
-                move(dx: value.translation.width / zoom, dy: value.translation.height / zoom)
-                dragState.drag = nil
-            }
+            .onChanged(changeDrag)
+            .onEnded(endDrag)
+    }
+    private func changeDrag(_ value: DragGesture.Value) {
+        dragState.drag = ScreenDrag(screenId: screen.id, dx: value.translation.width / zoom, dy: value.translation.height / zoom)
+    }
+    private func endDrag(_ value: DragGesture.Value) {
+        move(dx: value.translation.width / zoom, dy: value.translation.height / zoom)
+        dragState.drag = nil
     }
 
     private func move(dx: Double, dy: Double) {

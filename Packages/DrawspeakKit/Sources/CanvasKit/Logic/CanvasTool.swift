@@ -13,11 +13,11 @@ nonisolated public enum CanvasTool: String, CaseIterable, Identifiable, Sendable
 
     public var title: String {
         switch self {
-        case .hand: "Hand"
-        case .region: "Region"
-        case .arrow: "Arrow"
-        case .pen: "Pen"
-        case .component: "Component"
+        case .hand: String(localized: "Hand", bundle: .module)
+        case .region: String(localized: "Region", bundle: .module)
+        case .arrow: String(localized: "Arrow", bundle: .module)
+        case .pen: String(localized: "Pen", bundle: .module)
+        case .component: String(localized: "Component", bundle: .module)
         }
     }
 
@@ -27,7 +27,7 @@ nonisolated public enum CanvasTool: String, CaseIterable, Identifiable, Sendable
         case .region: "rectangle.dashed"
         case .arrow: "arrow.up.right"
         case .pen: "pencil.and.scribble"
-        case .component: "square.on.square.dashed"
+        case .component: "cursorarrow.and.square.on.square.dashed"
         }
     }
 

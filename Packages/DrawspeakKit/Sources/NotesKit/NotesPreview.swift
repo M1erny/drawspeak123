@@ -6,7 +6,7 @@ import DrawspeakCore
 enum NotesPreview {
     static func workspace(recording: Bool = false) -> Workspace {
         let root = FileManager.default.temporaryDirectory.appending(path: "NotesKit-preview-" + UUID().uuidString)
-        let date = Date()
+        let date = Date.now
         let blobs = BlobStore(root: root.appending(path: "blobs"))
         // A tiny fixture PNG; previews never read the owner's snapshots.
         let png = Data(base64Encoded: "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aX1sAAAAASUVORK5CYII=")!

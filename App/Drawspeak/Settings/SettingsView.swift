@@ -1,6 +1,5 @@
 import DrawspeakCore
 import SwiftUI
-import T3Kit
 
 struct SettingsView: View {
     let model: AppModel
@@ -13,51 +12,38 @@ struct SettingsView: View {
         NavigationStack {
             Form {
                 Section {
-                    Toggle("Start Voice After Selection", isOn: $autoVoice)
-                    Picker("Speech Language", selection: $language) {
+                    Toggle("Record After Marking", isOn: $autoVoice)
+                    Picker("Language", selection: $language) {
                         ForEach(TranscriptionLanguage.allCases) { option in
                             Text(option.title).tag(option.rawValue)
                         }
                     }
                 } header: {
-                    Text("Voice Comments")
+                    Text("Voice")
                 } footer: {
-                    Text("When on, marking a region or choosing a component starts recording. Opening an older comment never does.")
+                    Text("Audio is sent to ElevenLabs for transcription.")
                 }
 
-                ElevenLabsKeySection(onChange: model.transcriberChanged)
-
-                Section {
+                Section("Apple Pencil") {
                     Toggle("Draw with Finger", isOn: $drawWithFinger)
-                } header: {
-                    Text("Apple Pencil")
-                } footer: {
-                    Text("Your finger moves the canvas unless this is on. With it on, use two fingers to move and zoom.")
                 }
 
                 T3ConnectionSection(connection: model.connection)
 
                 Section("About") {
                     LabeledContent("Version", value: Bundle.main.versionDescription)
-                    Text("Drawspeak is licensed under the Apache License 2.0.")
-                        .font(.footnote)
-                        .foregroundStyle(Theme.secondaryInk)
                 }
             }
             .navigationTitle("Settings")
+            .navigationBarTitleDisplayMode(.inline)
             .toolbar {
-                ToolbarItem(placement: .confirmationAction) {
-                    Button("Done") { dismiss() }
+                ToolbarItem(placement: .cancellationAction) {
+                    Button(role: .close, action: dismiss.callAsFunction)
                 }
             }
         }
-    }
-}
-
-extension Bundle {
-    var versionDescription: String {
-        let version = infoDictionary?["CFBundleShortVersionString"] as? String ?? "?"
-        let build = infoDictionary?["CFBundleVersion"] as? String ?? "?"
-        return "\(version) (\(build))"
+        .tint(.primary)
+        .frame(idealHeight: ShellMetrics.settingsHeight)
+        .presentationSizing(.form.fitted(horizontal: false, vertical: true))
     }
 }

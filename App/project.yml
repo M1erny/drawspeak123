@@ -24,6 +24,9 @@ targets:
   Drawspeak:
     type: application
     platform: iOS
+    configFiles:
+      Debug: Config/Base.xcconfig
+      Release: Config/Base.xcconfig
     sources:
       - path: Drawspeak
     dependencies:
@@ -49,6 +52,7 @@ targets:
         CFBundleVersion: $(CURRENT_PROJECT_VERSION)
         ITSAppUsesNonExemptEncryption: false
         LSApplicationCategoryType: public.app-category.developer-tools
+        DSElevenLabsAPIKey: $(ELEVENLABS_API_KEY)
         NSMicrophoneUsageDescription: Drawspeak records your spoken comment about the part of the screen you marked.
         UILaunchScreen:
           UIColorName: LaunchBackground

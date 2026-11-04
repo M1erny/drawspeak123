@@ -166,7 +166,7 @@ final class CanvasInteraction {
         guard let shape = StrokeClassifier.shape(for: points, kind: kind, zoom: camera.zoom, in: frame) else {
             let travel = StrokeClassifier.pathLength(points) * CGFloat(camera.zoom)
             if kind == .region, travel >= StrokeClassifier.minimumMarkSize {
-                status.show("Circle an area or drag across a larger region.")
+                status.show(String(localized: "Draw a larger area", bundle: .module))
             }
             return
         }
@@ -191,7 +191,7 @@ final class CanvasInteraction {
     private func beginPressure(slot: LaneSlot, snapshot: Snapshot, canvasId: UUID, world: CGPoint, screen: CGPoint, force: Double?, time: TimeInterval) {
         let inspector = inspectors.inspector(slotId: slot.id, snapshotId: snapshot.id)
         guard inspector.isReady else {
-            status.show("The HTML is still loading. Try again in a moment.")
+            status.show(String(localized: "Still loading", bundle: .module))
             return
         }
         var session = PressureSession(canvasId: canvasId, slotId: slot.id, snapshotId: snapshot.id, frame: slot.frame, start: screen, inspector: inspector)
@@ -218,7 +218,7 @@ final class CanvasInteraction {
         guard !selection.isEmpty else {
             pressure = nil
             pick.clear()
-            status.show(result == nil ? "Could not inspect the HTML. Try again." : "No component at this point.")
+            status.show(result == nil ? String(localized: "Can't read this HTML", bundle: .module) : String(localized: "No component here", bundle: .module))
             return
         }
         var tracker = PressureDepthTracker(levels: selection.chain.count)
@@ -287,7 +287,7 @@ final class CanvasInteraction {
             return
         }
         guard snapshot.kind == .html else {
-            status.show("Images have no components. Draw a region instead.")
+            status.show(String(localized: "Images have no components", bundle: .module))
             return
         }
         openChooser(
@@ -315,14 +315,14 @@ final class CanvasInteraction {
                 try? await Task.sleep(for: .milliseconds(100))
             }
             guard inspector.isReady else {
-                status.show("The HTML is still loading. Try again in a moment.")
+                status.show(String(localized: "Still loading", bundle: .module))
                 return
             }
             let result = try? await inspector.probe(at: point)
             let selection = ComponentSelection(slotId: slot.id, snapshotId: snapshot.id, frame: slot.frame, layers: result?.layers ?? [], method: method)
             guard workspace?.currentCanvasId == canvasId, chooserCanvasId == canvasId else { return }
             guard !selection.isEmpty else {
-                status.show(result == nil ? "Could not inspect the HTML. Try again." : "No component at this point.")
+                status.show(result == nil ? String(localized: "Can't read this HTML", bundle: .module) : String(localized: "No component here", bundle: .module))
                 return
             }
             pick.showChooser(selection, at: anchor)
@@ -354,7 +354,7 @@ final class CanvasInteraction {
             do {
                 renderHash = try await inspectors.renderHash(snapshotId: selection.snapshotId, inspector: inspector)
             } catch {
-                status.show("Could not read the HTML. Select the component again.")
+                status.show(String(localized: "Can't read this HTML", bundle: .module))
                 return
             }
             guard let workspace, workspace.currentCanvasId == canvasId,

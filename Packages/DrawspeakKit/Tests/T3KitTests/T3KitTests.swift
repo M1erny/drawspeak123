@@ -207,7 +207,7 @@ import DrawspeakCore
         }
     }
 
-    @Test @MainActor func reconnectUsesStoredCredential() async throws {
+    @Test(.enabled(if: KeychainProbe.isAvailable, "Needs Keychain access (not available to hostless simulator tests)")) @MainActor func reconnectUsesStoredCredential() async throws {
         let store = T3CredentialStore()
         #expect(store.save(credential()))
         defer { store.remove(host: host) }
@@ -234,7 +234,7 @@ import DrawspeakCore
         #expect(connection.threadService != nil)
     }
 
-    @Test @MainActor func unauthorizedReconnectRequiresPairing() async throws {
+    @Test(.enabled(if: KeychainProbe.isAvailable, "Needs Keychain access (not available to hostless simulator tests)")) @MainActor func unauthorizedReconnectRequiresPairing() async throws {
         let store = T3CredentialStore()
         #expect(store.save(credential()))
         defer { store.remove(host: host) }

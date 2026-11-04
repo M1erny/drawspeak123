@@ -25,7 +25,7 @@ let package = Package(
             name: "DrawspeakCore",
             swiftSettings: [.enableUpcomingFeature("NonisolatedNonsendingByDefault")]
         ),
-        .target(name: "T3Kit", dependencies: ["DrawspeakCore"], swiftSettings: mainActorDefault),
+        .target(name: "T3Kit", dependencies: ["DrawspeakCore"], resources: [.process("Resources")], swiftSettings: mainActorDefault),
         .target(name: "VoiceKit", dependencies: ["DrawspeakCore"], swiftSettings: mainActorDefault),
         .target(
             name: "HTMLKit",
@@ -33,9 +33,9 @@ let package = Package(
             resources: [.process("Resources")],
             swiftSettings: mainActorDefault
         ),
-        .target(name: "CanvasKit", dependencies: ["DrawspeakCore", "HTMLKit"], swiftSettings: mainActorDefault),
-        .target(name: "NotesKit", dependencies: ["DrawspeakCore"], swiftSettings: mainActorDefault),
-        .target(name: "FeedbackKit", dependencies: ["DrawspeakCore", "HTMLKit"], swiftSettings: mainActorDefault),
+        .target(name: "CanvasKit", dependencies: ["DrawspeakCore", "HTMLKit"], resources: [.process("Resources")], swiftSettings: mainActorDefault),
+        .target(name: "NotesKit", dependencies: ["DrawspeakCore"], resources: [.process("Resources")], swiftSettings: mainActorDefault),
+        .target(name: "FeedbackKit", dependencies: ["DrawspeakCore", "HTMLKit"], resources: [.process("Resources")], swiftSettings: mainActorDefault),
         .testTarget(name: "DrawspeakCoreTests", dependencies: ["DrawspeakCore"]),
         .testTarget(name: "T3KitTests", dependencies: ["T3Kit", "DrawspeakCore"]),
         .testTarget(name: "VoiceKitTests", dependencies: ["VoiceKit", "DrawspeakCore"]),

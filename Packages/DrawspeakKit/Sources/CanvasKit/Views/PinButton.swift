@@ -32,7 +32,7 @@ struct PinButton: View {
         .buttonStyle(.plain)
         .hoverEffect(.lift)
         .accessibilityLabel(label)
-        .accessibilityValue(isRecording ? "Recording" : "")
+        .accessibilityValue(isRecording ? Text("Recording", bundle: .module) : Text(verbatim: ""))
         .accessibilityAddTraits(isFocused ? .isSelected : [])
     }
 }

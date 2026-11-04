@@ -3,23 +3,18 @@ import SwiftUI
 
 /// Shown on a canvas without screens.
 struct EmptyCanvasView: View {
-    let onImport: () -> Void
-    let onPull: (() -> Void)?
+    let controller: CanvasController
 
     var body: some View {
         ContentUnavailableView {
-            Label("Nothing to review yet", systemImage: "rectangle.on.rectangle.angled")
-        } description: {
-            Text("Import a screenshot or an HTML mockup, or pull the versions an agent returned in this canvas's thread.")
+            Label("No Screens", systemImage: "rectangle.on.rectangle.angled")
         } actions: {
-            Button("Import Image or HTML…", systemImage: "square.and.arrow.down", action: onImport)
-                .buttonStyle(.borderedProminent)
-            if let onPull {
-                Button("Pull from Thread", systemImage: "arrow.down.circle", action: onPull)
+            Button("Import Image or HTML…", systemImage: "square.and.arrow.down", action: controller.requestImport)
+                .buttonStyle(.bordered)
+            if controller.hasThread {
+                Button("Pull Versions", systemImage: "arrow.down.circle", action: controller.pull)
+                    .disabled(controller.isPulling)
             }
         }
-        .frame(maxWidth: 520)
-        .padding(24)
-        .paletteBackground()
     }
 }

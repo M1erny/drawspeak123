@@ -15,7 +15,7 @@ struct ImportCoordinator {
         let loaded = await Self.readBounded(url, limit: limit)
         guard case .success(let data) = loaded else {
             if case .failure(let failure) = loaded { return .failure(failure) }
-            return .failure(ImportFailure(message: "The file could not be read."))
+            return .failure(ImportFailure.unreadable)
         }
         let name = url.lastPathComponent
         let title = url.deletingPathExtension().lastPathComponent
@@ -29,13 +29,13 @@ struct ImportCoordinator {
                     capture: capture.pngData, containsScripts: info.containsScripts
                 ))
             } catch {
-                return .failure(ImportFailure(message: "The HTML could not be rendered."))
+                return .failure(ImportFailure(message: String(localized: "Can't render this HTML.")))
             }
         }
         guard Self.allowedTypes.contains(where: { type.conforms(to: $0) }) else {
             return .failure(ImportFailure(Workspace.ImportError.unsupportedType))
         }
-        guard let size = Self.pixelSize(of: data) else { return .failure(ImportFailure(message: "The image could not be decoded.")) }
+        guard let size = Self.pixelSize(of: data) else { return .failure(ImportFailure(message: String(localized: "Can't read this image."))) }
         return .success(PendingImport(
             canvasId: canvasId, fileName: name, suggestedTitle: title, kind: .image, contentType: type.preferredMIMEType ?? "image/png", data: data,
             pixelSize: size, viewport: nil, capture: nil, containsScripts: false
@@ -64,9 +64,9 @@ struct ImportCoordinator {
             defer { if scoped { url.stopAccessingSecurityScopedResource() } }
             let tooLarge = ImportFailure(Workspace.ImportError.tooLarge(limitMiB: limit / (1024 * 1024)))
             if let size = try? url.resourceValues(forKeys: [.fileSizeKey]).fileSize, size > limit { return .failure(tooLarge) }
-            guard let handle = try? FileHandle(forReadingFrom: url) else { return .failure(ImportFailure(message: "The file could not be read.")) }
+            guard let handle = try? FileHandle(forReadingFrom: url) else { return .failure(ImportFailure.unreadable) }
             defer { try? handle.close() }
-            guard let data = try? handle.read(upToCount: limit + 1) else { return .failure(ImportFailure(message: "The file could not be read.")) }
+            guard let data = try? handle.read(upToCount: limit + 1) else { return .failure(ImportFailure.unreadable) }
             return data.count > limit ? .failure(tooLarge) : .success(data)
         }.value
     }

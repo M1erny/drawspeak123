@@ -14,11 +14,11 @@ public struct PinBadge: View {
         Text(number.formatted()).font(.caption.bold()).monospacedDigit()
             .foregroundStyle(.white)
             .frame(minWidth: Theme.pinSize, minHeight: Theme.pinSize)
-            .padding(2)
+            .padding(NotesMetrics.pinPadding)
             .background(Theme.annotation, in: .circle)
             .overlay { Circle().strokeBorder(.white, lineWidth: 1.5) }
-            .accessibilityLabel("Comment \(number)")
-            .accessibilityValue(isActive ? "Active" : "")
+            .accessibilityLabel(Text("Comment \(number)", bundle: .module))
+            .accessibilityValue(isActive ? Text("Active", bundle: .module) : Text(verbatim: ""))
     }
 }
 

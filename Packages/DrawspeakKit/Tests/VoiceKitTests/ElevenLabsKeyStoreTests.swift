@@ -9,13 +9,22 @@ struct ElevenLabsKeyStoreTests {
         #expect(ElevenLabsKeyStore(fixedKey: "test-key").hasKey)
     }
 
-    @Test func fixedStoreNeverWritesToTheKeychain() {
-        let store = ElevenLabsKeyStore(fixedKey: nil)
-        #expect(store.save("test-key") == false)
-        #expect(store.hasKey == false)
+    @Test func readsTheBuiltInKeyFromTheInfoDictionary() {
+        let store = ElevenLabsKeyStore(infoDictionary: ["DSElevenLabsAPIKey": " built-in-key ", "Other": "x"])
+        #expect(store.hasKey)
+        #expect(store.key() == "built-in-key")
     }
 
-    @Test func rejectsEmptyKeyWithoutTouchingTheKeychain() {
-        #expect(ElevenLabsKeyStore().save("  \n ") == false)
+    @Test(arguments: [
+        ["DSElevenLabsAPIKey": "$(ELEVENLABS_API_KEY)"],
+        ["DSElevenLabsAPIKey": ""],
+        ["DSElevenLabsAPIKey": "  \n"],
+        ["DSElevenLabsAPIKey": 42],
+        [:],
+    ] as [[String: any Sendable]])
+    func missingOrUnexpandedKeyMeansNoKey(info: [String: any Sendable]) {
+        let store = ElevenLabsKeyStore(infoDictionary: info)
+        #expect(store.hasKey == false)
+        #expect(store.key() == nil)
     }
 }

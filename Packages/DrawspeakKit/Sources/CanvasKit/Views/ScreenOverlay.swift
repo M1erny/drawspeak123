@@ -14,30 +14,15 @@ struct ScreenOverlay: View {
     let dragState: ScreenDragState
     @Binding var interactingSnapshotId: String?
 
-    static let headerHeight: CGFloat = 44
+    @ScaledMetric(relativeTo: .headline) private var headerHeight = 44.0
+    @State private var placements = ScreenOverlayPlacements()
     static let gap: CGFloat = 2
 
     var body: some View {
         let camera = interaction.camera.state
-        let visible = CGRect(origin: .zero, size: interaction.camera.viewSize).insetBy(dx: -120, dy: -120)
-        let headers = rows.flatMap(\.slots).compactMap { slot -> LaneSlotPlacement? in
-            let rect = CanvasFraming.worldToScreen(slot.frame, camera: camera)
-            let header = CGRect(x: rect.minX, y: rect.minY - Self.headerHeight - Self.gap, width: rect.width, height: Self.headerHeight)
-            return header.intersects(visible) ? LaneSlotPlacement(slot: slot, rect: rect) : nil
-        }
-        let titles = rows.compactMap { row -> ScreenRowPlacement? in
-            guard let first = row.slots.first else { return nil }
-            let rect = CanvasFraming.worldToScreen(first.frame, camera: camera)
-            let origin = CGPoint(x: rect.minX, y: rect.minY - 2 * (Self.headerHeight + Self.gap))
-            return visible.contains(origin) ? ScreenRowPlacement(row: row, origin: origin) : nil
-        }
-        let pins = marks.compactMap { mark -> PinPlacement? in
-            let point = CanvasFraming.worldToScreen(mark.anchor, camera: camera)
-            return visible.contains(point) ? PinPlacement(mark: mark, center: point) : nil
-        }
 
         ZStack(alignment: .topLeading) {
-            ForEach(titles) { item in
+            ForEach(placements.titles) { item in
                 ScreenTitleChip(
                     screen: item.row.screen,
                     baseOrigin: item.row.baseOrigin,
@@ -48,12 +33,12 @@ struct ScreenOverlay: View {
                 .fixedSize()
                 .offset(x: item.origin.x, y: item.origin.y)
             }
-            ForEach(headers) { item in
+            ForEach(placements.headers) { item in
                 LaneHeader(lane: item.slot.lane, workspace: workspace, interactingSnapshotId: $interactingSnapshotId)
-                    .frame(width: max(item.rect.width, 1), height: Self.headerHeight, alignment: .leading)
-                    .offset(x: item.rect.minX, y: item.rect.minY - Self.headerHeight - Self.gap)
+                    .frame(width: max(item.rect.width, 1), height: headerHeight, alignment: .leading)
+                    .offset(x: item.rect.minX, y: item.rect.minY - headerHeight - Self.gap)
             }
-            ForEach(pins) { item in
+            ForEach(placements.pins) { item in
                 PinButton(
                     ordinal: item.mark.ordinal,
                     label: item.mark.pinLabel,
@@ -66,6 +51,15 @@ struct ScreenOverlay: View {
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        .onChange(of: rows, initial: true, updatePlacements)
+        .onChange(of: marks, updatePlacements)
+        .onChange(of: interaction.camera.state, updatePlacements)
+        .onChange(of: interaction.camera.viewSize, updatePlacements)
+        .onChange(of: headerHeight, updatePlacements)
+    }
+    private func updatePlacements() {
+        placements.update(rows: rows, marks: marks, camera: interaction.camera.state,
+                          viewSize: interaction.camera.viewSize, headerHeight: headerHeight)
     }
 }
 #endif

@@ -13,5 +13,6 @@ Bieżący zakres i kryteria akceptacji: [PRD](../PRD.md). Gdy zmienia się decyz
 | [0005](0005-t3-transport-and-outbox.md) | MCP po Tailscale, jedna wiadomość, outbox i jawne potwierdzenia | Przyjęte; integracja live do weryfikacji |
 | [0006](0006-auto-voice-and-elevenlabs.md) | Auto-głos ON, autosave, ElevenLabs Scribe v2 po Stop | Przyjęte; capture/live do implementacji |
 | [0007](0007-native-mvp-implementation.md) | Natywny MVP: iPadOS 27, moduły SPM, JSON + bloby SHA-256, BYOK ElevenLabs, parowanie kodem T3, Pull przez text-bundle | Przyjęte |
+| [0008](0008-built-in-key-and-live-transcription.md) | Wbudowany klucz ElevenLabs, nagrywanie od razu po zaznaczeniu, Scribe v2 Realtime | Przyjęte |
 
 Poprzednia specyfikacja z etapów v1–v3 jest [archiwum](../archive/PRODUCT-v1-v3.md). Zmiany od ostatniego kodu 08bd0da, w szczególności brak osobnego Save Comment, są wymaganiami, a nie opisem działającego prototypu.

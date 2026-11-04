@@ -23,11 +23,15 @@ nonisolated struct PlacedMark: Identifiable, Equatable, Sendable {
     /// Marks of every note whose snapshot is the selected version of a lane.
     /// Notes on other versions stay with their own version and are not drawn.
     static func marks(in layout: CanvasWorldLayout, notes: [Note]) -> [PlacedMark] {
-        let notesBySnapshot = Dictionary(grouping: notes, by: \.snapshotId)
+        let grouped = Dictionary(grouping: notes, by: \.snapshotId).mapValues { $0.sorted { $0.ordinal < $1.ordinal } }
+        return marks(in: layout, notesBySnapshot: grouped)
+    }
+
+    static func marks(in layout: CanvasWorldLayout, notesBySnapshot: [String: [Note]]) -> [PlacedMark] {
         var marks: [PlacedMark] = []
         for slot in layout.slots {
             guard let snapshotId = slot.snapshot?.id, let notes = notesBySnapshot[snapshotId] else { continue }
-            for note in notes.sorted(by: { $0.ordinal < $1.ordinal }) {
+            for note in notes {
                 marks.append(PlacedMark(
                     slotId: slot.id,
                     noteId: note.id,

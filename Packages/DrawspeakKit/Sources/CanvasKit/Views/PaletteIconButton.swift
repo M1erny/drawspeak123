@@ -18,6 +18,7 @@ struct PaletteIconButton: View {
             .contentShape(.rect(cornerRadius: 12))
             .hoverEffect(.highlight)
             .disabled(!isEnabled)
+            .accessibilityShowsLargeContentViewer()
     }
 }
 #endif

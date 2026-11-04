@@ -47,7 +47,7 @@ struct SnapshotCard: View {
                     }
                 }
             } else {
-                ContentUnavailableView("No version yet", systemImage: "square.dashed")
+                ContentUnavailableView(String(localized: "No Version", bundle: .module), systemImage: "square.dashed")
                     .foregroundStyle(Theme.secondaryInk)
             }
         }
@@ -56,24 +56,24 @@ struct SnapshotCard: View {
         .clipShape(.rect(cornerRadius: Theme.cardCornerRadius))
         .overlay {
             RoundedRectangle(cornerRadius: Theme.cardCornerRadius)
-                .strokeBorder(Color(uiColor: .separator).opacity(colorScheme == .dark ? 1 : 0), lineWidth: 0.5)
+                .strokeBorder(CanvasMetrics.separator.opacity(colorScheme == .dark ? 1 : 0), lineWidth: 0.5)
                 .allowsHitTesting(false)
         }
         .shadow(color: .black.opacity(colorScheme == .dark ? 0.2 : 0.08), radius: 8, y: 2)
         .allowsHitTesting(allowsInteraction)
         .accessibilityElement(children: allowsInteraction ? .contain : .ignore)
-        .accessibilityLabel(isMissing ? "\(accessibilityText). Missing \(slot.snapshot?.kind == .html ? "HTML" : "image") source: \(slot.snapshot?.title ?? "unknown file")" : accessibilityText)
+        .accessibilityLabel(isMissing ? String(localized: "\(accessibilityText). File Missing", bundle: .module, comment: "Description of the screen whose source file is missing.") : accessibilityText)
         .accessibilityActions {
             if let snapshot = slot.snapshot, !isMissing, !allowsInteraction {
                 if let addRegion = actions.addRegion {
-                    Button("Add Region…") { addRegion(snapshot.id) }
+                    Button(String(localized: "Add Region…", bundle: .module)) { addRegion(snapshot.id) }
                 }
                 if snapshot.kind == .html {
-                    Button("Select Component…") { actions.selectComponent(slot.id) }
+                    Button(String(localized: "Select Component…", bundle: .module)) { actions.selectComponent(slot.id) }
                 }
             }
             if let snapshot = slot.snapshot, commentCount > 0 {
-                Button("Show Comments") { actions.showComments(snapshot.id) }
+                Button(String(localized: "Show Comments", bundle: .module)) { actions.showComments(snapshot.id) }
             }
         }
         .offset(x: slot.frame.minX, y: slot.frame.minY)

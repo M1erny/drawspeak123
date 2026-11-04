@@ -46,7 +46,10 @@ struct VoiceLifecycleTests {
 
     @Test func repeatedTranscribeWhileInFlightSendsOneRequest() async throws {
         let ws = makeWorkspace()
-        ws.voice = FakeVoice()
+        let voice = FakeVoice()
+        // Live transcription fails after Stop, so the batch fallback runs.
+        voice.eventsAfterStop = [.failed(code: "network")]
+        ws.voice = voice
         let transcriber = FakeTranscriber(text: "hello there")
         ws.transcriber = transcriber
         try addImage(ws, id: "s1")

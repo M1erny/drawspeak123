@@ -1,7 +1,7 @@
 import DrawspeakCore
 import Foundation
 
-struct ImportFailure: Error {
+nonisolated struct ImportFailure: Error {
     var message: String
 
     init(message: String) {
@@ -10,11 +10,20 @@ struct ImportFailure: Error {
 
     init(_ error: any Error) {
         switch error {
-        case Workspace.ImportError.tooLarge(let limit): message = "The file is larger than \(limit) MiB."
-        case Workspace.ImportError.invalidViewport: message = "The HTML asks for a viewport Drawspeak cannot render (max 4096 × 4096 pt, scale 0.5–4)."
-        case Workspace.ImportError.unsupportedType: message = "Drawspeak imports PNG, JPEG, WebP and self-contained HTML."
-        case let failure as ImportFailure: message = failure.message
-        default: message = "The file could not be imported."
+        case Workspace.ImportError.tooLarge(let limit):
+            message = String(localized: "The file is larger than \(limit) MiB.", comment: "Maximum file size in mebibytes.")
+        case Workspace.ImportError.invalidViewport:
+            message = String(localized: "This HTML's viewport is too large.")
+        case Workspace.ImportError.unsupportedType:
+            message = String(localized: "Use PNG, JPEG, WebP or HTML.")
+        case let failure as ImportFailure:
+            message = failure.message
+        default:
+            message = String(localized: "Can't import this file.")
         }
+    }
+
+    static var unreadable: ImportFailure {
+        ImportFailure(message: String(localized: "Can't read this file."))
     }
 }

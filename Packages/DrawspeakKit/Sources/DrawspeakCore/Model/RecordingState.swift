@@ -1,9 +1,11 @@
 import Foundation
 
 public enum RecordingState: Codable, Hashable, Sendable {
+    /// Capturing; live transcript segments may already be on the note.
     case recording
     /// Audio is saved locally; transcription not started.
     case saved
+    /// Audio is saved; waiting for the live session to finish or for the batch fallback.
     case transcribing
     case transcribed
     /// The transcription failed; audio stays for a deliberate retry.

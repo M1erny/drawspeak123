@@ -37,11 +37,11 @@ enum DemoContent {
             Text(title).font(.largeTitle.bold())
             ForEach(0..<4) { index in
                 RoundedRectangle(cornerRadius: 12).fill(.gray.opacity(0.15)).frame(height: 80)
-                    .overlay(Text("Item \(index + 1)").font(.title3))
+                    .overlay { Text(verbatim: "Item \(index + 1)").font(.title3) }
             }
             Spacer()
             RoundedRectangle(cornerRadius: 16).fill(accent).frame(height: 64)
-                .overlay(Text(button).font(.title2.bold()).foregroundStyle(.white))
+                .overlay { Text(button).font(.title2.bold()).foregroundStyle(.white) }
         }
         .padding(32)
         .frame(width: 390, height: 844)

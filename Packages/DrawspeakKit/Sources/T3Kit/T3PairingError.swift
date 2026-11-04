@@ -5,13 +5,13 @@ nonisolated public enum T3PairingError: Error, Sendable, LocalizedError {
     case approvalRejected(String)
     public var message: String {
         switch self {
-        case .invalidHost: "Enter an HTTPS host, or HTTP on localhost."
-        case .unreachable: "Cannot reach T3 Code. Check the host and your Tailscale connection."
-        case .codeRejected: "The pairing code was rejected. It may be expired, already used, or unable to grant this access level."
-        case .expired: "The authorization code expired. Create a new pairing code."
-        case .serverError(let status): "T3 Code returned an error (HTTP \(status))."
+        case .invalidHost: String(localized: "Enter an HTTPS host, or HTTP on localhost.", bundle: .module)
+        case .unreachable: String(localized: "Cannot reach T3 Code. Check the host and your Tailscale connection.", bundle: .module)
+        case .codeRejected: String(localized: "The pairing code was rejected. It may be expired, already used, or unable to grant this access level.", bundle: .module)
+        case .expired: String(localized: "Code expired. Create a new one.", bundle: .module)
+        case .serverError(let status): String(localized: "T3 Code returned an error (HTTP \(status)).", bundle: .module)
         case .approvalRejected(let reason): reason
-        case .invalidResponse: "T3 Code returned an invalid response."
+        case .invalidResponse: String(localized: "T3 Code returned an invalid response.", bundle: .module)
         }
     }
     public var errorDescription: String? { message }

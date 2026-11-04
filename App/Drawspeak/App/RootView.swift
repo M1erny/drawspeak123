@@ -5,7 +5,7 @@ struct RootView: View {
 
     var body: some View {
         if let workspace = model.workspace {
-            CanvasScreen(model: model, workspace: workspace)
+            MainSplitView(model: model, workspace: workspace)
         } else if let error = model.loadError {
             LibraryRecoveryView(error: error, fileURL: model.unreadableLibrary, model: model)
         } else {

@@ -70,3 +70,10 @@ Wykonane (exit 0):
 - TestFlight: `scripts/testflight.sh` — archiwum Release, eksport z ręcznym podpisem, `altool --validate-app` (bez błędów) i upload.
 
 Niezweryfikowane: fizyczny iPad i Apple Pencil (kalibracja nacisku, squeeze, odrzucanie dłoni), mikrofon na urządzeniu, VoiceOver/Dynamic Type na urządzeniu, tryb okienkowy iPadOS, przerwanie sieci w trakcie wysyłki, pobieranie PNG zwróconych przez agenta (poza MVP, ADR-0007).
+
+## v2 — natywny interfejs i głos na żywo (2026-11-04)
+
+- Przeglądy: `docs/reviews/native-v2/` (apple-design + copy audit — Opus; swiftui-pro A/B — gpt-6.1-sol), specyfikacja docelowa `TARGET-DESIGN.md`. Wdrożone: natywny toolbar (`.toolbarRole(.editor)`), sidebar canvasów, `.inspector` z uwagami i tekstem na żywo, Send jako popover, ~70% mniej tekstu, lokalizacja w pakietach, poprawki swiftui-pro.
+- `xcodebuild test -scheme DrawspeakKit-Package` na symulatorze iPad Pro 13": 204 testy, exit 0 (2 testy Keychain pominięte bez hosta aplikacji).
+- **Scribe v2 Realtime na żywo** (`LiveRealtimeTests`, klucz z Apassy, syntetyczne nagranie PL strumieniowane 4× szybciej): 5 wyników częściowych, zatwierdzony tekst zgodny z nagraniem, `finished`.
+- Niezweryfikowane: mikrofon i czas startu nagrania na fizycznym iPadzie.

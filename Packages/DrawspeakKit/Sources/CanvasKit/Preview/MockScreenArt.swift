@@ -9,12 +9,12 @@ struct MockScreenArt: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
-            Text("north / studio")
-                .font(.system(size: 15, weight: .bold))
+            Text("north / studio", bundle: .module)
+                .font(.headline)
             Text(title)
-                .font(.system(size: 30, weight: .semibold))
+                .font(.largeTitle)
             Text(subtitle)
-                .font(.system(size: 15))
+                .font(.body)
                 .foregroundStyle(.secondary)
             RoundedRectangle(cornerRadius: 12)
                 .fill(Color(white: 0.92))
@@ -23,8 +23,8 @@ struct MockScreenArt: View {
                 .fill(Color(white: 0.95))
                 .frame(height: 120)
             Spacer()
-            Text("Pay $48")
-                .font(.system(size: 18, weight: .semibold))
+            Text("Pay $48", bundle: .module)
+                .font(.title3)
                 .foregroundStyle(.white)
                 .frame(maxWidth: .infinity, minHeight: 56)
                 .background(accent, in: .rect(cornerRadius: 14))

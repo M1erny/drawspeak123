@@ -18,30 +18,30 @@ public struct ZoomControls: View {
     }
 
     public var body: some View {
-        HStack(spacing: 2) {
-            PaletteIconButton(title: "Zoom Out", systemImage: "minus", isEnabled: zoom > CameraState.minZoom, action: onZoomOut)
+        HStack(spacing: CanvasMetrics.detailSpacing) {
+            PaletteIconButton(title: String(localized: "Zoom Out", bundle: .module), systemImage: "minus", isEnabled: zoom > CameraState.minZoom, action: onZoomOut)
                 .keyboardShortcut("-", modifiers: .command)
             Text(zoom, format: .percent.precision(.fractionLength(0)))
                 .font(.subheadline.monospacedDigit())
                 .foregroundStyle(Theme.ink)
                 .frame(minWidth: 52)
-                .accessibilityLabel("Zoom")
+                .accessibilityLabel(Text("Zoom", bundle: .module))
                 .accessibilityValue(zoom.formatted(.percent.precision(.fractionLength(0))))
-            PaletteIconButton(title: "Zoom In", systemImage: "plus", isEnabled: zoom < CameraState.maxZoom, action: onZoomIn)
+            PaletteIconButton(title: String(localized: "Zoom In", bundle: .module), systemImage: "plus", isEnabled: zoom < CameraState.maxZoom, action: onZoomIn)
                 .keyboardShortcut("=", modifiers: .command)
-            Button("Fit All", action: onFitAll)
+            Button(String(localized: "Fit All", bundle: .module), action: onFitAll)
                 .font(.subheadline)
-                .foregroundStyle(Theme.action)
-                .padding(.horizontal, 10)
+                .foregroundStyle(Theme.ink)
+                .padding(.horizontal, CanvasMetrics.chipInsets.leading)
                 .frame(minHeight: Theme.minTarget)
                 .contentShape(.rect(cornerRadius: 12))
                 .hoverEffect(.highlight)
                 .keyboardShortcut("0", modifiers: .command)
         }
-        .padding(6)
+        .padding(CanvasMetrics.inset)
         .modifier(CanvasPaletteBackground())
         .accessibilityElement(children: .contain)
-        .accessibilityLabel("Zoom")
+        .accessibilityLabel(Text("Zoom", bundle: .module))
     }
 }
 #endif

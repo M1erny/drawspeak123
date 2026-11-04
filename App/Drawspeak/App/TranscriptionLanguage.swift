@@ -9,7 +9,7 @@ enum TranscriptionLanguage: String, CaseIterable, Identifiable {
 
     var title: LocalizedStringResource {
         switch self {
-        case .automatic: "Detect Automatically"
+        case .automatic: "Automatic"
         case .polish: "Polish"
         case .english: "English"
         }

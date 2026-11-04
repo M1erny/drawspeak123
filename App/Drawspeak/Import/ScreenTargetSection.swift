@@ -2,29 +2,22 @@ import DrawspeakCore
 import SwiftUI
 
 struct ScreenTargetSection: View {
-    let canvas: ReviewCanvas?
-    let screen: Screen
-    let onChoose: (Workspace.ImportTarget) -> Void
+    let model: ScreenTargetModel
+    @Binding var choice: ImportChoice
 
     var body: some View {
-        let proposals = canvas.map { CanvasLayout.proposalIds(in: $0, screen: screen) } ?? []
-        Section(screen.title) {
-            Button("New Now Version", systemImage: "arrow.triangle.2.circlepath") {
-                onChoose(.baseline(screenId: screen.id))
+        Section(model.screen.title) {
+            row(Text("Update Now"), .baseline(screenId: model.screen.id))
+            ForEach(model.proposalIds, id: \.self) { proposalId in
+                row(Text("Add to \(CanvasLayout.proposalTitle(proposalId))", comment: "Placeholder is a proposal name, e.g. Proposal A."),
+                    .proposal(screenId: model.screen.id, proposalId: proposalId))
             }
-            ForEach(proposals, id: \.self) { proposalId in
-                Button("Next Iteration of \(CanvasLayout.proposalTitle(proposalId))", systemImage: "square.stack") {
-                    onChoose(.proposal(screenId: screen.id, proposalId: proposalId))
-                }
-            }
-            Button("New \(CanvasLayout.proposalTitle(nextProposalId(after: proposals)))", systemImage: "plus.square.on.square") {
-                onChoose(.proposal(screenId: screen.id, proposalId: nextProposalId(after: proposals)))
-            }
+            row(Text("New \(CanvasLayout.proposalTitle(model.nextProposalId))", comment: "Placeholder is a proposal name, e.g. Proposal B."),
+                .proposal(screenId: model.screen.id, proposalId: model.nextProposalId))
         }
     }
 
-    private func nextProposalId(after existing: [String]) -> String {
-        let letters = "abcdefghijklmnopqrstuvwxyz".map(String.init)
-        return letters.first { !existing.contains($0) } ?? "p\(existing.count + 1)"
+    private func row(_ title: Text, _ target: Workspace.ImportTarget) -> ImportTargetRow {
+        ImportTargetRow(title: title, isSelected: choice == .existing(target)) { choice = .existing(target) }
     }
 }

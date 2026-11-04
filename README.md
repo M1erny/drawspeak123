@@ -2,7 +2,7 @@
 
 Projekt aplikacji Drawspeak na iPada do review UI: obrazy i makiety HTML na canvasie, zaznaczenia Apple Pencilem, komentarze głosowe i wymiana wersji z T3 Code przez Tailscale.
 
-Stan: natywna aplikacja SwiftUI dla iPadOS 27 w TestFlight (`App/`, `Packages/DrawspeakKit`). Działa canvas z Now i propozycjami, zaznaczenia Pencilem, wybór komponentu HTML, głos z transkrypcją ElevenLabs, paczka Feedback (N) z wysyłką do wątku T3 Code i Pull propozycji HTML. Budowanie: `cd App && xcodegen generate`, testy: `cd Packages/DrawspeakKit && swift test`, wydanie: [docs/RELEASE.md](docs/RELEASE.md). Konfiguracja na iPadzie: Ustawienia › klucz ElevenLabs; T3 Code › Settings › Sharing & access › Create pairing link › Show code, a w Drawspeak „Choose Thread” → kod parowania.
+Stan: natywna aplikacja SwiftUI dla iPadOS 27 w TestFlight (`App/`, `Packages/DrawspeakKit`). Działa canvas z Now i propozycjami, zaznaczenia Pencilem, wybór komponentu HTML, głos z transkrypcją ElevenLabs, paczka Feedback (N) z wysyłką do wątku T3 Code i Pull propozycji HTML. Budowanie: `cd App && xcodegen generate`, testy: `cd Packages/DrawspeakKit && xcodebuild test -scheme DrawspeakKit-Package -destination "platform=iOS Simulator,name=Drawspeak iPad Pro 13"`, wydanie: [docs/RELEASE.md](docs/RELEASE.md). Klucz ElevenLabs jest wbudowany w build wydania (ADR-0008). Połączenie: T3 Code › Settings › Sharing & access › Create pairing link › Show code, a w Drawspeak „Choose Thread” → kod parowania.
 
 ## Pliki
 
@@ -12,7 +12,7 @@ Stan: natywna aplikacja SwiftUI dla iPadOS 27 w TestFlight (`App/`, `Packages/Dr
 - [Prototyp interakcji](prototype/index.html) — samodzielny HTML; otwórz plik w przeglądarce, bez instalacji i serwera.
 - [Integracja T3 Code](docs/T3-INTEGRATION.md) — możliwości potwierdzone w zainstalowanym buildzie i brakujące dowody.
 - [Kierunek wizualny](docs/DESIGN.md).
-- [Skill ui-review-variants](.agents/skills/ui-review-variants/SKILL.md) — źródło skilla projektu; kontrakt manifestu w podkatalogu `references`. Nie instalowano globalnie.
+- [Skill ui-review-variants](.agents/skills/ui-review-variants/SKILL.md) — źródło skilla projektu; kontrakt manifestu w `references`. Zainstalowany globalnie jako dowiązanie: `~/.agents/skills/ui-review-variants` (Claude, Codex) i `.claude/skills` w projekcie.
 
 ## Docelowy przepływ feedbacku
 

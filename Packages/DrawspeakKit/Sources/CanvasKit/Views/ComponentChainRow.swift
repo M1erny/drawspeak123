@@ -12,7 +12,7 @@ struct ComponentChainRow: View {
     var body: some View {
         Button(action: action) {
             HStack {
-                VStack(alignment: .leading, spacing: 2) {
+                VStack(alignment: .leading, spacing: CanvasMetrics.detailSpacing) {
                     Text(title)
                         .foregroundStyle(Theme.ink)
                     Text(detail)
@@ -23,11 +23,11 @@ struct ComponentChainRow: View {
                 }
                 Spacer()
                 Image(systemName: "checkmark")
-                    .foregroundStyle(Theme.action)
+                    .foregroundStyle(Theme.ink)
                     .opacity(isSelected ? 1 : 0)
                     .accessibilityHidden(true)
             }
-            .padding(.vertical, 6)
+            .padding(.vertical, CanvasMetrics.inset)
             .frame(minHeight: Theme.minTarget)
             .contentShape(.rect)
         }

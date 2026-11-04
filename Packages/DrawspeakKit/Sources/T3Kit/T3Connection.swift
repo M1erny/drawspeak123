@@ -7,7 +7,7 @@ import Observation
     public private(set) var credentials: T3Credentials?
     public var compatibilityWarning: String? {
         guard let version = credentials?.endpoint?.serverVersion, version != "0.1.7-nightly.20261101.4016" else { return nil }
-        return "This T3 Code version (\(version)) differs from the version checked with Drawspeak."
+        return String(localized: "This T3 Code version (\(version)) differs from the version checked with Drawspeak.", bundle: .module)
     }
     public var hostURL: URL
     public private(set) var threadService: T3ThreadService?
@@ -27,7 +27,7 @@ import Observation
         do {
             let credential = try await T3Pairing.pair(host: host, code: code, accessLevel: accessLevel, session: session)
             guard generation == operation else { return }
-            guard store.save(credential) else { state = .failed("Could not save the credential in Keychain."); return }
+            guard store.save(credential) else { state = .failed(String(localized: "Could not save the credential in Keychain.", bundle: .module)); return }
             UserDefaults.standard.set(credential.hostURL.absoluteString, forKey: "drawspeak.t3.host")
             await connect(credential, generation: operation)
         } catch { if generation == operation { state = .failed(error.message) } }
@@ -39,12 +39,12 @@ import Observation
         if let saved = UserDefaults.standard.string(forKey: "drawspeak.t3.host"), let url = try? T3Pairing.normalizeHost(saved) { hostURL = url }
         guard let credential = store.load(host: hostURL) else { state = .notPaired; return }
         credentials = credential
-        guard credential.expiresAt > Date() else { state = .expired; threadService = nil; return }
+        guard credential.expiresAt > Date.now else { state = .expired; threadService = nil; return }
         state = .connecting; await connect(credential, generation: operation)
     }
     /// True only when an unexpired saved credential can be used without pairing again.
     public var canReconnect: Bool {
-        guard let credentials, credentials.expiresAt > Date() else { return false }
+        guard let credentials, credentials.expiresAt > Date.now else { return false }
         switch state {
         case .failed, .connected: return true
         case .notPaired, .connecting, .expired: return false
@@ -52,7 +52,7 @@ import Observation
     }
     public func reconnect() async {
         guard state != .connecting, state != .expired, let credential = credentials else { return }
-        guard credential.expiresAt > Date() else { state = .expired; threadService = nil; return }
+        guard credential.expiresAt > Date.now else { state = .expired; threadService = nil; return }
         generation = UUID(); let operation = generation
         state = .connecting
         let previousClient = threadService?.client; threadService = nil

@@ -6,24 +6,36 @@ struct LibraryRecoveryView: View {
     let error: String
     let fileURL: URL?
     let model: AppModel
-    @State private var confirmsFresh = false
+    @State private var confirmsStartOver = false
 
     var body: some View {
         ContentUnavailableView {
-            Label("Your reviews could not be opened", systemImage: "externaldrive.badge.exclamationmark")
+            Label("Can't Open Library", systemImage: "externaldrive.badge.exclamationmark")
         } description: {
-            Text("Drawspeak has not changed the saved file. \(error)")
+            Text("\(error) The file is unchanged.", comment: "Placeholder is the reason the library could not be read.")
         } actions: {
-            Button("Try Again") { Task { await model.retryOpening() } }
+            Button("Try Again", action: retry)
                 .buttonStyle(.borderedProminent)
             if fileURL != nil {
-                Button("Start with an Empty Library…") { confirmsFresh = true }
+                Button("Start Over…", action: requestStartOver)
+                    .confirmationDialog("Start Over?", isPresented: $confirmsStartOver, titleVisibility: .visible) {
+                        Button("Start Over", role: .destructive, action: startOver)
+                    } message: {
+                        Text("The unreadable file is kept.")
+                    }
             }
         }
-        .confirmationDialog("Start with an empty library?", isPresented: $confirmsFresh, titleVisibility: .visible) {
-            Button("Start Empty Library", role: .destructive) { Task { await model.startFresh() } }
-        } message: {
-            Text("The unreadable file is kept next to the new library so it can be recovered later.")
-        }
+    }
+
+    private func retry() {
+        Task { await model.retryOpening() }
+    }
+
+    private func requestStartOver() {
+        confirmsStartOver = true
+    }
+
+    private func startOver() {
+        Task { await model.startFresh() }
     }
 }

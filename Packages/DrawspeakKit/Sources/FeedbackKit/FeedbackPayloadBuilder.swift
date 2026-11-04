@@ -26,7 +26,7 @@ public enum FeedbackPayloadBuilder {
         }
         for group in package.groups where group.snapshot.kind == .html {
             guard let source = group.snapshot.html else { throw FeedbackLimitError.missingHTML(group.snapshot.id) }
-            let bytes = try blobs.data(for: source)
+            let bytes = try await FeedbackImageWorker.read(source, blobs: blobs)
             let stem = (group.compositeFileName as NSString).deletingPathExtension
             result.append(OutgoingAttachment(fileName: "\(stem).html", contentType: "text/html", data: bytes))
         }

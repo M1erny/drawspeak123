@@ -7,51 +7,37 @@ struct T3ConnectionSection: View {
     @State private var showsPairing = false
 
     var body: some View {
-        Section {
-            LabeledContent("Status", value: statusText)
-            LabeledContent("Host", value: connection.hostURL.host() ?? connection.hostURL.absoluteString)
+        Section("T3 Code") {
+            LabeledContent("Status") {
+                T3StatusText(state: connection.state)
+            }
             if let warning = connection.compatibilityWarning {
                 Text(warning)
                     .font(.footnote)
-                    .foregroundStyle(.orange)
+                    .foregroundStyle(.secondary)
             }
             switch connection.state {
             case .connected:
-                Button("Disconnect", role: .destructive) { connection.disconnect() }
+                Button("Pair Again…", action: showPairing)
+                Button("Disconnect", role: .destructive, action: connection.disconnect)
             case .connecting:
                 ProgressView()
             case .notPaired, .expired, .failed:
                 if connection.canReconnect {
-                    Button("Reconnect") { Task { await connection.reconnect() } }
+                    Button("Reconnect", action: reconnect)
                 }
-                Button(connection.canReconnect ? "Pair Again…" : "Connect to T3 Code…") { showsPairing = true }
+                Button("Connect…", action: showPairing)
             }
-        } header: {
-            Text("T3 Code")
-        } footer: {
-            Text("Drawspeak reaches T3 Code over your tailnet and signs in with a pairing code. Sending feedback starts or steers the agent in the canvas's thread.")
         }
         .sheet(isPresented: $showsPairing) {
-            NavigationStack {
-                T3PairingView(connection: connection) { showsPairing = false }
-                    .navigationTitle("Connect to T3 Code")
-                    .navigationBarTitleDisplayMode(.inline)
-                    .toolbar {
-                        ToolbarItem(placement: .cancellationAction) {
-                            Button("Cancel") { showsPairing = false }
-                        }
-                    }
-            }
+            T3PairingSheet(connection: connection, onClose: hidePairing)
         }
     }
 
-    private var statusText: String {
-        switch connection.state {
-        case .notPaired: "Not connected"
-        case .connecting: "Connecting…"
-        case .connected: "Connected"
-        case .expired: "Pairing expired — connect again"
-        case .failed(let message): message
-        }
+    private func showPairing() { showsPairing = true }
+    private func hidePairing() { showsPairing = false }
+
+    private func reconnect() {
+        Task { await connection.reconnect() }
     }
 }

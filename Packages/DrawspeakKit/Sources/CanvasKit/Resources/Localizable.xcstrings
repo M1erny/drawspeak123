@@ -1,0 +1,271 @@
+{
+  "sourceLanguage": "en",
+  "strings": {
+    "Recording": {
+      "extractionState": "manual",
+      "generatesSymbol": false,
+      "comment": "Canvas interface label."
+    },
+    "Child": {
+      "extractionState": "manual",
+      "generatesSymbol": false,
+      "comment": "Canvas interface label."
+    },
+    "Parent": {
+      "extractionState": "manual",
+      "generatesSymbol": false,
+      "comment": "Canvas interface label."
+    },
+    "Cancel": {
+      "extractionState": "manual",
+      "generatesSymbol": false,
+      "comment": "Canvas interface label."
+    },
+    "Undo": {
+      "extractionState": "manual",
+      "generatesSymbol": false,
+      "comment": "Canvas interface label."
+    },
+    "Redo": {
+      "extractionState": "manual",
+      "generatesSymbol": false,
+      "comment": "Canvas interface label."
+    },
+    "New from Agent": {
+      "extractionState": "manual",
+      "generatesSymbol": false,
+      "comment": "Canvas interface label."
+    },
+    "Still loading": {
+      "extractionState": "manual",
+      "generatesSymbol": false,
+      "comment": "Canvas interface label."
+    },
+    "Draw a larger area": {
+      "extractionState": "manual",
+      "generatesSymbol": false,
+      "comment": "Canvas interface label."
+    },
+    "Can't read this HTML": {
+      "extractionState": "manual",
+      "generatesSymbol": false,
+      "comment": "Canvas interface label."
+    },
+    "No component here": {
+      "extractionState": "manual",
+      "generatesSymbol": false,
+      "comment": "Canvas interface label."
+    },
+    "Images have no components": {
+      "extractionState": "manual",
+      "generatesSymbol": false,
+      "comment": "Canvas interface label."
+    },
+    "Done": {
+      "extractionState": "manual",
+      "generatesSymbol": false,
+      "comment": "Canvas interface label."
+    },
+    "Try Prototype": {
+      "extractionState": "manual",
+      "generatesSymbol": false,
+      "comment": "Canvas interface label."
+    },
+    "Tools": {
+      "extractionState": "manual",
+      "generatesSymbol": false,
+      "comment": "Canvas interface label."
+    },
+    "Zoom": {
+      "extractionState": "manual",
+      "generatesSymbol": false,
+      "comment": "Canvas interface label."
+    },
+    "Zoom In": {
+      "extractionState": "manual",
+      "generatesSymbol": false,
+      "comment": "Canvas interface label."
+    },
+    "Zoom Out": {
+      "extractionState": "manual",
+      "generatesSymbol": false,
+      "comment": "Canvas interface label."
+    },
+    "Fit All": {
+      "extractionState": "manual",
+      "generatesSymbol": false,
+      "comment": "Canvas interface label."
+    },
+    "100%": {
+      "extractionState": "manual",
+      "generatesSymbol": false,
+      "comment": "Canvas interface label."
+    },
+    "Hand": {
+      "extractionState": "manual",
+      "generatesSymbol": false,
+      "comment": "Canvas interface label."
+    },
+    "Region": {
+      "extractionState": "manual",
+      "generatesSymbol": false,
+      "comment": "Canvas interface label."
+    },
+    "Arrow": {
+      "extractionState": "manual",
+      "generatesSymbol": false,
+      "comment": "Canvas interface label."
+    },
+    "Pen": {
+      "extractionState": "manual",
+      "generatesSymbol": false,
+      "comment": "Canvas interface label."
+    },
+    "Component": {
+      "extractionState": "manual",
+      "generatesSymbol": false,
+      "comment": "Canvas interface label."
+    },
+    "%@ \u00b7 %@": {
+      "extractionState": "manual",
+      "generatesSymbol": false,
+      "comment": "Version title and capture date/time."
+    },
+    "Comment": {
+      "extractionState": "manual",
+      "generatesSymbol": false,
+      "comment": "Canvas interface label."
+    },
+    "Components": {
+      "extractionState": "manual",
+      "generatesSymbol": false,
+      "comment": "Canvas interface label."
+    },
+    "Promote to Now": {
+      "extractionState": "manual",
+      "generatesSymbol": false,
+      "comment": "Canvas interface label."
+    },
+    "Version": {
+      "extractionState": "manual",
+      "generatesSymbol": false,
+      "comment": "Canvas interface label."
+    },
+    "Addresses %@": {
+      "extractionState": "manual",
+      "generatesSymbol": false,
+      "comment": "List of comment numbers addressed by this version."
+    },
+    "Changes": {
+      "extractionState": "manual",
+      "generatesSymbol": false,
+      "comment": "Canvas interface label."
+    },
+    "File Missing": {
+      "extractionState": "manual",
+      "generatesSymbol": false,
+      "comment": "Canvas interface label."
+    },
+    "Import %@ again.": {
+      "extractionState": "manual",
+      "generatesSymbol": false,
+      "comment": "Filename to import again."
+    },
+    "Rename Screen": {
+      "extractionState": "manual",
+      "generatesSymbol": false,
+      "comment": "Canvas interface label."
+    },
+    "Screen %@": {
+      "extractionState": "manual",
+      "generatesSymbol": false,
+      "comment": "User-assigned screen title."
+    },
+    "Drag to move this row. Swipe up or down to move it.": {
+      "extractionState": "manual",
+      "generatesSymbol": false,
+      "comment": "Canvas interface label."
+    },
+    "Rename Screen\u2026": {
+      "extractionState": "manual",
+      "generatesSymbol": false,
+      "comment": "Canvas interface label."
+    },
+    "Title": {
+      "extractionState": "manual",
+      "generatesSymbol": false,
+      "comment": "Canvas interface label."
+    },
+    "Rename": {
+      "extractionState": "manual",
+      "generatesSymbol": false,
+      "comment": "Canvas interface label."
+    },
+    "%@. File Missing": {
+      "extractionState": "manual",
+      "generatesSymbol": false,
+      "comment": "Description of the screen whose source file is missing."
+    },
+    "No Version": {
+      "extractionState": "manual",
+      "generatesSymbol": false,
+      "comment": "Canvas interface label."
+    },
+    "Add Region\u2026": {
+      "extractionState": "manual",
+      "generatesSymbol": false,
+      "comment": "Canvas interface label."
+    },
+    "Select Component\u2026": {
+      "extractionState": "manual",
+      "generatesSymbol": false,
+      "comment": "Canvas interface label."
+    },
+    "Show Comments": {
+      "extractionState": "manual",
+      "generatesSymbol": false,
+      "comment": "Canvas interface label."
+    },
+    "north / studio": {
+      "extractionState": "manual",
+      "generatesSymbol": false,
+      "comment": "Sample brand in preview art."
+    },
+    "Pay $48": {
+      "extractionState": "manual",
+      "generatesSymbol": false,
+      "comment": "Sample payment button in preview art."
+    },
+    "Version %lld": {
+      "extractionState": "manual",
+      "generatesSymbol": false,
+      "comment": "Version number within a lane."
+    },
+    "Now": {
+      "extractionState": "manual",
+      "generatesSymbol": false,
+      "comment": "Canvas interface label."
+    },
+    "%@ screen": {
+      "extractionState": "manual",
+      "generatesSymbol": false,
+      "comment": "User-assigned screen title."
+    },
+    "^[%lld comment](inflect: true)": {
+      "extractionState": "manual",
+      "generatesSymbol": false,
+      "comment": "Comments on this version."
+    },
+    "Comment %lld: %@": {
+      "extractionState": "manual",
+      "generatesSymbol": false,
+      "comment": "Comment number and abbreviated user text."
+    },
+    "Comment %lld: No Text": {
+      "extractionState": "manual",
+      "generatesSymbol": false,
+      "comment": "Number of an empty comment pin."
+    }
+  },
+  "version": "1.0"
+}

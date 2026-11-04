@@ -116,16 +116,16 @@ struct ComponentTests {
     // MARK: CanvasLabels
 
     @Test func componentChipText() {
-        #expect(CanvasLabels.componentChip(label: "Pay Button", depth: 1, chainCount: 5) == "Pay Button · parent 1 of 4")
-        #expect(CanvasLabels.componentChip(label: "Pay Button", depth: 0, chainCount: 5) == "Pay Button · element, 4 parents")
-        #expect(CanvasLabels.componentChip(label: "Pay Button", depth: 0, chainCount: 2) == "Pay Button · element, 1 parent")
+        #expect(CanvasLabels.componentChip(label: "Pay Button", depth: 1, chainCount: 5) == "Pay Button")
+        #expect(CanvasLabels.componentChip(label: "Pay Button", depth: 0, chainCount: 5) == "Pay Button")
+        #expect(CanvasLabels.componentChip(label: "Pay Button", depth: 0, chainCount: 2) == "Pay Button")
         #expect(CanvasLabels.componentChip(label: "Pay Button", depth: 0, chainCount: 1) == "Pay Button")
     }
 
     @Test func pinLabels() {
         let region = AnnotationShape.region(NRect(x: 0.1, y: 0.1, width: 0.2, height: 0.2))
-        #expect(CanvasLabels.pin(ordinal: 3, text: "", shape: region) == "Comment 3: Region, no text yet")
-        #expect(CanvasLabels.pin(ordinal: 3, text: "   \n ", shape: region) == "Comment 3: Region, no text yet")
+        #expect(CanvasLabels.pin(ordinal: 3, text: "", shape: region) == "Comment 3: No Text")
+        #expect(CanvasLabels.pin(ordinal: 3, text: "   \n ", shape: region) == "Comment 3: No Text")
         #expect(CanvasLabels.pin(ordinal: 3, text: "The pay button looks disabled", shape: region) == "Comment 3: The pay button looks disabled")
         let long = "one two three four five six seven eight nine ten"
         #expect(CanvasLabels.pin(ordinal: 3, text: long, shape: region) == "Comment 3: one two three four five six seven eight…")
@@ -139,10 +139,10 @@ struct ComponentTests {
         let canvas = ws.currentCanvas!
         let lanes = CanvasLayout.lanes(in: canvas, screen: canvas.screens[0])
         let lane = try #require(lanes.first { $0.key.proposalId == "A" })
-        #expect(CanvasLabels.card(lane: lane, screenTitle: "Checkout", commentCount: 3) == "Proposal A, Iteration 2, Checkout screen, 3 comments")
-        #expect(CanvasLabels.card(lane: lane, screenTitle: "Checkout", commentCount: 1) == "Proposal A, Iteration 2, Checkout screen, 1 comment")
+        #expect(CanvasLabels.card(lane: lane, screenTitle: "Checkout", commentCount: 3) == ["Proposal A", "Version 2", "Checkout screen", "3 comments"].formatted(.list(type: .and)))
+        #expect(CanvasLabels.card(lane: lane, screenTitle: "Checkout", commentCount: 1) == ["Proposal A", "Version 2", "Checkout screen", "1 comment"].formatted(.list(type: .and)))
         let nowLane = try #require(lanes.first { $0.key.isNow })
-        #expect(CanvasLabels.card(lane: nowLane, screenTitle: "Checkout", commentCount: 0) == "Now, Revision 1, Checkout screen, 0 comments")
+        #expect(CanvasLabels.card(lane: nowLane, screenTitle: "Checkout", commentCount: 0) == ["Now", "Version 1", "Checkout screen", "0 comments"].formatted(.list(type: .and)))
     }
 
     // MARK: ImageCache.bucket

@@ -17,9 +17,10 @@ final class AppModel {
     func start() async {
         guard workspace == nil else { return }
         AppPreferences.registerDefaults()
-        #if DEBUG && targetEnvironment(simulator)
-        ElevenLabsKeyStore.bootstrapFromEnvironment()
-        #endif
+        // The key is built in (ADR-0008); a key saved by an earlier build is removed.
+        ElevenLabsKeyStore.removeLegacyKeychainKey()
+        // Category and engine ready before the first mark, so capture starts at once.
+        recorder.prepare()
         do {
             let locations = try StorageLocations.applicationSupport()
             switch await Workspace.open(locations: locations) {
@@ -37,7 +38,7 @@ final class AppModel {
             }
             #endif
         } catch {
-            loadError = "Drawspeak could not open its storage."
+            loadError = Self.storageError
             return
         }
         await connectAndRunHooks()
@@ -45,7 +46,13 @@ final class AppModel {
 
     /// Keeps the unreadable file (renamed) and starts an empty library.
     func startFresh() async {
-        guard let locations = try? StorageLocations.applicationSupport() else { return }
+        let locations: StorageLocations
+        do {
+            locations = try StorageLocations.applicationSupport()
+        } catch {
+            loadError = Self.storageError
+            return
+        }
         let workspace = await Workspace.startFresh(locations: locations)
         loadError = nil
         unreadableLibrary = nil
@@ -57,6 +64,10 @@ final class AppModel {
         loadError = nil
         unreadableLibrary = nil
         await start()
+    }
+
+    private static var storageError: String {
+        String(localized: "Drawspeak can't open its storage.")
     }
 
     private func install(_ workspace: Workspace) {
@@ -92,10 +103,5 @@ final class AppModel {
     /// Called whenever the T3 connection changes.
     func connectionChanged() {
         workspace?.threads = connection.threadService
-    }
-
-    /// The ElevenLabs key changed in Settings.
-    func transcriberChanged() {
-        workspace?.transcriber = ElevenLabsTranscriber()
     }
 }

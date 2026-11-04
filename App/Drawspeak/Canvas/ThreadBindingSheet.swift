@@ -14,31 +14,32 @@ struct ThreadBindingSheet: View {
         NavigationStack {
             Group {
                 if let service = connection.threadService {
-                    T3ThreadPickerView(service: service, selected: workspace.currentCanvas?.thread) { binding in
-                        guard let canvasId = workspace.currentCanvasId else { return }
-                        if workspace.bindThread(binding, to: canvasId) {
-                            dismiss()
-                            onBound()
-                        } else {
-                            rejected = true
-                        }
-                    }
+                    T3ThreadPickerView(service: service, selected: workspace.currentCanvas?.thread, onPick: bind)
                 } else {
                     T3PairingView(connection: connection)
                 }
             }
-            .navigationTitle(connection.threadService == nil ? "Connect to T3 Code" : "Choose Thread")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button("Cancel") { dismiss() }
+                    Button(role: .close, action: dismiss.callAsFunction)
                 }
             }
-            .alert("This canvas already sent feedback to another thread", isPresented: $rejected) {
-                Button("OK", role: .cancel) {}
+            .alert("Thread Can't Change", isPresented: $rejected) {
             } message: {
-                Text("A canvas belongs to one thread. Create a new canvas for the other thread.")
+                Text("Create a new canvas for another thread.")
             }
+        }
+        .presentationSizing(.form)
+    }
+
+    private func bind(_ binding: ThreadBinding) {
+        guard let canvasId = workspace.currentCanvasId else { return }
+        if workspace.bindThread(binding, to: canvasId) {
+            onBound()
+            dismiss()
+        } else {
+            rejected = true
         }
     }
 }

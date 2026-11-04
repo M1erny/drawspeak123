@@ -1,15 +1,21 @@
 import Foundation
 
-/// Microphone capture. Implemented in VoiceKit.
+/// Microphone capture with live transcription. Implemented in VoiceKit.
 @MainActor
 public protocol VoiceCapturing: AnyObject {
+    /// True when microphone access was already granted, so `start` needs no prompt.
+    var hasPermission: Bool { get }
     /// Requests permission in context on first use. Returns false when denied.
     func requestPermission() async -> Bool
-    /// Starts recording a new file. Throws when the microphone is unavailable.
-    func start(scope: RecordingScope) throws
+    /// Starts recording a new file and streaming it for live transcription.
+    /// `language` is nil for automatic detection, or "pol"/"eng".
+    /// `onEvent` is never called synchronously from `start`; after `discard()` it is not called again.
+    /// Throws when the microphone is unavailable.
+    func start(scope: RecordingScope, language: String?, onEvent: @escaping @MainActor (LiveTranscriptEvent) -> Void) throws
     /// Stops and returns the finished local file, or nil when nothing was captured.
+    /// Live transcription then finishes in the background and ends with `finished` or `failed`.
     func stop() -> CapturedAudio?
-    /// Stops and deletes the current capture.
+    /// Stops and deletes the current capture; live transcription is cancelled without events.
     func discard()
     var isRecording: Bool { get }
     /// Live level 0...1 for the recording indicator.
@@ -31,7 +37,7 @@ public struct CapturedAudio: Sendable {
     }
 }
 
-/// Batch speech-to-text after Stop. Implemented in VoiceKit (ElevenLabs Scribe v2).
+/// Batch speech-to-text, the fallback when live transcription failed. Implemented in VoiceKit (ElevenLabs Scribe v2).
 public protocol Transcribing: Sendable {
     var isConfigured: Bool { get }
     /// `language` is nil for automatic detection, or "pol"/"eng".

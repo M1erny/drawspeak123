@@ -1,6 +1,6 @@
 import Foundation
 
-public enum FeedbackLimitError: LocalizedError {
+public nonisolated enum FeedbackLimitError: LocalizedError {
     case tooManySnapshots(max: Int)
     case tooManyAttachments(count: Int, snapshotsToRemove: Int)
     case missingHTML(String)
@@ -10,13 +10,13 @@ public enum FeedbackLimitError: LocalizedError {
 
     public var errorDescription: String? {
         switch self {
-        case .tooManySnapshots(let max): "Select comments on at most \(max) snapshots. Deselect comments to send the rest."
-        case .tooManyAttachments(let count, let snapshotsToRemove):
-            "This package needs \(count) attachments; the limit is 8 per message. Deselect all comments on at least \(snapshotsToRemove) snapshots (HTML snapshots use 2 attachments each)."
-        case .missingHTML(let id): "Exact HTML source is missing for snapshot \(id). Restore the source or deselect its comments."
-        case .textTooLong: "The message exceeds 120,000 characters. Deselect comments to shorten it."
-        case .missingImage(let id): "Capture image is missing or unreadable for snapshot \(id)."
-        case .renderingFailed: "The annotated image could not be rendered within the 10 MiB limit."
+        case .tooManySnapshots(let max): String(localized: "Select comments on up to ^[\(max) screen](inflect: true).", bundle: .module)
+        case .tooManyAttachments(let count, let remove):
+            String(localized: "Too many attachments (\(count) of 8). Deselect comments on ^[\(remove) screen](inflect: true).", bundle: .module)
+        case .missingHTML: String(localized: "HTML missing.", bundle: .module)
+        case .textTooLong: String(localized: "Message too long. Deselect some comments.", bundle: .module)
+        case .missingImage: String(localized: "Image missing", bundle: .module)
+        case .renderingFailed: String(localized: "Couldn't render image.", bundle: .module)
         }
     }
 }

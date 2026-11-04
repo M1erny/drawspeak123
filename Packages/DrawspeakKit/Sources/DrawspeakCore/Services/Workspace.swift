@@ -539,8 +539,13 @@ public final class Workspace {
         }
         registerUndo(name: "Add \(shape.kindLabel)") { workspace in workspace.deleteNote(note.id, canvasId: canvasId) }
         focusedNoteId = note.id
-        if shape.identifiesSubject, autoVoice ?? autoVoiceEnabled() {
-            Task { await self.startRecording(noteId: note.id) }
+        if shape.identifiesSubject, autoVoice ?? autoVoiceEnabled(), let voice {
+            if voice.hasPermission {
+                // Same event as the mark: capture begins before the next frame.
+                beginRecording(noteId: note.id, canvasId: canvasId)
+            } else {
+                Task { await self.startRecording(noteId: note.id) }
+            }
         }
         return note.id
     }
@@ -577,8 +582,9 @@ public final class Workspace {
         guard let canvasId = canvasId ?? currentCanvasId,
               canvas(canvasId)?.notes.contains(where: { $0.id == id }) == true else { return }
         if let scope = activeRecording, scope.noteId == id, scope.canvasId == canvasId {
-            activeRecording = nil
+            endActiveRecording()
             voice?.discard()
+            liveSessions[scope.recordingId] = nil
             updateRecording(scope) { $0.state = .interrupted }
         }
         removeNote(id, canvasId: canvasId)
@@ -606,7 +612,7 @@ public final class Workspace {
             switch recording.state {
             case .recording:
                 note.recordings[recIndex].state = .interrupted
-            case .transcribing where transcriptionAttempts[recording.id] == nil:
+            case .transcribing where transcriptionAttempts[recording.id] == nil && liveSessions[recording.id] == nil:
                 // Its result arrived while the note was deleted and was discarded.
                 note.recordings[recIndex].state = .failed(code: "interrupted", mayHaveBeenProcessed: true)
             case .transcribing, .saved, .transcribed, .failed, .interrupted, .saveFailed:
@@ -638,42 +644,66 @@ public final class Workspace {
 
     public func clearVoiceIssue() { voiceIssue = nil }
 
-    /// Starts a recording owned by the note. Requests permission in context on first use.
+    /// Starts a recording owned by the note. Requests permission in context on first
+    /// use; when it was already granted, capture starts before this returns.
     public func startRecording(noteId: UUID) async {
         guard let canvasId = currentCanvasId, let voice, note(noteId) != nil else { return }
         if activeRecording != nil { stopRecording() }
-        guard await voice.requestPermission() else {
-            voiceIssue = .permissionDenied
-            return
+        if !voice.hasPermission {
+            guard await voice.requestPermission() else {
+                voiceIssue = .permissionDenied
+                return
+            }
+            // The canvas or note may have changed while the permission prompt was open.
+            guard currentCanvasId == canvasId, note(noteId, canvasId: canvasId) != nil, activeRecording == nil else { return }
         }
-        // The canvas or note may have changed while the permission prompt was open.
-        guard currentCanvasId == canvasId, let current = note(noteId, canvasId: canvasId) else { return }
+        beginRecording(noteId: noteId, canvasId: canvasId)
+    }
+
+    /// Starts capture and live transcription now. Permission must already be granted.
+    private func beginRecording(noteId: UUID, canvasId: UUID) {
+        guard let voice, activeRecording == nil, let current = note(noteId, canvasId: canvasId) else { return }
         let recording = Recording(startedAt: now(), state: .recording, textRevisionAtStart: current.revision)
         let scope = RecordingScope(canvasId: canvasId, noteId: noteId, recordingId: recording.id)
+        let language = transcriptionLanguage()
+        liveSequence += 1
+        liveSessions[scope.recordingId] = LiveSession(noteId: noteId, sequence: liveSequence, language: language)
         do {
-            try voice.start(scope: scope)
+            // Events capture only this scope: late ones never reach the focused note.
+            try voice.start(scope: scope, language: language) { [weak self] event in
+                self?.handleLiveEvent(event, scope: scope)
+            }
         } catch {
+            liveSessions[scope.recordingId] = nil
             voiceIssue = .microphoneUnavailable
             return
         }
         voiceIssue = nil
         activeRecording = scope
+        livePartialText = ""
         mutateCanvas(canvasId) { canvas in
             guard let index = canvas.notes.firstIndex(where: { $0.id == noteId }) else { return }
             canvas.notes[index].recordings.append(recording)
         }
     }
 
-    /// Stop: the audio is saved locally first, then transcribed in the background.
+    /// Stop: the audio is saved locally first, then the live session finishes in the
+    /// background (or the batch fallback runs once).
     public func stopRecording() {
         guard let scope = activeRecording else { return }
-        activeRecording = nil
+        endActiveRecording()
         guard let captured = voice?.stop() else {
+            liveSessions[scope.recordingId] = nil
             updateRecording(scope) { $0.state = .interrupted }
             return
         }
         updateRecording(scope) { $0.duration = captured.duration }
         storeCapturedAudio(scope, fileURL: captured.fileURL, contentType: captured.contentType)
+    }
+
+    private func endActiveRecording() {
+        activeRecording = nil
+        livePartialText = ""
     }
 
     /// Retries moving a capture whose save failed (`RecordingState.saveFailed`) into
@@ -682,6 +712,7 @@ public final class Workspace {
         guard let recording = recording(scope), case .saveFailed(let path) = recording.state else { return }
         let url = URL(filePath: path)
         guard FileManager.default.fileExists(atPath: url.path(percentEncoded: false)) else {
+            liveSessions[scope.recordingId] = nil
             updateRecording(scope) { $0.state = .interrupted }
             return
         }
@@ -704,7 +735,22 @@ public final class Workspace {
         }
         pendingTempDeletions.append((fileURL, saveGeneration))
         Task { await self.saveNow() }
-        transcribe(scope)
+        audioSaved(scope)
+    }
+
+    /// The audio is durable: use the live result, wait for it, or fall back to batch once.
+    private func audioSaved(_ scope: RecordingScope) {
+        guard var session = liveSessions[scope.recordingId] else {
+            transcribe(scope)
+            return
+        }
+        session.audioSaved = true
+        liveSessions[scope.recordingId] = session
+        switch session.outcome {
+        case .finished(let text): completeLive(scope, text: text, language: session.language)
+        case .failed: fallBackToBatch(scope)
+        case nil: updateRecording(scope) { $0.state = .transcribing }
+        }
     }
 
     private static func audioContentType(for url: URL) -> String {
@@ -716,11 +762,106 @@ public final class Workspace {
         }
     }
 
+    // MARK: - Live transcription
+
+    /// Live state of one recording, from start until its result is stored.
+    struct LiveSession {
+        enum Outcome: Equatable { case finished(String), failed(String) }
+        var noteId: UUID
+        var sequence: Int
+        var language: String?
+        var committed = ""
+        var partial = ""
+        var outcome: Outcome?
+        var audioSaved = false
+    }
+
+    /// The uncommitted text of the active recording, updated while the person speaks.
+    public private(set) var livePartialText = ""
+    /// Per recording id; observable so live text redraws.
+    private var liveSessions: [UUID: LiveSession] = [:]
+    @ObservationIgnored private var liveSequence = 0
+
+    /// What the newest still-streaming recording on this note heard so far
+    /// (committed segments plus the current partial); nil when none is streaming.
+    public func liveText(for noteId: UUID) -> String? {
+        guard let session = liveSessions.values
+            .filter({ $0.noteId == noteId && $0.outcome == nil })
+            .max(by: { $0.sequence < $1.sequence }) else { return nil }
+        return [session.committed, session.partial].filter { !$0.isEmpty }.joined(separator: " ")
+    }
+
+    /// Applies one live event through the scope captured at start.
+    func handleLiveEvent(_ event: LiveTranscriptEvent, scope: RecordingScope) {
+        guard var session = liveSessions[scope.recordingId], session.outcome == nil else { return }
+        let isActive = activeRecording == scope
+        switch event {
+        case .partial(let text):
+            session.partial = text
+            liveSessions[scope.recordingId] = session
+            if isActive { livePartialText = text }
+        case .committed(let text):
+            let segment = text.trimmingCharacters(in: .whitespacesAndNewlines)
+            session.partial = ""
+            if isActive { livePartialText = "" }
+            guard !segment.isEmpty else {
+                liveSessions[scope.recordingId] = session
+                return
+            }
+            session.committed = session.committed.isEmpty ? segment : session.committed + " " + segment
+            liveSessions[scope.recordingId] = session
+            let transcript = liveTranscript(session.committed, language: session.language)
+            if let index = document.canvases.firstIndex(where: { $0.id == scope.canvasId }) {
+                _ = TranscriptMerge.applyLiveSegment(segment, transcript: transcript, scope: scope, to: &document.canvases[index], now: now())
+                scheduleSave()
+            }
+        case .finished(let text):
+            session.partial = ""
+            session.outcome = .finished(text)
+            liveSessions[scope.recordingId] = session
+            if session.audioSaved { completeLive(scope, text: text, language: session.language) }
+        case .failed(let code):
+            session.partial = ""
+            session.outcome = .failed(code)
+            liveSessions[scope.recordingId] = session
+            if isActive { livePartialText = "" }
+            if session.audioSaved { fallBackToBatch(scope) }
+        }
+    }
+
+    private func liveTranscript(_ text: String, language: String?) -> Transcript {
+        Transcript(
+            text: text, requestedLanguage: language, detectedLanguage: nil, languageProbability: nil,
+            provider: Transcript.liveProvider, modelId: Transcript.liveModelId, receivedAt: now()
+        )
+    }
+
+    private func completeLive(_ scope: RecordingScope, text: String, language: String?) {
+        liveSessions[scope.recordingId] = nil
+        guard !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+            // Live heard nothing although audio exists: one batch attempt.
+            fallBackToBatch(scope)
+            return
+        }
+        guard let index = document.canvases.firstIndex(where: { $0.id == scope.canvasId }) else { return }
+        _ = TranscriptMerge.finishLive(liveTranscript(text, language: language), scope: scope, to: &document.canvases[index], now: now())
+        scheduleSave()
+    }
+
+    /// One batch transcription of the saved audio after live failed. Never repeated automatically.
+    private func fallBackToBatch(_ scope: RecordingScope) {
+        liveSessions[scope.recordingId] = nil
+        guard let recording = recording(scope), recording.audio != nil else { return }
+        if recording.state == .transcribing { updateRecording(scope) { $0.state = .saved } }
+        transcribe(scope)
+    }
+
     /// Discard the current recording; an empty new region is removed (Undo restores it).
     public func discardRecording() {
         guard let scope = activeRecording else { return }
-        activeRecording = nil
+        endActiveRecording()
         voice?.discard()
+        liveSessions[scope.recordingId] = nil
         mutateCanvas(scope.canvasId) { canvas in
             guard let index = canvas.notes.firstIndex(where: { $0.id == scope.noteId }) else { return }
             canvas.notes[index].recordings.removeAll { $0.id == scope.recordingId }
@@ -746,6 +887,7 @@ public final class Workspace {
     /// True while a transcription request for this recording is in flight.
     public func isTranscriptionInFlight(_ scope: RecordingScope) -> Bool {
         transcriptionAttempts[scope.recordingId] != nil
+            || (liveSessions[scope.recordingId].map { $0.audioSaved && $0.outcome == nil } ?? false)
     }
 
     /// Sends the saved audio once. Failures keep the audio; retries are always deliberate.
@@ -753,7 +895,7 @@ public final class Workspace {
     /// latest attempt's result or failure is applied.
     public func transcribe(_ scope: RecordingScope) {
         guard let recording = recording(scope), let audio = recording.audio,
-              transcriptionAttempts[scope.recordingId] == nil else { return }
+              transcriptionAttempts[scope.recordingId] == nil, liveSessions[scope.recordingId] == nil else { return }
         switch recording.state {
         case .recording, .transcribing: return
         case .saved, .transcribed, .failed, .interrupted, .saveFailed: break

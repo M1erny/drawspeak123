@@ -10,7 +10,7 @@ struct SnapshotMarkPreview: View {
     var croppedToMark = false
     var maximumHeight: CGFloat = 260
     @State private var availableWidth: CGFloat = 300
-    @State private var image: CGImage?
+    @State private var croppedImage: CGImage?
 
     private var crop: NRect {
         guard croppedToMark else { return NRect(x: 0, y: 0, width: 1, height: 1) }
@@ -24,16 +24,9 @@ struct SnapshotMarkPreview: View {
 
     private var previewAspect: CGFloat { snapshot.aspectRatio * crop.width / crop.height }
 
-    private var croppedImage: CGImage? {
-        guard let image else { return nil }
-        let rect = CGRect(x: crop.x * Double(image.width), y: crop.y * Double(image.height),
-                          width: crop.width * Double(image.width), height: crop.height * Double(image.height))
-        return image.cropping(to: rect)
-    }
-
     var body: some View {
         GeometryReader { geometry in
-            let inset: CGFloat = 16
+            let inset = NotesMetrics.previewInset
             let width = max(1, geometry.size.width - inset * 2)
             let height = max(1, geometry.size.height - inset * 2)
             let fittedWidth = min(width, height * previewAspect)
@@ -42,7 +35,7 @@ struct SnapshotMarkPreview: View {
                 if let croppedImage {
                     Image(decorative: croppedImage, scale: 1).resizable()
                 } else {
-                    Label("Snapshot Preview Unavailable", systemImage: "photo").font(.caption)
+                    Label { Text("Preview Unavailable", bundle: .module) } icon: { Image(systemName: "photo") }.font(.caption)
                 }
                 AnnotationPreviewShape(annotation: shape, crop: crop)
                     .stroke(Theme.annotation, lineWidth: Theme.markLineWidth)
@@ -54,21 +47,19 @@ struct SnapshotMarkPreview: View {
         .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { availableWidth = $0 }
         .background(Theme.surface)
         .clipShape(.rect(cornerRadius: max(0, Theme.paletteCornerRadius - 16)))
-        .accessibilityLabel("Original snapshot, \(shape.kindLabel.lowercased()) marked")
-        .task(id: snapshot.image) {
-            image = nil
-            guard let blob = snapshot.image else { return }
-            let url = workspace.blobs.url(for: blob)
-            image = await Task.detached {
-                guard let source = CGImageSourceCreateWithURL(url as CFURL, nil) else { return nil as CGImage? }
-                return CGImageSourceCreateThumbnailAtIndex(source, 0, [
-                    kCGImageSourceCreateThumbnailFromImageAlways: true,
-                    kCGImageSourceThumbnailMaxPixelSize: 900,
-                    kCGImageSourceCreateThumbnailWithTransform: true
-                ] as CFDictionary)
-            }.value
+        .accessibilityLabel(Text("Screen with marked area", bundle: .module))
+        .task(id: PreviewImageKey(url: snapshot.image.map { workspace.blobs.url(for: $0) }, crop: crop)) {
+            await loadPreview()
         }
     }
+
+    private func loadPreview() async {
+        let key = PreviewImageKey(url: snapshot.image.map { workspace.blobs.url(for: $0) }, crop: crop)
+        let result = await PreviewImageLoader.load(key)
+        guard !Task.isCancelled else { return }
+        croppedImage = result
+    }
+
 }
 
 #Preview {
