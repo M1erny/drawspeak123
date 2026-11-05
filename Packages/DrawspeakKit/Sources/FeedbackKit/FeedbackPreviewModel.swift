@@ -20,6 +20,15 @@ final class FeedbackPreviewModel {
     var startsNewThread = false
     var newThreadTitle = ""
     var newThreadProjectId: String?
+    /// What the person chose for the agent. The mode follows the selection until they pick one.
+    private var modeOverride: AgentDirective.Mode?
+    var variantCount = 2 { didSet { rebuild() } }
+    var directiveNote = "" { didSet { rebuild() } }
+    var directiveMode: AgentDirective.Mode {
+        get { modeOverride ?? package?.directive.mode ?? .newVariants }
+        set { modeOverride = newValue; rebuild() }
+    }
+    var hasProposalComments: Bool { package?.groups.contains(where: \.isProposal) ?? false }
     private(set) var projects: [ProjectSummary] = []
     private(set) var loadingProjects = false
     private(set) var projectsError: String?
@@ -148,8 +157,10 @@ final class FeedbackPreviewModel {
         let numbers = Dictionary(uniqueKeysWithValues: candidates.compactMap { note in
             displayNumber(for: note).map { (note.id, $0) }
         })
-        package = FeedbackPackageBuilder.build(canvas: canvas, noteIds: selection, thread: thread,
+        var built = FeedbackPackageBuilder.build(canvas: canvas, noteIds: selection, thread: thread,
             batchId: batchId ?? "preview", now: workspace.now(), displayNumbers: numbers)
+        built.directive = AgentDirective(mode: modeOverride ?? built.directive.mode, variantCount: variantCount, note: directiveNote)
+        package = built
         sendBlock = nil
         if let package {
             do { try FeedbackPayloadBuilder.validate(package) }

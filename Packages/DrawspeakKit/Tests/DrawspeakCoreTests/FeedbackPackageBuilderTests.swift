@@ -59,4 +59,79 @@ struct FeedbackPackageBuilderTests {
         #expect(package.items.map(\.noteId) == [a])
         #expect(!FeedbackPackageBuilder.messageText(for: package).contains("leave out"))
     }
+
+    /// A canvas whose snapshot `s1` is Proposal `a`, iteration 1, with a later iteration 2 (`s2`) of the same proposal.
+    private func proposalCanvas() throws -> (ReviewCanvas, UUID, UUID) {
+        let ws = makeWorkspace()
+        try addImage(ws, id: "s1")
+        let onProposal = addTextNote(ws, snapshotId: "s1", text: "make it bigger")
+        var canvas = try #require(ws.currentCanvas)
+        let index = try #require(canvas.snapshots.firstIndex { $0.id == "s1" })
+        canvas.snapshots[index].role = .proposal
+        canvas.snapshots[index].proposalId = "a"
+        canvas.snapshots[index].iteration = 1
+        var later = canvas.snapshots[index]
+        later.id = "s2"; later.iteration = 2; later.parentSnapshotId = "s1"
+        canvas.snapshots.append(later)
+        return (canvas, onProposal, onProposal)
+    }
+
+    @Test func commentsOnAProposalDefaultToContinueWithTheNextIteration() throws {
+        let (canvas, note, _) = try proposalCanvas()
+        let package = FeedbackPackageBuilder.build(canvas: canvas, noteIds: [note], thread: testThread, batchId: "b", now: fixedDate)
+        #expect(package.directive.mode == .continueProposals)
+        let text = FeedbackPackageBuilder.messageText(for: package)
+        #expect(text.contains("export iteration 3 with proposalId `a`"))
+        #expect(text.contains("parentSnapshotId `s1`"))
+        #expect(text.contains("--previous"))
+        #expect(!text.contains("create 2 new"))
+    }
+
+    @Test func commentsOnNowDefaultToNewVariantsAndNameTheCount() throws {
+        let ws = makeWorkspace()
+        try addImage(ws, id: "s1")
+        let note = addTextNote(ws, snapshotId: "s1", text: "alpha")
+        let canvas = try #require(ws.currentCanvas)
+        let package = FeedbackPackageBuilder.build(canvas: canvas, noteIds: [note], thread: testThread, batchId: "b", now: fixedDate)
+        #expect(package.directive.mode == .newVariants)
+        #expect(FeedbackPackageBuilder.messageText(for: package).contains("create 2 new alternative proposals"))
+
+        let one = FeedbackPackageBuilder.build(canvas: canvas, noteIds: [note], thread: testThread, batchId: "b", now: fixedDate,
+            directive: AgentDirective(mode: .newVariants, variantCount: 1))
+        #expect(FeedbackPackageBuilder.messageText(for: one).contains("create 1 new alternative proposal that"))
+    }
+
+    @Test func newVariantsListUsedProposalIdsAndKeepExistingUntouched() throws {
+        let (canvas, note, _) = try proposalCanvas()
+        let package = FeedbackPackageBuilder.build(canvas: canvas, noteIds: [note], thread: testThread, batchId: "b", now: fixedDate,
+            directive: AgentDirective(mode: .newVariants, variantCount: 3))
+        let text = FeedbackPackageBuilder.messageText(for: package)
+        #expect(text.contains("create 3 new alternative proposals"))
+        #expect(text.contains("proposalIds already used: a"))
+        #expect(text.contains("Leave existing proposals unchanged"))
+    }
+
+    @Test func replyOnlyForbidsBuildingAndNoteIsPassedOn() throws {
+        let (canvas, note, _) = try proposalCanvas()
+        let package = FeedbackPackageBuilder.build(canvas: canvas, noteIds: [note], thread: testThread, batchId: "b", now: fixedDate,
+            directive: AgentDirective(mode: .replyOnly, note: "  only touch the header  "))
+        let text = FeedbackPackageBuilder.messageText(for: package)
+        #expect(text.contains("answer the comments in text only"))
+        #expect(!text.contains("drawspeak_bundle"))
+        #expect(text.contains("Additional instruction from the reviewer: only touch the header"))
+    }
+
+    @Test func variantCountIsClampedAndDirectiveSurvivesEncoding() throws {
+        #expect(AgentDirective(variantCount: 9).variantCount == 3)
+        #expect(AgentDirective(variantCount: 0).variantCount == 1)
+        let entry = OutboxEntry(id: "b", createdAt: fixedDate, thread: testThread, items: [], isRepeat: false, state: .readyToSend,
+            directive: AgentDirective(mode: .replyOnly, note: "x"))
+        let back = try JSONDecoder().decode(OutboxEntry.self, from: JSONEncoder().encode(entry))
+        #expect(back.directive == entry.directive)
+        // Entries stored before the directive existed still decode.
+        var json = try #require(try JSONSerialization.jsonObject(with: JSONEncoder().encode(entry)) as? [String: Any])
+        json.removeValue(forKey: "directive")
+        let old = try JSONDecoder().decode(OutboxEntry.self, from: JSONSerialization.data(withJSONObject: json))
+        #expect(old.directive == nil)
+    }
 }
