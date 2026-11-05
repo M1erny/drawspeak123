@@ -44,5 +44,6 @@ let package = Package(
         .testTarget(name: "CanvasKitTests", dependencies: ["CanvasKit", "HTMLKit", "DrawspeakCore"]),
         .testTarget(name: "RefineKitTests", dependencies: ["RefineKit", "DrawspeakCore"]),
         .testTarget(name: "HTMLKitTests", dependencies: ["HTMLKit", "DrawspeakCore"]),
+        .testTarget(name: "FeedbackKitTests", dependencies: ["FeedbackKit", "DrawspeakCore"]),
     ]
 )
