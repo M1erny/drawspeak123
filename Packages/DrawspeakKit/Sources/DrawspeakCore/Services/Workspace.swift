@@ -1306,7 +1306,8 @@ public final class Workspace {
             thread: package.thread,
             items: package.items,
             isRepeat: package.isRepeat,
-            state: .readyToSend
+            state: .readyToSend,
+            directive: package.directive
         )
         mutateCanvas(canvasId) { canvas in
             canvas.outbox.removeAll { $0.id == entry.id }
@@ -1349,7 +1350,8 @@ public final class Workspace {
             newThread: NewThreadTarget(
                 projectId: projectId, projectTitle: projectTitle, title: title, clientRequestId: package.batchId,
                 previousThread: canvas.thread
-            )
+            ),
+            directive: package.directive
         )
         mutateCanvas(canvasId) { canvas in
             canvas.outbox.removeAll { $0.id == entry.id }

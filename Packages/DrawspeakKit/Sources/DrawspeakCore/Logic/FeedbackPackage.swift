@@ -9,6 +9,11 @@ public struct FeedbackPackage: Hashable, Sendable {
         public var items: [BatchItem]
         /// File name of the annotated composite attachment.
         public var compositeFileName: String
+        /// Highest iteration of the snapshot's proposal on the canvas (nil for Now).
+        public var latestIteration: Int?
+        /// Proposal ids that already exist on the snapshot's screen.
+        public var existingProposalIds: [String]
+        public var isProposal: Bool { snapshot.role == .proposal }
     }
 
     public var batchId: String
@@ -17,6 +22,7 @@ public struct FeedbackPackage: Hashable, Sendable {
     public var groups: [Group]
     public var isRepeat: Bool
     public var createdAt: Date
+    public var directive: AgentDirective
 
     public var items: [BatchItem] { groups.flatMap(\.items) }
     public var manifestFileName: String { "drawspeak-feedback-\(batchId).json" }

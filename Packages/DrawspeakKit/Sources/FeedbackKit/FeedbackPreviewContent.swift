@@ -31,6 +31,7 @@ struct FeedbackPreviewContent: View {
                             Text("This canvas will continue in the new thread.", bundle: .module)
                         }
                     }
+                    FeedbackDirectiveSection(model: model)
                     if model.pendingCount > 0 {
                         Text("^[\(model.pendingCount) comment](inflect: true) still transcribing", bundle: .module)
                             .font(.subheadline).foregroundStyle(.secondary)

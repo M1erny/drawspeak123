@@ -780,6 +780,127 @@
           }
         }
       }
+    },
+    "New Variants": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "New Variants"
+          }
+        }
+      }
+    },
+    "Reply Only": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Reply Only"
+          }
+        }
+      }
+    },
+    "Agent Should": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Agent Should"
+          }
+        }
+      }
+    },
+    "Number of Variants": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Number of Variants"
+          }
+        }
+      }
+    },
+    "Extra instruction (optional)": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Extra instruction (optional)"
+          }
+        }
+      }
+    },
+    "Agent": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Agent"
+          }
+        }
+      }
+    },
+    "Adds the next version to the proposals you commented on. A new thread starts without the agent's earlier work, so it can't continue it.": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Adds the next version to the proposals you commented on. A new thread starts without the agent's earlier work, so it can't continue it."
+          }
+        }
+      }
+    },
+    "Adds the next version to the proposals you commented on.": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Adds the next version to the proposals you commented on."
+          }
+        }
+      }
+    },
+    "Comments on Now become one new proposal.": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Comments on Now become one new proposal."
+          }
+        }
+      }
+    },
+    "Builds new proposals next to the existing ones and leaves them unchanged.": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Builds new proposals next to the existing ones and leaves them unchanged."
+          }
+        }
+      }
+    },
+    "The agent answers in text. No mockups, no file changes.": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The agent answers in text. No mockups, no file changes."
+          }
+        }
+      }
     }
   },
   "version": "1.0"
