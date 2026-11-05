@@ -1,0 +1,245 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Drawspeak 3D · desk</title>
+<style>
+  :root { color-scheme: dark; --ink: #bd3048; --action: #1758bd; --text: #f2f3f5; --soft: #b9c2cf; --line: rgba(255,255,255,.13); --panel: #24272b; }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: #181b1f; color: var(--text); font: 14px/1.45 -apple-system, BlinkMacSystemFont, "Segoe UI Variable Text", "Segoe UI", system-ui, sans-serif; }
+  main { max-width: 760px; margin: 0 auto; padding: 22px 18px 60px; display: flex; flex-direction: column; gap: 14px; }
+  h1 { margin: 0; font-size: 20px; font-weight: 680; }
+  .sub { color: var(--soft); }
+  .panel { background: var(--panel); border: 1px solid var(--line); border-radius: 16px; padding: 14px; }
+  .row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+  .grow { flex: 1; min-width: 0; }
+  button { font: inherit; color: inherit; height: 38px; padding: 0 14px; border: 0; border-radius: 12px; background: rgba(255,255,255,.1); font-weight: 600; cursor: pointer; }
+  button:hover { background: rgba(255,255,255,.16); }
+  button.primary { background: var(--action); color: #fff; }
+  button.primary:hover { background: #1f68d6; }
+  button[disabled] { opacity: .4; cursor: default; }
+  select, input[type=text] { font: inherit; color: inherit; height: 38px; padding: 0 10px; border: 1px solid var(--line); border-radius: 10px; background: rgba(0,0,0,.25); }
+  .dot { width: 10px; height: 10px; border-radius: 50%; background: #5d6672; flex: none; }
+  .dot.on { background: #ff4d67; animation: blink 1.15s ease-in-out infinite; }
+  @keyframes blink { 50% { opacity: .35; } }
+  .hear { min-height: 44px; font-size: 17px; line-height: 1.35; }
+  .hear:empty::before { content: attr(data-empty); color: var(--soft); font-size: 14px; }
+  .note { display: grid; grid-template-columns: 26px 200px 1fr; gap: 10px; padding: 10px 0; border-top: 1px solid var(--line); align-items: start; }
+  .note:first-child { border-top: 0; padding-top: 0; }
+  .note img { width: 100%; border-radius: 9px; display: block; background: #000; }
+  .pin { width: 24px; height: 24px; display: grid; place-items: center; border-radius: 50%; background: var(--ink); color: #fff; font-size: 12px; font-weight: 700; }
+  .pin.sent { background: #47505c; }
+  .target { font-size: 12px; color: var(--soft); margin-top: 3px; overflow-wrap: anywhere; }
+  textarea { width: 100%; font: inherit; color: inherit; min-height: 54px; padding: 7px 9px; border: 1px solid var(--line); border-radius: 10px; background: rgba(0,0,0,.22); resize: vertical; }
+  .run-line { color: var(--soft); font-size: 12.5px; }
+  .reply { white-space: pre-wrap; margin-top: 6px; }
+  .problem { color: #ff9aa9; }
+  @media (max-width: 620px) { .note { grid-template-columns: 26px 1fr; } .note img { grid-column: 2; } .note .body { grid-column: 2; } }
+</style>
+</head>
+<body>
+<main>
+  <div>
+    <h1>Drawspeak 3D · desk</h1>
+    <div class="sub">Keep this page open while you mark things in Roblox. It holds the microphone, which a Studio plugin cannot have, and it sends your comments to the agent.</div>
+  </div>
+
+  <div class="panel">
+    <div class="row">
+      <label for="project" class="sub">Project</label>
+      <select id="project"></select>
+      <span class="grow"></span>
+      <select id="lang" title="Language of your speech"><option value="pl-PL">Polski</option><option value="en-US">English</option></select>
+      <button id="mic">Turn on the microphone</button>
+    </div>
+    <div class="row" style="margin-top:12px">
+      <span id="dot" class="dot"></span>
+      <div id="hear" class="hear grow" data-empty="Words appear here as you say them, after a mark in Roblox."></div>
+    </div>
+    <div id="micProblem" class="problem"></div>
+  </div>
+
+  <div class="panel" id="runPanel" hidden>
+    <div class="row"><b id="runTitle" class="grow"></b><button id="stopRun" hidden>Stop</button></div>
+    <div id="runLine" class="run-line"></div>
+    <div id="runReply" class="reply"></div>
+  </div>
+
+  <div class="panel">
+    <div class="row" style="margin-bottom:10px">
+      <b class="grow">Comments</b>
+      <input id="extra" type="text" placeholder="Anything else for the agent?" style="flex:1 1 220px">
+      <button id="send" class="primary" disabled>Send to Agent</button>
+    </div>
+    <div id="notes"></div>
+  </div>
+</main>
+<script type="module">
+  import { Voice, FAILURE_TEXT } from "/desk/speech.js";
+
+  const $ = (id) => document.getElementById(id);
+  const voice = new Voice();
+  let project = new URLSearchParams(location.search).get("project");
+  let micOn = false;
+  let current = null; // the note being listened to
+  let events;
+
+  const api = (path, body) => fetch(`/v1/projects/${encodeURIComponent(project)}${path}`, body === undefined ? undefined : { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) }).then(async (r) => {
+    const data = await r.json().catch(() => ({}));
+    if (!r.ok) throw new Error(data.error ?? `The hub said ${r.status}`);
+    return data;
+  });
+
+  async function loadProjects() {
+    const { projects } = await (await fetch("/")).json();
+    $("project").replaceChildren(...projects.map((p) => Object.assign(document.createElement("option"), { value: p.id, textContent: p.title })));
+    if (!project) {
+      const roblox = await fetch("/v1/roblox").then((r) => (r.ok ? r.json() : null)).catch(() => null);
+      project = roblox?.id ?? projects[0]?.id;
+    }
+    $("project").value = project;
+    connect();
+    refresh();
+  }
+
+  function connect() {
+    events?.close();
+    // Only a page with the microphone on counts as a desk: the plugin then expects voice.
+    events = new EventSource(`/v1/projects/${encodeURIComponent(project)}/events${micOn ? "?desk=1" : ""}`);
+    events.addEventListener("run", (e) => showRun(JSON.parse(e.data)));
+    events.addEventListener("voice", (e) => onVoice(JSON.parse(e.data)));
+  }
+
+  function listen(noteId) {
+    current = noteId;
+    $("hear").textContent = "";
+    $("dot").classList.add("on");
+    voice.start($("lang").value, {
+      onText: (text) => {
+        $("hear").textContent = text;
+        if (current === noteId) void api(`/marks/${noteId}`, { heard: text }).catch(() => {});
+      },
+      onLevel: () => {},
+      onSilence: () => void finish(noteId),
+      onFailure: (reason) => {
+        $("micProblem").textContent = FAILURE_TEXT[reason];
+        void finish(noteId);
+      },
+    });
+  }
+
+  async function finish(noteId) {
+    if (current !== noteId) return;
+    current = null;
+    $("dot").classList.remove("on");
+    const said = await voice.stop();
+    await api(`/marks/${noteId}`, { heardFinal: said ?? "" }).catch(() => {});
+    refresh();
+  }
+
+  function onVoice(event) {
+    if (!micOn) return;
+    if (event.state === "start") {
+      if (current) void finish(current);
+      listen(event.noteId);
+    } else if (event.state === "stop") {
+      void finish(event.noteId);
+    } else if (event.state === "cancel" && current === event.noteId) {
+      current = null;
+      voice.cancel();
+      $("dot").classList.remove("on");
+      $("hear").textContent = "";
+    }
+    refresh();
+  }
+
+  function showRun(run) {
+    $("runPanel").hidden = !run;
+    if (!run) return;
+    const working = run.status === "running";
+    $("stopRun").hidden = !working;
+    $("runTitle").textContent = working ? `${run.agent} is working…` : run.status === "done" ? `Done${run.changed?.length ? `: ${run.changed.length} file${run.changed.length === 1 ? "" : "s"} changed` : ""}` : run.status === "stopped" ? "Stopped" : "The agent could not finish";
+    $("runLine").textContent = working ? (run.activity.at(-1) ?? "Reading your comments…") : (run.changed ?? []).join(" · ");
+    $("runReply").textContent = run.reply ?? run.error ?? "";
+    if (!working) refresh();
+  }
+
+  let lastKey = "";
+  async function refresh() {
+    if (!project) return;
+    const { notes } = await api("/marks").catch(() => ({ notes: [] }));
+    const open = notes.filter((n) => n.readiness !== "sent");
+    $("send").disabled = !open.some((n) => n.readiness === "ready");
+    const key = JSON.stringify(open.map((n) => [n.id, n.number, n.readiness, n.text, n.target?.depth, n.target?.layer]));
+    if (key === lastKey || document.activeElement?.tagName === "TEXTAREA") return;
+    lastKey = key;
+    if (open.length === 0) {
+      $("notes").innerHTML = '<div class="sub">Nothing yet. In Studio, hold X and circle something.</div>';
+      return;
+    }
+    $("notes").replaceChildren(...open.map((note) => {
+      const row = document.createElement("div");
+      row.className = "note";
+      const pin = Object.assign(document.createElement("div"), { className: "pin", textContent: note.number });
+      const image = Object.assign(document.createElement("img"), { alt: "", loading: "lazy", src: `/v1/projects/${encodeURIComponent(project)}/marks/${note.id}/image` });
+      image.onerror = () => image.remove();
+      const body = Object.assign(document.createElement("div"), { className: "body" });
+      const text = Object.assign(document.createElement("textarea"), { value: note.text, placeholder: note.recording ? "Listening…" : "No comment yet: type it here" });
+      text.onchange = () => void api(`/marks/${note.id}`, { text: text.value }).then(refresh);
+      const chain = note.target?.layers?.[note.target.layer] ?? [];
+      const target = Object.assign(document.createElement("div"), { className: "target", textContent: chain.slice(note.target?.depth ?? 0).map((e) => e.label).join(" › ") });
+      const remove = Object.assign(document.createElement("button"), { textContent: "Delete" });
+      remove.style.cssText = "height:28px;padding:0 10px;margin-top:6px;font-size:12px";
+      remove.onclick = () => void api(`/marks/${note.id}`, { discard: true }).then(refresh);
+      body.append(text, target, remove);
+      row.append(pin, image, body);
+      return row;
+    }));
+  }
+
+  $("mic").onclick = async () => {
+    $("micProblem").textContent = "";
+    if (micOn) {
+      if (current) await finish(current);
+      micOn = false;
+      $("mic").textContent = "Turn on the microphone";
+      connect();
+      return;
+    }
+    // Asking here, on a click, so that the first mark does not stop for a permission prompt.
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      stream.getTracks().forEach((t) => t.stop());
+    } catch {
+      $("micProblem").textContent = FAILURE_TEXT.denied;
+      return;
+    }
+    micOn = true;
+    $("mic").textContent = "Microphone on";
+    connect();
+  };
+  $("project").onchange = () => {
+    project = $("project").value;
+    lastKey = "";
+    connect();
+    refresh();
+  };
+  $("lang").value = localStorage.getItem("ds3d.lang") ?? ((navigator.languages ?? []).some((l) => l.toLowerCase().startsWith("pl")) ? "pl-PL" : "en-US");
+  $("lang").onchange = () => localStorage.setItem("ds3d.lang", $("lang").value);
+  $("stopRun").onclick = () => void api("/stop", {});
+  $("send").onclick = async () => {
+    $("send").disabled = true;
+    try {
+      await api("/marks/send", { directive: { mode: "apply", note: $("extra").value } });
+      $("extra").value = "";
+    } catch (error) {
+      $("micProblem").textContent = error.message;
+    }
+    refresh();
+  };
+  setInterval(refresh, 1500);
+  void loadProjects();
+</script>
+</body>
+</html>

@@ -1,0 +1,33 @@
+{
+  "name": "drawspeak3d",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Drawspeak for 3D worlds: walk through a three.js scene or a Roblox place, circle things, say what should change, send it to a coding agent",
+  "type": "module",
+  "engines": { "node": ">=24" },
+  "exports": { ".": "./src/index.ts" },
+  "scripts": {
+    "hub": "node hub/server.ts",
+    "demo": "vite --port 5190 --strictPort",
+    "hub:dev": "node --watch hub/server.ts",
+    "hub:fake": "node --env-file=hub/fake.env hub/server.ts",
+    "login": "node hub/login.ts",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit",
+    "build:attach": "vite build",
+    "roblox:check": "node roblox/check.mjs",
+    "roblox:preview": "node roblox/preview.mjs",
+    "roblox:build": "node roblox/build-plugin.mjs",
+    "roblox:install": "node roblox/build-plugin.mjs --install"
+  },
+  "dependencies": {
+    "three": "^0.186.0"
+  },
+  "devDependencies": {
+    "@types/node": "^26.6.5",
+    "@types/three": "^0.186.0",
+    "typescript": "^7.0.2",
+    "vite": "^8.3.0",
+    "vitest": "^5.0.1"
+  }
+}

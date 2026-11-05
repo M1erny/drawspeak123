@@ -2,3 +2,6 @@ Drawspeak
 Copyright 2026 Rafał Wyderka
 
 Licensed under the Apache License, Version 2.0.
+
+The 3d/ folder (Drawspeak 3D) was added in this fork, M1erny/drawspeak123, and ports parts of the
+stroke, pressure, numbering and feedback-package logic from the original Swift code to TypeScript and Luau.

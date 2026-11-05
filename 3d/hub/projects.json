@@ -1,0 +1,29 @@
+{
+  "demo": {
+    "title": "Drawspeak 3D demo",
+    "cwd": "../demo",
+    "origins": ["http://localhost:5190", "http://127.0.0.1:5190"],
+    "agentNote": "A small three.js room to try the tool in. All of it is in main.ts, with Vite's hot reload."
+  },
+  "swing-shop-web": {
+    "title": "Swing Shop Web",
+    "cwd": "../../../swing-shop-web",
+    "origins": ["http://localhost:5180", "http://127.0.0.1:5180"],
+    "allowedBash": ["npm run typecheck", "npm test"],
+    "agentNote": "This is the three.js browser version of Swing Shop. Read README.md first if you need the layout of the code. The reviewer is walking through it at http://localhost:5180 with Vite's hot reload, so saved changes appear in front of them. scripts/blender/*.py make the GLB models in client/models; if a request needs a model change, say so unless a code change can do it."
+  },
+  "swing-shop": {
+    "title": "Swing Shop (Roblox)",
+    "cwd": "../../../swing-shop",
+    "origins": [],
+    "allowedBash": ["node tools/check-luau.mjs", "node tools/store-preview.mjs"],
+    "roblox": true,
+    "world": {
+      "engine": "Roblox",
+      "units": "studs",
+      "up": "Y",
+      "notes": "Pictures are of the whole Studio or Roblox window, with the marks drawn in its 3D view; a mark's normalized shape refers to the 3D view, not to the picture. Targets name Roblox Instances by their full path. Coordinates are world studs. To add something: the store is built in code (game/src/server), so add Parts or Models in the script that owns that area: StoreBuilder for the building and aisles, StoreDressing for props and furniture (with invisible box colliders so nobody walks through them, and out of the walking routes), ModelLibrary for Blender models, which may be absent. A character that walks and talks follows AgentNPC."
+    },
+    "agentNote": "This is the Roblox game. Read AGENTS.md first. The place is generated from game/src (Rojo layout): nothing is edited in Studio, change the files. Never publish the place, deploy the gateway, or restart servers. Marks name Roblox Instances by their full path; generated store parts come from game/src/server (StoreBuilder, AssortmentShelves, StoreDressing) and game/src/shared. To see a result, node tools/store-preview.mjs --camera x,y,z --look x,y,z --name after renders the real store code from that camera into build/store-preview/after.png (an approximation, not the engine): read the picture, compare it with the reviewer's, and fix what is wrong, twice at most."
+  }
+}

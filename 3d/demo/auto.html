@@ -1,0 +1,17 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Drawspeak 3D demo, attached from outside</title>
+    <style>
+      html, body { margin: 0; height: 100%; overflow: hidden; background: #e9e4da; touch-action: none; }
+      canvas { display: block; }
+    </style>
+    <!-- Before the page's own scripts, so that it hears three.js make its renderer. -->
+    <script src="http://127.0.0.1:8799/attach.js" data-project="demo"></script>
+  </head>
+  <body>
+    <script type="module" src="./main.ts"></script>
+  </body>
+</html>

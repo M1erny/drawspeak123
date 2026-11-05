@@ -4,6 +4,10 @@ Projekt aplikacji Drawspeak na iPada do review UI: obrazy i makiety HTML na canv
 
 Stan: natywna aplikacja SwiftUI dla iPadOS 27 w TestFlight (`App/`, `Packages/DrawspeakKit`). Działa canvas z Now i propozycjami, zaznaczenia Pencilem, wybór komponentu HTML, głos z transkrypcją ElevenLabs, paczka Feedback (N) z wysyłką do wątku T3 Code i Pull propozycji HTML. Budowanie: `cd App && xcodegen generate`, testy: `cd Packages/DrawspeakKit && xcodebuild test -scheme DrawspeakKit-Package -destination "platform=iOS Simulator,name=Drawspeak iPad Pro 13"`, wydanie: [docs/RELEASE.md](docs/RELEASE.md). Klucz ElevenLabs jest wbudowany w build wydania (ADR-0008). Połączenie: T3 Code › Settings › Sharing & access › Create pairing link › Show code, a w Drawspeak „Choose Thread” → kod parowania.
 
+## Drawspeak 3D
+
+Ten fork dodaje wersję dla światów 3D (three.js i Roblox): chodzisz po scenie, zaznaczasz rzecz, miejsce albo trasę, mówisz, co zmienić albo dodać, a agent poprawia kod. Działa w przeglądarce, bez Xcode. Opis: [3d/README.md](3d/README.md).
+
 ## Pliki
 
 - [PRD produktu](docs/PRD.md) — aktualne wymagania całej aplikacji, model, flow i kryteria akceptacji.
