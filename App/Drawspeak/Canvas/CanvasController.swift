@@ -319,9 +319,11 @@ final class CanvasController {
     func pull() {
         guard let canvasId = workspace.currentCanvasId, !isPulling else { return }
         isPulling = true
+        show(CanvasStatus(text: AttributedString(localized: "Pulling Versions…")))
         Task {
             let report = await workspace.pull(canvasId: canvasId, captureHTML: HTMLCaptureAdapter.capture)
             isPulling = false
+            status = nil
             if report.importedSnapshots > 0 {
                 show(CanvasStatus(text: AttributedString(localized: "Added ^[\(report.importedSnapshots) version](inflect: true)",
                                                          comment: "Count of versions pulled from the thread.")))

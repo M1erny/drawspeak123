@@ -1,6 +1,8 @@
 import SwiftUI
 
-/// The toolbar `+` menu. Shows progress while a file or pull is in flight.
+/// The toolbar `+` menu. Progress of a file or pull shows in the canvas status,
+/// not here: swapping this label's icon for a ProgressView inside the toolbar
+/// glass group left the item blank and unusable after the import ended.
 struct CanvasAddMenu: View {
     let controller: CanvasController
 
@@ -12,15 +14,7 @@ struct CanvasAddMenu: View {
             Button("Photo Library…", systemImage: "photo.on.rectangle", action: controller.requestPhotoLibrary)
                 .disabled(controller.isImportingFile)
         } label: {
-            Label {
-                Text("Add")
-            } icon: {
-                if controller.isBusy {
-                    ProgressView()
-                } else {
-                    Image(systemName: "plus")
-                }
-            }
+            Label("Add", systemImage: "plus")
         }
         .accessibilityValue(controller.isBusy ? Text("In Progress") : Text(verbatim: ""))
     }
