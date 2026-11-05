@@ -20,7 +20,7 @@ struct MarksLayer: View {
                 let isFocused = mark.noteId == focusedNoteId || selectedNoteIds.contains(mark.noteId)
                 let width = isFocused ? lineWidth * 1.8 : lineWidth
                 let path = MarkGeometry.path(for: mark.shape, in: mark.frame, headLength: 14 / zoom)
-                path.stroke(Theme.annotationHalo, style: StrokeStyle(lineWidth: width + 2.5 / zoom, lineCap: .round, lineJoin: .round))
+                path.stroke(Theme.annotationHalo, style: StrokeStyle(lineWidth: width + AnnotationStyle.haloExtra / zoom, lineCap: .round, lineJoin: .round))
                 path
                     .stroke(
                         Theme.annotation,

@@ -18,6 +18,12 @@ public struct AnnotationStyle: Hashable, Sendable {
 
     /// The numeral size that fits the pin.
     public var pinFontSize: CGFloat { pinSize * 0.5 }
+    /// Total width of the white halo drawn under a mark stroke.
+    public var haloWidth: CGFloat { lineWidth + Self.haloExtra }
+    /// The white ring around a pin, outside its fill. Fixed, so Line Width never
+    /// thickens the pin border or covers its number.
+    public static let pinRingWidth: CGFloat = 2
+    public static let haloExtra: CGFloat = 2.5
 }
 
 public extension EnvironmentValues {

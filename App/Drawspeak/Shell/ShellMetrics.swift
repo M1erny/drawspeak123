@@ -9,6 +9,9 @@ enum ShellMetrics {
     /// Seconds a confirmation stays next to the zoom menu.
     static let statusDuration: Duration = .seconds(4)
     static let inspectorWidth = (min: CGFloat(300), ideal: CGFloat(360), max: CGFloat(440))
+    /// The Comments panel floats inside its column like the sidebar does.
+    static let inspectorPanelInset: CGFloat = 8
+    static let inspectorPanelCornerRadius: CGFloat = 26
     /// Ideal heights of the fitted Settings and History sheets.
     static let settingsHeight: CGFloat = 640
     static let historyHeight: CGFloat = 520

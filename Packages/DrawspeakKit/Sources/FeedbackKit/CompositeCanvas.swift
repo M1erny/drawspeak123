@@ -13,16 +13,18 @@ struct CompositeCanvas: View {
             let width = style.lineWidth * scale
             for item in items {
                 let path = mark(item.shape, size: size, width: width)
-                context.stroke(path, with: .color(Theme.annotationHalo), style: StrokeStyle(lineWidth: width * 2, lineCap: .round, lineJoin: .round))
+                context.stroke(path, with: .color(Theme.annotationHalo), style: StrokeStyle(lineWidth: style.haloWidth * scale, lineCap: .round, lineJoin: .round))
                 context.stroke(path, with: .color(Theme.annotation), style: StrokeStyle(lineWidth: width, lineCap: .round, lineJoin: .round))
                 let bounds = item.shape.bounds.clamped()
                 let radius = style.pinSize * scale / 2
                 let x = min(max(CGFloat(bounds.x) * size.width, radius + width), size.width - radius - width)
                 let y = min(max(CGFloat(bounds.y) * size.height, radius + width), size.height - radius - width)
                 let pin = Path(ellipseIn: CGRect(x: x - radius, y: y - radius, width: radius * 2, height: radius * 2))
+                let ring = AnnotationStyle.pinRingWidth * scale
+                context.fill(Path(ellipseIn: CGRect(x: x - radius - ring, y: y - radius - ring, width: (radius + ring) * 2, height: (radius + ring) * 2)),
+                             with: .color(Theme.annotationHalo))
                 context.fill(pin, with: .color(Theme.annotation))
-                context.stroke(pin, with: .color(Theme.annotationHalo), lineWidth: 2 * scale)
-                context.draw(Text(item.displayNumber ?? item.ordinal, format: .number).font(.system(size: radius, weight: .bold)).foregroundStyle(.white), at: CGPoint(x: x, y: y))
+                context.draw(Text(item.displayNumber ?? item.ordinal, format: .number).font(.system(size: style.pinFontSize * scale, weight: .bold, design: .monospaced)).foregroundStyle(.white), at: CGPoint(x: x, y: y))
             }
         }
     }

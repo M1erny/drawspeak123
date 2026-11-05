@@ -44,7 +44,7 @@ struct SnapshotMarkPreview: View {
                 AnnotationPreviewShape(annotation: shape, crop: crop)
                     .stroke(Theme.annotation, lineWidth: annotationStyle.lineWidth)
                 if let displayNumber {
-                    PinBadge(number: displayNumber)
+                    PinBadge(number: displayNumber, matchesMarks: true)
                         .position(x: min(max((shape.bounds.x - crop.x) / crop.width * fittedWidth, annotationStyle.pinSize), fittedWidth - annotationStyle.pinSize),
                                   y: min(max((shape.bounds.y - crop.y) / crop.height * fittedWidth / previewAspect, annotationStyle.pinSize), fittedWidth / previewAspect - annotationStyle.pinSize))
                 }

@@ -98,17 +98,14 @@ public struct CommentsInspector: View {
             }
         }
         .toolbar {
-            ToolbarItem(placement: .primaryAction) {
+            // One group: the column's own controls stay together, apart from the canvas items.
+            ToolbarItemGroup(placement: .primaryAction) {
                 CommentFilterMenu(canvas: workspace.currentCanvas, notes: workspace.visibleNotes(), selection: $filter)
-            }
-            ToolbarItem(placement: .primaryAction) {
                 Button(action: toggleSelection) {
                     if editMode.isEditing { Text("Done", bundle: .module) }
                     else { Text("Select", bundle: .module) }
                 }
                 .disabled(groups.isEmpty && !editMode.isEditing)
-            }
-            ToolbarItem(placement: .primaryAction) {
                 Menu {
                     Toggle(isOn: $workspace.showsSentNotes) { Text("Show Sent", bundle: .module) }
                     Button(role: .destructive, action: prepareDeleteAll) {

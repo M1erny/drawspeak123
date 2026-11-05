@@ -21,7 +21,16 @@ struct CommentsColumn: View {
                 }
             } else if controller.showsInspector {
                 // Built only while shown, so its toolbar items never reach a closed column.
+                // A floating glass panel over the canvas color, like the canvas sidebar,
+                // instead of the opaque grouped-list column.
                 inspector
+                    .scrollContentBackground(.hidden)
+                    .background {
+                        InspectorPanelBackground()
+                            .padding(ShellMetrics.inspectorPanelInset)
+                            .ignoresSafeArea(.container, edges: .vertical)
+                    }
+                    .background { Theme.canvas.ignoresSafeArea() }
             }
         }
         .inspectorColumnWidth(min: ShellMetrics.inspectorWidth.min, ideal: ShellMetrics.inspectorWidth.ideal,
@@ -37,5 +46,19 @@ struct CommentsColumn: View {
 
     private func openFeedback(_ selection: Set<UUID>) {
         controller.openFeedback(selection: selection)
+    }
+}
+
+/// Liquid Glass behind the Comments column; a solid surface with Reduce Transparency.
+private struct InspectorPanelBackground: View {
+    @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
+
+    var body: some View {
+        let shape = RoundedRectangle(cornerRadius: ShellMetrics.inspectorPanelCornerRadius, style: .continuous)
+        if reduceTransparency {
+            shape.fill(Theme.surface)
+        } else {
+            shape.fill(.clear).glassEffect(.regular, in: shape)
+        }
     }
 }
