@@ -36,7 +36,6 @@ struct CommentSelectionBar: View {
                             .frame(maxWidth: .infinity)
                     }
                     .buttonStyle(.glassProminent)
-                    .tint(Theme.actionFill)
                     .disabled(selectedCount == 0)
                 }
                 Button(role: .destructive, action: onDelete) {

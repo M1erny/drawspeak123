@@ -14,8 +14,8 @@ struct SettingsView: View {
         NavigationStack(path: $path) {
             Form {
                 Section {
-                    Toggle("Record After Marking", isOn: $autoVoice).tint(Theme.actionFill)
-                    Toggle("Refine with Claude", isOn: $refineWithClaude).tint(Theme.actionFill)
+                    Toggle("Record After Marking", isOn: $autoVoice)
+                    Toggle("Refine with Claude", isOn: $refineWithClaude)
                     NavigationLink("Refine Instructions") { RefineInstructionsView() }
                     Picker("Language", selection: $language) {
                         ForEach(TranscriptionLanguage.allCases) { option in
@@ -31,7 +31,7 @@ struct SettingsView: View {
                 MarksSettingsSection()
 
                 Section("Apple Pencil") {
-                    Toggle("Draw with Finger", isOn: $drawWithFinger).tint(Theme.actionFill)
+                    Toggle("Draw with Finger", isOn: $drawWithFinger)
                 }
 
                 T3ConnectionSection(connection: model.connection) { path.append(.pairing) }

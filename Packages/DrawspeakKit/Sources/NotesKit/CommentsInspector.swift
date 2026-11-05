@@ -2,9 +2,14 @@ import SwiftUI
 import DrawspeakCore
 
 public struct CommentsInspector: View {
+    /// Where Filter, Select and More live: in the navigation bar above the list (sheet), or in a
+    /// header row inside the inspector (a floating panel has no navigation bar of its own).
+    public enum ControlsPlacement: Sendable { case toolbar, header }
+
     @Bindable private var workspace: Workspace
     private let onShowSource: (UUID) -> Void
     private let onSend: ((Set<UUID>) -> Void)?
+    private let controlsPlacement: ControlsPlacement
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var deletionFeedback = 0
     @State private var groups: [CommentGroup] = []
@@ -17,10 +22,11 @@ public struct CommentsInspector: View {
     /// `onAddRegion` is retained for source compatibility; the inspector no longer offers Add Region.
     /// `onSend` opens Send Feedback with the comments picked in Select mode.
     public init(workspace: Workspace, onShowSource: @escaping (UUID) -> Void, onAddRegion: @escaping () -> Void,
-                onSend: ((Set<UUID>) -> Void)? = nil) {
+                onSend: ((Set<UUID>) -> Void)? = nil, controls: ControlsPlacement = .toolbar) {
         self.workspace = workspace
         self.onShowSource = onShowSource
         self.onSend = onSend
+        self.controlsPlacement = controls
     }
 
     /// Select mode lives in the workspace, so canvas pins can toggle the same selection.
@@ -28,6 +34,36 @@ public struct CommentsInspector: View {
     private var selectedIDs: Set<UUID> { workspace.selectedComments }
 
     public var body: some View {
+        switch controlsPlacement {
+        case .toolbar:
+            list
+                // One group: the column's own controls stay together, apart from the canvas items.
+                .toolbar { ToolbarItemGroup(placement: .primaryAction) { controls } }
+                .tint(.primary)
+        case .header:
+            VStack(spacing: 0) {
+                HStack(spacing: NotesMetrics.controlSpacing) {
+                    Text("Comments", bundle: .module).font(.title3.bold())
+                    Spacer(minLength: 0)
+                    controls
+                }
+                .padding(.horizontal, 20)
+                .padding(.top, 12)
+                .padding(.bottom, 4)
+                .frame(minHeight: Theme.minTarget)
+                list
+            }
+            .tint(.primary)
+        }
+    }
+
+    /// Changes in what the active recording has heard; the open comment grows with it.
+    private var liveGrowth: Int {
+        guard let id = workspace.activeRecording?.noteId else { return 0 }
+        return (workspace.liveText(for: id)?.count ?? 0) + (workspace.note(id)?.text.count ?? 0)
+    }
+
+    private var list: some View {
         ScrollViewReader { scroll in
             List(selection: editMode.isEditing ? $workspace.selectedComments : nil) {
                 ForEach(groups) { group in
@@ -96,42 +132,49 @@ public struct CommentsInspector: View {
                 guard !Task.isCancelled, !editMode.isEditing, let id = workspace.focusedNoteId else { return }
                 scroll.scrollTo(id, anchor: .center)
             }
-        }
-        .toolbar {
-            // One group: the column's own controls stay together, apart from the canvas items.
-            ToolbarItemGroup(placement: .primaryAction) {
-                CommentFilterMenu(canvas: workspace.currentCanvas, notes: workspace.visibleNotes(), selection: $filter)
-                Button(action: toggleSelection) {
-                    if editMode.isEditing { Text("Done", bundle: .module) }
-                    else { Text("Select", bundle: .module) }
-                }
-                .disabled(groups.isEmpty && !editMode.isEditing)
-                Menu {
-                    Toggle(isOn: $workspace.showsSentNotes) { Text("Show Sent", bundle: .module) }
-                    Button(role: .destructive, action: prepareDeleteAll) {
-                        Text("Delete All Comments…", bundle: .module)
-                    }
-                    .disabled(deletableIDs.isEmpty)
-                } label: {
-                    Label { Text("More", bundle: .module) } icon: { Image(systemName: "ellipsis") }
-                }
-                // Anchor the confirmation to the visible menu control on iPad.
-                .confirmationDialog(
-                    Text("Delete ^[\(pendingIDs.count) Comments](inflect: true)", bundle: .module),
-                    isPresented: $showsDeleteConfirmation, titleVisibility: .visible
-                ) {
-                    Button(role: .destructive, action: confirmDeleteAll) {
-                        Text("Delete ^[\(pendingIDs.count) Comments](inflect: true)", bundle: .module)
-                    }
-                    Button(role: .cancel) { } label: { Text("Cancel", bundle: .module) }
-                } message: {
-                    if excludedRecording {
-                        Text("Recording comments are excluded. Stop recording to delete them.", bundle: .module)
-                    }
+            // The comment being transcribed grows while the person speaks; keep its end in view
+            // so the newest words never slide below the column.
+            .onChange(of: liveGrowth) {
+                guard !editMode.isEditing, let id = workspace.activeRecording?.noteId,
+                      id == workspace.focusedNoteId else { return }
+                withAnimation(reduceMotion ? nil : .snappy(duration: 0.2)) {
+                    scroll.scrollTo(id, anchor: .bottom)
                 }
             }
         }
-        .tint(.primary)
+    }
+
+    @ViewBuilder private var controls: some View {
+        CommentFilterMenu(canvas: workspace.currentCanvas, notes: workspace.visibleNotes(), selection: $filter)
+        Button(action: toggleSelection) {
+            if editMode.isEditing { Text("Done", bundle: .module) }
+            else { Text("Select", bundle: .module) }
+        }
+        .disabled(groups.isEmpty && !editMode.isEditing)
+        Menu {
+            Toggle(isOn: $workspace.showsSentNotes) { Text("Show Sent", bundle: .module) }
+            Button(role: .destructive, action: prepareDeleteAll) {
+                Text("Delete All Comments…", bundle: .module)
+            }
+            .disabled(deletableIDs.isEmpty)
+        } label: {
+            Label { Text("More", bundle: .module) } icon: { Image(systemName: "ellipsis") }
+        }
+        .labelStyle(.iconOnly)
+        // Anchor the confirmation to the visible menu control on iPad.
+        .confirmationDialog(
+            Text("Delete ^[\(pendingIDs.count) Comments](inflect: true)", bundle: .module),
+            isPresented: $showsDeleteConfirmation, titleVisibility: .visible
+        ) {
+            Button(role: .destructive, action: confirmDeleteAll) {
+                Text("Delete ^[\(pendingIDs.count) Comments](inflect: true)", bundle: .module)
+            }
+            Button(role: .cancel) { } label: { Text("Cancel", bundle: .module) }
+        } message: {
+            if excludedRecording {
+                Text("Recording comments are excluded. Stop recording to delete them.", bundle: .module)
+            }
+        }
     }
 
     private var filteredNotes: [Note] {

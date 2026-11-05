@@ -22,7 +22,6 @@ public struct SendFeedbackButton: View {
         }
         .animation(reduceMotion ? nil : .easeInOut(duration: 0.2), value: count)
         .buttonStyle(.glassProminent)
-        .tint(Theme.actionFill)
         .disabled(count == 0)
         .frame(minHeight: Theme.minTarget)
         .accessibilityValue(Text("^[\(count) comment](inflect: true)", bundle: .module))

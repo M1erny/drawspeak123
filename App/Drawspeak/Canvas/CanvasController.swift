@@ -32,6 +32,20 @@ final class CanvasController {
     private(set) var undoTick = 0
     /// The canvas size, set from layout; framing uses it.
     var viewSize: CGSize = .zero
+    /// Whether Comments float over the canvas (regular width) instead of presenting as a sheet.
+    var usesInspectorPanel = false
+
+    /// Width at the canvas's trailing edge covered by the Comments panel.
+    var inspectorCoverage: CGFloat {
+        showsInspector && usesInspectorPanel ? ShellMetrics.inspectorWidth.ideal + ShellMetrics.inspectorPanelInset * 2 : 0
+    }
+
+    /// Framing margins; the panel is added to the trailing side while it is open.
+    private var framingInsets: EdgeInsets {
+        var insets = ShellMetrics.framingInsets
+        insets.trailing += inspectorCoverage
+        return insets
+    }
     /// The camera set by automatic framing; replaced as long as the person has not moved it.
     private var autoFramedCamera: CameraState?
 
@@ -161,7 +175,7 @@ final class CanvasController {
 
     func fitAll() {
         guard let canvas = workspace.currentCanvas, viewSize != .zero else { return }
-        let camera = CanvasFraming.fitAll(canvas: canvas, viewSize: viewSize, insets: ShellMetrics.framingInsets)
+        let camera = CanvasFraming.fitAll(canvas: canvas, viewSize: viewSize, insets: framingInsets)
         workspace.updateCamera(camera, canvasId: canvas.id)
     }
 
@@ -171,7 +185,7 @@ final class CanvasController {
         guard let canvas = workspace.currentCanvas, viewSize.width > 200, viewSize.height > 200,
               !canvas.screens.isEmpty,
               canvas.camera == CameraState() || canvas.camera == autoFramedCamera else { return }
-        let camera = CanvasFraming.fitAll(canvas: canvas, viewSize: viewSize, insets: ShellMetrics.framingInsets)
+        let camera = CanvasFraming.fitAll(canvas: canvas, viewSize: viewSize, insets: framingInsets)
         autoFramedCamera = camera
         workspace.updateCamera(camera, canvasId: canvas.id)
     }
@@ -185,16 +199,16 @@ final class CanvasController {
         workspace.focusedNoteId = noteId
         guard let updated = workspace.currentCanvas,
               let camera = CanvasFraming.frame(snapshotId: snapshot.id, rect: note.shape.bounds, in: updated,
-                                               viewSize: viewSize, insets: ShellMetrics.framingInsets) else { return }
+                                               viewSize: viewSize, insets: framingInsets) else { return }
         workspace.updateCamera(camera, canvasId: updated.id)
     }
 
-    /// The inspector column narrows the canvas; pan so the focused mark stays in view.
+    /// The Comments panel covers the canvas's trailing edge; pan so the focused mark stays in view.
     func keepFocusedMarkVisible() {
         guard let noteId = workspace.focusedNoteId, let canvas = workspace.currentCanvas, viewSize != .zero,
               let rect = CanvasFraming.markScreenRect(noteId: noteId, in: canvas, camera: canvas.camera) else { return }
         let margin = ShellMetrics.markMargin
-        let overflow = rect.maxX - (viewSize.width - margin)
+        let overflow = rect.maxX - (viewSize.width - inspectorCoverage - margin)
         guard overflow > 0 else { return }
         var camera = canvas.camera
         camera.offsetX -= min(overflow, max(rect.minX - margin, 0))

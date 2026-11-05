@@ -14,7 +14,15 @@ struct CanvasDetail: View {
     @Environment(\.undoManager) private var undoManager
     @Environment(\.scenePhase) private var scenePhase
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @AppStorage(AppPreferences.drawWithFinger) private var drawWithFinger = false
+
+    private var usesPanel: Bool { horizontalSizeClass != .compact }
+
+    /// Only the compact layout presents Comments through `.inspector` (as a sheet).
+    private var compactInspector: Binding<Bool> {
+        Binding(get: { controller.showsInspector && !usesPanel }, set: { controller.showsInspector = $0 })
+    }
 
     var body: some View {
         @Bindable var controller = controller
@@ -24,12 +32,22 @@ struct CanvasDetail: View {
             .navigationBarTitleDisplayMode(.inline)
             .toolbarRole(.editor)
             .toolbar { CanvasToolbar(workspace: workspace, controller: controller, isRegularWidth: horizontalSizeClass == .regular) }
-            // Inside the detail column, so the canvas toolbar lays out in the width left of the
-            // inspector. Attached outside the split view, the inspector covered the trailing
-            // Add, Comments and Send items, and nothing was left to close it.
-            .inspector(isPresented: $controller.showsInspector) {
-                CommentsColumn(workspace: workspace, controller: controller)
+            // Regular width: a glass panel over the full-width canvas, below the toolbar so Comments
+            // and Send stay reachable. Compact width: the inspector presents as a sheet.
+            .overlay(alignment: .trailing) {
+                if controller.showsInspector && usesPanel {
+                    CommentsPanel(workspace: workspace, controller: controller)
+                        .transition(.move(edge: .trailing).combined(with: .opacity))
+                }
             }
+            .animation(reduceMotion ? nil : .snappy(duration: 0.25), value: controller.showsInspector)
+            .inspector(isPresented: compactInspector) {
+                // Built only while shown: a closed inspector's toolbar items would join the canvas toolbar.
+                if compactInspector.wrappedValue {
+                    CommentsColumn(workspace: workspace, controller: controller)
+                }
+            }
+            .onChange(of: horizontalSizeClass, initial: true) { controller.usesInspectorPanel = usesPanel }
             .fileImporter(isPresented: $controller.showsImporter, allowedContentTypes: ImportCoordinator.allowedTypes,
                           allowsMultipleSelection: true, onCompletion: importFile)
             .photosPicker(isPresented: $controller.showsPhotoPicker, selection: $controller.selectedPhotos,

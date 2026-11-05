@@ -13,7 +13,6 @@ struct CanvasSidebar: View {
                 CanvasSidebarRow(workspace: workspace, canvas: canvas, onRename: rename)
             }
         }
-        .tint(Theme.actionFill)
         .navigationTitle("Canvases")
         .toolbar {
             ToolbarItem(placement: .primaryAction) {
