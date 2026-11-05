@@ -18,6 +18,10 @@ extension CanvasController {
             case .threads: chooseThread()
             case .component: tool = .component
             case .canvases: break
+            case .importTarget:
+                if let id = workspace.currentCanvasId, let pending = DemoContent.pendingPhoto(canvasId: id) {
+                    sheet = .importTarget(pending)
+                }
             }
         }
     }

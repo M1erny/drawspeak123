@@ -37,6 +37,9 @@ final class AppModel {
             if ProcessInfo.processInfo.arguments.contains("-DrawspeakSeedDemo") {
                 DemoContent.seed(into: workspace)
             }
+            if ProcessInfo.processInfo.arguments.contains("-DrawspeakSeedCanvases") {
+                DemoContent.seedCanvasList(into: workspace)
+            }
             if ProcessInfo.processInfo.arguments.contains("-DrawspeakSeedLarge") {
                 DemoContent.seedLargeReview(into: workspace)
             }
