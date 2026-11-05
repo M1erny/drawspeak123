@@ -15,6 +15,12 @@ struct CanvasStatusBar: View {
                 onFitAll: controller.fitAll,
                 onActualSize: controller.actualSize
             )
+            if controller.isBusy {
+                ProgressView()
+                    .controlSize(.small)
+                    .accessibilityLabel(Text("In Progress"))
+                    .transition(.opacity)
+            }
             if let status = controller.status {
                 Text(status.text)
                     .font(.footnote)
@@ -26,6 +32,7 @@ struct CanvasStatusBar: View {
         }
         .padding()
         .animation(.easeInOut(duration: reduceMotion ? 0.1 : 0.2), value: controller.status)
+        .animation(.easeInOut(duration: reduceMotion ? 0.1 : 0.2), value: controller.isBusy)
     }
 
     private func expire(_ status: CanvasStatus) async {

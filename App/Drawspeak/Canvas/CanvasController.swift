@@ -19,7 +19,9 @@ final class CanvasController {
     var showsInspector = false
     var showsImporter = false
     var showsPhotoPicker = false
-    var selectedPhoto: PhotosPickerItem?
+    var selectedPhotos: [PhotosPickerItem] = []
+    /// The most photos or files one import adds; each becomes its own screen.
+    static let maxImportCount = 20
     @ObservationIgnored private var importCanvasId: UUID?
     var showsSqueezePalette = false
     var squeezeAnchor: CGPoint?
@@ -30,6 +32,20 @@ final class CanvasController {
     private(set) var undoTick = 0
     /// The canvas size, set from layout; framing uses it.
     var viewSize: CGSize = .zero
+    /// Whether Comments float over the canvas (regular width) instead of presenting as a sheet.
+    var usesInspectorPanel = false
+
+    /// Width at the canvas's trailing edge covered by the Comments panel.
+    var inspectorCoverage: CGFloat {
+        showsInspector && usesInspectorPanel ? ShellMetrics.inspectorWidth.ideal + ShellMetrics.inspectorPanelInset * 2 : 0
+    }
+
+    /// Framing margins; the panel is added to the trailing side while it is open.
+    private var framingInsets: EdgeInsets {
+        var insets = ShellMetrics.framingInsets
+        insets.trailing += inspectorCoverage
+        return insets
+    }
     /// The camera set by automatic framing; replaced as long as the person has not moved it.
     private var autoFramedCamera: CameraState?
 
@@ -76,7 +92,7 @@ final class CanvasController {
     func requestPhotoLibrary() {
         guard !isImportingFile else { return }
         importCanvasId = workspace.currentCanvasId
-        selectedPhoto = nil
+        selectedPhotos = []
         showsPhotoPicker = true
     }
     func showSettings() { sheet = .settings }
@@ -159,7 +175,7 @@ final class CanvasController {
 
     func fitAll() {
         guard let canvas = workspace.currentCanvas, viewSize != .zero else { return }
-        let camera = CanvasFraming.fitAll(canvas: canvas, viewSize: viewSize, insets: ShellMetrics.framingInsets)
+        let camera = CanvasFraming.fitAll(canvas: canvas, viewSize: viewSize, insets: framingInsets)
         workspace.updateCamera(camera, canvasId: canvas.id)
     }
 
@@ -169,7 +185,7 @@ final class CanvasController {
         guard let canvas = workspace.currentCanvas, viewSize.width > 200, viewSize.height > 200,
               !canvas.screens.isEmpty,
               canvas.camera == CameraState() || canvas.camera == autoFramedCamera else { return }
-        let camera = CanvasFraming.fitAll(canvas: canvas, viewSize: viewSize, insets: ShellMetrics.framingInsets)
+        let camera = CanvasFraming.fitAll(canvas: canvas, viewSize: viewSize, insets: framingInsets)
         autoFramedCamera = camera
         workspace.updateCamera(camera, canvasId: canvas.id)
     }
@@ -178,21 +194,21 @@ final class CanvasController {
     func showSource(_ noteId: UUID) {
         guard let canvas = workspace.currentCanvas, let note = canvas.notes.first(where: { $0.id == noteId }),
               let snapshot = canvas.snapshots.first(where: { $0.id == note.snapshotId }) else { return }
-        let lane = LaneKey(screenId: snapshot.screenId, proposalId: snapshot.role == .baseline ? nil : snapshot.proposalId)
+        let lane = LaneKey(screenId: snapshot.screenId, proposalId: snapshot.laneId)
         workspace.selectVersion(snapshot.id, lane: lane)
         workspace.focusedNoteId = noteId
         guard let updated = workspace.currentCanvas,
               let camera = CanvasFraming.frame(snapshotId: snapshot.id, rect: note.shape.bounds, in: updated,
-                                               viewSize: viewSize, insets: ShellMetrics.framingInsets) else { return }
+                                               viewSize: viewSize, insets: framingInsets) else { return }
         workspace.updateCamera(camera, canvasId: updated.id)
     }
 
-    /// The inspector column narrows the canvas; pan so the focused mark stays in view.
+    /// The Comments panel covers the canvas's trailing edge; pan so the focused mark stays in view.
     func keepFocusedMarkVisible() {
         guard let noteId = workspace.focusedNoteId, let canvas = workspace.currentCanvas, viewSize != .zero,
               let rect = CanvasFraming.markScreenRect(noteId: noteId, in: canvas, camera: canvas.camera) else { return }
         let margin = ShellMetrics.markMargin
-        let overflow = rect.maxX - (viewSize.width - margin)
+        let overflow = rect.maxX - (viewSize.width - inspectorCoverage - margin)
         guard overflow > 0 else { return }
         var camera = canvas.camera
         camera.offsetX -= min(overflow, max(rect.minX - margin, 0))
@@ -208,64 +224,90 @@ final class CanvasController {
     // MARK: - Import and pull
 
     func handleImport(_ result: Result<[URL], any Error>) async {
-        let url: URL
+        let urls: [URL]
         switch result {
-        case .success(let urls):
-            guard let first = urls.first else { return }
-            url = first
+        case .success(let picked):
+            urls = Array(picked.prefix(Self.maxImportCount))
         case .failure(let error):
             if (error as? CocoaError)?.code == .userCancelled { return }
             alert = .importFailed(ImportFailure(error).message)
             return
         }
-        guard !isImportingFile, let canvasId = importCanvasId ?? workspace.currentCanvasId else { return }
+        guard !urls.isEmpty, !isImportingFile, let canvasId = importCanvasId ?? workspace.currentCanvasId else { return }
         isImportingFile = true
         defer { isImportingFile = false }
-        show(CanvasStatus(text: AttributedString(localized: "Reading File…")))
-        let outcome = await importer.read(url, canvasId: canvasId) { [weak self] page, count in
-            self?.show(CanvasStatus(text: AttributedString(localized: "Rendering Page \(page) of \(count)…")))
+        var pending: [PendingImport] = []
+        var failures: [String] = []
+        for (index, url) in urls.enumerated() {
+            show(CanvasStatus(text: urls.count > 1
+                ? AttributedString(localized: "Reading File \(index + 1) of \(urls.count)…")
+                : AttributedString(localized: "Reading File…")))
+            let outcome = await importer.read(url, canvasId: canvasId) { [weak self] page, count in
+                self?.show(CanvasStatus(text: AttributedString(localized: "Rendering Page \(page) of \(count)…")))
+            }
+            switch outcome {
+            case .success(let pages): pending.append(contentsOf: pages)
+            case .failure(let failure): failures.append(urls.count > 1 ? "\(url.lastPathComponent): \(failure.message)" : failure.message)
+            }
         }
         status = nil
-        switch outcome {
-        case .success(let pages):
-            if pages.count > 1 {
-                do {
-                    for (index, pending) in pages.enumerated() {
-                        show(CanvasStatus(text: AttributedString(localized: "Adding Page \(index + 1) of \(pages.count)…")))
-                        _ = try importer.store(pending, target: .newScreen(title: pending.suggestedTitle), in: workspace)
-                        await Task.yield()
-                    }
-                    show(CanvasStatus(text: AttributedString(localized: "Added \(pages.count) Pages")))
-                    if canvasId == workspace.currentCanvasId { fitAll() }
-                } catch {
-                    status = nil
-                    alert = .importFailed(ImportFailure(error).message)
-                }
-                return
-            }
-            guard let pending = pages.first else { return }
-            presentImport(pending)
-        case .failure(let failure):
-            alert = .importFailed(failure.message)
+        if urls.count == 1, pending.count == 1, let only = pending.first {
+            presentImport(only)
+        } else if !pending.isEmpty {
+            addAsNewScreens(pending, canvasId: canvasId)
         }
+        if !failures.isEmpty { alert = .importFailed(failures.prefix(3).joined(separator: "\n")) }
     }
 
-    func handlePhoto(_ photo: PhotosPickerItem) async {
-        guard !isImportingFile, let canvasId = importCanvasId ?? workspace.currentCanvasId else { return }
+    /// Several photos or files at once: each becomes its own screen, then the canvas frames them.
+    private func addAsNewScreens(_ items: [PendingImport], canvasId: UUID) {
+        var added = 0
+        for (index, item) in items.enumerated() {
+            show(CanvasStatus(text: AttributedString(localized: "Adding \(index + 1) of \(items.count)…")))
+            do {
+                _ = try importer.store(item, target: .newScreen(title: item.suggestedTitle), in: workspace)
+                added += 1
+            } catch {
+                alert = .importFailed(ImportFailure(error).message)
+                break
+            }
+        }
+        guard added > 0 else { status = nil; return }
+        show(CanvasStatus(text: AttributedString(localized: "Added ^[\(added) screen](inflect: true)", comment: "Count of imported screens.")))
+        if canvasId == workspace.currentCanvasId { fitAll() }
+    }
+
+    func handlePhotos(_ photos: [PhotosPickerItem]) async {
+        let photos = Array(photos.prefix(Self.maxImportCount))
+        guard !photos.isEmpty, !isImportingFile, let canvasId = importCanvasId ?? workspace.currentCanvasId else { return }
         isImportingFile = true
         defer { isImportingFile = false }
-        show(CanvasStatus(text: AttributedString(localized: "Loading Photo…")))
-        do {
-            guard let data = try await photo.loadTransferable(type: Data.self) else { throw ImportFailure.unreadable }
-            let outcome = await ImportCoordinator.readPhoto(data, canvasId: canvasId, title: String(localized: "Photo"))
-            status = nil
-            switch outcome {
-            case .success(let pending): presentImport(pending)
-            case .failure(let failure): alert = .importFailed(failure.message)
+        var pending: [PendingImport] = []
+        var failures: [String] = []
+        for (index, photo) in photos.enumerated() {
+            show(CanvasStatus(text: photos.count > 1
+                ? AttributedString(localized: "Loading Photo \(index + 1) of \(photos.count)…")
+                : AttributedString(localized: "Loading Photo…")))
+            let title = photos.count > 1 ? String(localized: "Photo \(index + 1)") : String(localized: "Photo")
+            do {
+                guard let data = try await photo.loadTransferable(type: Data.self) else { throw ImportFailure.unreadable }
+                switch await ImportCoordinator.readPhoto(data, canvasId: canvasId, title: title) {
+                case .success(let item): pending.append(item)
+                case .failure(let failure): failures.append(failure.message)
+                }
+            } catch {
+                failures.append(ImportFailure(error).message)
             }
-        } catch {
-            status = nil
-            alert = .importFailed(ImportFailure(error).message)
+        }
+        status = nil
+        selectedPhotos = []
+        if photos.count == 1, let only = pending.first {
+            presentImport(only)
+        } else if !pending.isEmpty {
+            addAsNewScreens(pending, canvasId: canvasId)
+        }
+        if !failures.isEmpty {
+            alert = .importFailed(Set(failures).prefix(3).joined(separator: "\n"))
         }
     }
 
@@ -291,9 +333,11 @@ final class CanvasController {
     func pull() {
         guard let canvasId = workspace.currentCanvasId, !isPulling else { return }
         isPulling = true
+        show(CanvasStatus(text: AttributedString(localized: "Pulling Versions…")))
         Task {
             let report = await workspace.pull(canvasId: canvasId, captureHTML: HTMLCaptureAdapter.capture)
             isPulling = false
+            status = nil
             if report.importedSnapshots > 0 {
                 show(CanvasStatus(text: AttributedString(localized: "Added ^[\(report.importedSnapshots) version](inflect: true)",
                                                          comment: "Count of versions pulled from the thread.")))

@@ -89,3 +89,14 @@ Niezweryfikowane: fizyczny iPad i Apple Pencil (kalibracja nacisku, squeeze, odr
 - Pull pobiera pliki zapisane przez agenta na Macu (HTML, PNG/JPEG, manifest) przez API T3 (`assets.createUrl`, token tylko do odczytu plików), nadal na jeden kod parowania. Szczegóły: T3-MCP-CONTRACT §10a.
 - Na żywo z symulatora: wątek „Redesign App and Extension Flows” → 17 wersji (12 plansz HTML, 2 stany bazowe, 3 porównania PNG), plansze na pełną wysokość (capture kafelkami ≤ 4096 px), bez nakładania wierszy.
 - `xcodebuild test -scheme DrawspeakKit-Package`: TEST SUCCEEDED.
+
+## Review 5 poprawki — 2026-11-05
+
+Gałąź `t3/ipad-review-feedback-improvements`, PR #1 (draft).
+
+- `heavy-check xcodebuild test -scheme DrawspeakKit-Package` na symulatorze iPad (iOS 27): 309 testów, TEST SUCCEEDED, w tym 7 nowych w `FeedbackSeriesTests` (podział 20 ekranów na 3 wiadomości po ≤8 załączników, HTML liczony podwójnie, wysyłka serii, przerwanie i wznowienie bez powtórek, Delivery Unknown zatrzymuje serię, nowy wątek uruchamiany raz).
+- `heavy-check xcodebuild -scheme Drawspeak` (generic iOS Simulator): build bez błędów i ostrzeżeń kompilatora.
+- Symulator iPad Pro 13" (M5), portret, jasny i ciemny wygląd, launch args `-DrawspeakSeedLarge -DrawspeakFakeThreads` (fałszywy wątek T3, bez sieci): inspektor nie zasłania Add/Comments/Send; Select łączy listę i piny; Send pokazuje 16 komentarzy na 12 ekranach jako 2 wiadomości / 14 załączników, postęp per wiadomość i „Feedback Sent”; picker zdjęć „Select up to 20 photos”, 3 zdjęcia → „Added 3 screens”, „+” zostaje. Zrzuty: `docs/reviews/review-5/`.
+- Brak CI: hostowane runnery GitHub nie mają Xcode 27 (`macos-26` kończy się na Xcode 26.6, `macos-27` nie istnieje). Workflow usunięty z PR.
+
+Niezweryfikowane: fizyczny iPad w poziomie, realna wysyłka do T3 (podział testowany na fałszywym serwisie i w testach), zachowanie agenta przy wiadomościach serii.

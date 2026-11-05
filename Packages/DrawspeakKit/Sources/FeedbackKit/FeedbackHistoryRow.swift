@@ -12,6 +12,9 @@ struct FeedbackHistoryRow: View {
             Text(entry.thread.displayName).font(.headline)
             Text(entry.createdAt, format: .relative(presentation: .named)).font(.subheadline)
             Text("^[\(entry.items.count) comment](inflect: true)", bundle: .module).font(.subheadline)
+            if let part = entry.part {
+                Text("Message \(part.index) of \(part.count)", bundle: .module).font(.subheadline).foregroundStyle(.secondary)
+            }
             Text(entry.state.feedbackLabel).font(.caption.bold()).padding(FeedbackLayout.rowPadding).background(.quaternary, in: .capsule)
             if let status = entry.agentStatus { Text("Agent: \(status)", bundle: .module).font(.subheadline) }
             switch entry.state {
@@ -58,8 +61,9 @@ struct FeedbackHistoryRow: View {
                          lastSentRevision: entry.isRepeat ? item.revision : nil, createdAt: entry.createdAt, updatedAt: entry.createdAt)
                 }
                 let numbers = Dictionary(uniqueKeysWithValues: entry.items.map { ($0.noteId, $0.displayNumber ?? $0.ordinal) })
-                let package = FeedbackPackageBuilder.build(canvas: canvas, noteIds: Set(entry.items.map(\.noteId)), thread: entry.thread,
+                var package = FeedbackPackageBuilder.build(canvas: canvas, noteIds: Set(entry.items.map(\.noteId)), thread: entry.thread,
                     batchId: entry.id, now: entry.createdAt, displayNumbers: numbers, directive: entry.directive)
+                package.part = entry.part
                 let attachments = try await FeedbackPayloadBuilder.attachments(for: package, blobs: workspace.blobs, style: FeedbackPreviewModel.storedAnnotationStyle)
                 workspace.stagePayload(batchId: entry.id, text: FeedbackPackageBuilder.messageText(for: package), attachments: attachments)
             }

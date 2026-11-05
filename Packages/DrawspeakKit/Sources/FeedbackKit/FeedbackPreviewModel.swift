@@ -12,6 +12,9 @@ final class FeedbackPreviewModel {
     var opened = false
     var busy = false
     var batchId: String?
+    /// The messages of the send in progress or done, frozen at Send.
+    private(set) var series: [FeedbackPackage] = []
+    private var seriesNewThread: Workspace.NewThreadRequest?
     var savedCount: Int?
     var preparationFailed = false
     var error: String?
@@ -44,7 +47,21 @@ final class FeedbackPreviewModel {
         )
     }
 
-    var entry: OutboxEntry? { workspace.canvas(canvasId)?.outbox.first { $0.id == batchId } }
+    /// The outbox entries of `series`, in sending order; parts not started yet are missing.
+    var entries: [OutboxEntry] {
+        let outbox = workspace.canvas(canvasId)?.outbox ?? []
+        return series.compactMap { part in outbox.first { $0.id == part.batchId } }
+    }
+    /// The entry that needs attention: the first one that is not Sent, else the last one.
+    var entry: OutboxEntry? {
+        let entries = entries
+        return entries.first { $0.state != .sent } ?? entries.last
+    }
+    var sentCount: Int { entries.count(where: { $0.state == .sent }) }
+    var allSent: Bool { !series.isEmpty && sentCount == series.count }
+    /// The number of messages the current selection is sent as.
+    private(set) var messageCount = 1
+    private(set) var attachmentCount = 0
     private(set) var pendingCount = 0
     private(set) var newNotes: [Note] = []
     private(set) var selected: [Note] = []
@@ -52,15 +69,18 @@ final class FeedbackPreviewModel {
     private(set) var sendBlock: String?
     private(set) var snapshotGroups: [FeedbackPreviewGroup] = []
     private(set) var reasons: [UUID: String] = [:]
-    var showsResult: Bool {
-        if savedCount != nil || preparationFailed { return true }
-        guard let entry else { return false }
-        switch entry.state {
-        case .uploading, .sending: return false
-        default: return true
+    /// Once Send is tapped the sheet shows delivery progress and the result instead of the list.
+    var showsResult: Bool { savedCount != nil || preparationFailed || !series.isEmpty }
+    var recipient: ThreadBinding? {
+        if let sent = entries.last(where: { !$0.thread.threadId.isEmpty })?.thread { return sent }
+        // A series that starts a thread names it before the server has returned it.
+        if let request = seriesNewThread, let host = workspace.threads?.hostURL {
+            return ThreadBinding(hostURL: host, threadId: "", threadTitle: request.title, projectId: request.projectId, projectTitle: request.projectTitle)
         }
+        return workspace.canvas(canvasId)?.thread
     }
-    var recipient: ThreadBinding? { entry?.thread ?? workspace.canvas(canvasId)?.thread }
+    /// Some messages of the series arrived and others did not.
+    var isPartiallySent: Bool { sentCount > 0 && !allSent }
     var canStartNewThread: Bool { workspace.threads != nil }
     var newThreadReady: Bool {
         startsNewThread && canStartNewThread && newThreadProjectId != nil
@@ -163,6 +183,9 @@ final class FeedbackPreviewModel {
         package = built
         sendBlock = nil
         if let package {
+            let parts = FeedbackPackageSplitter.split(package)
+            messageCount = parts.count
+            attachmentCount = parts.map(FeedbackPackageSplitter.attachmentCount(of:)).reduce(0, +)
             do { try FeedbackPayloadBuilder.validate(package) }
             catch { sendBlock = error.localizedDescription }
         }
@@ -183,7 +206,12 @@ final class FeedbackPreviewModel {
         let screen = canvas.screens.first { $0.id == snapshot.screenId }?.title ?? String(localized: "Screen", bundle: .module)
         if snapshot.role == .baseline { return String(localized: "\(screen) · Now", bundle: .module) }
         let screenModel = canvas.screens.first { $0.id == snapshot.screenId }
-        let ids = screenModel.map { CanvasLayout.proposalIds(in: canvas, screen: $0) } ?? []
+        // Follow-up columns share their proposal's letter.
+        let ids = (screenModel.map { CanvasLayout.proposalIds(in: canvas, screen: $0) } ?? [])
+            .reduce(into: [String]()) { ids, lane in
+                let base = CanvasLayout.baseProposalId(lane)
+                if !ids.contains(base) { ids.append(base) }
+            }
         let index = ids.firstIndex(of: snapshot.proposalId ?? "") ?? 0
         let letter = index < 26 ? String(UnicodeScalar(65 + index)!) : String(index + 1)
         let proposal = String(localized: "Proposal \(letter)", bundle: .module)
@@ -210,30 +238,47 @@ final class FeedbackPreviewModel {
     func send() async {
         refresh()
         let toNewThread = startsNewThread
-        guard !busy, !selection.isEmpty, sendBlock == nil, workspace.threads != nil, toNewThread ? newThreadReady : recipient != nil else { return }
+        guard !busy, series.isEmpty, !selection.isEmpty, sendBlock == nil, workspace.threads != nil, toNewThread ? newThreadReady : recipient != nil else { return }
         if toNewThread, workspace.pendingNewThreadEntry(canvasId: canvasId) != nil {
             error = String(localized: "A new thread from this canvas isn't confirmed yet.", bundle: .module); return
         }
         batchId = Workspace.newBatchId(now: workspace.now())
         rebuild()
         guard let package else { return }
+        seriesNewThread = toNewThread ? newThreadProjectId.map {
+            Workspace.NewThreadRequest(projectId: $0, projectTitle: projects.first { $0.id == newThreadProjectId }?.title, title: newThreadTitle)
+        } : nil
+        series = FeedbackPackageSplitter.split(package)
+        await deliverSeries()
+    }
+
+    /// Sends every part that is not Sent yet; stops at the first one that fails.
+    private func deliverSeries() async {
+        guard !busy, !series.isEmpty else { return }
         busy = true; error = nil; preparationFailed = false
         defer { busy = false }
+        let style = annotationStyle
+        let blobs = workspace.blobs
         do {
-            let attachments = try await FeedbackPayloadBuilder.attachments(for: package, blobs: workspace.blobs, style: annotationStyle)
-            let entry: OutboxEntry?
-            if toNewThread, let projectId = newThreadProjectId {
-                entry = await workspace.sendToNewThread(
-                    package: package, attachments: attachments, canvasId: canvasId, projectId: projectId,
-                    projectTitle: projects.first { $0.id == projectId }?.title, threadTitle: newThreadTitle
-                )
-            } else {
-                entry = await workspace.send(package: package, attachments: attachments, canvasId: canvasId)
+            try await workspace.sendSeries(series, canvasId: canvasId, newThread: seriesNewThread) { part in
+                try await FeedbackPayloadBuilder.attachments(for: part, blobs: blobs, style: style)
             }
-            guard entry != nil else { preparationFailed = true; error = String(localized: "Canvas unavailable.", bundle: .module); return }
-            await workspace.saveNow()
-        } catch { preparationFailed = true; self.error = error.localizedDescription }
+            if entries.isEmpty { preparationFailed = true; error = String(localized: "Canvas unavailable.", bundle: .module) }
+        } catch {
+            // Nothing of the failed part left the iPad; earlier parts keep their state.
+            if entries.isEmpty { preparationFailed = true }
+            self.error = error.localizedDescription
+        }
+        await workspace.saveNow()
     }
+
+    /// The person closed a failure that happened before anything was sent: back to the list.
+    func backToList() {
+        guard entries.isEmpty, !busy else { return }
+        series = []; batchId = nil; preparationFailed = false; error = nil
+        rebuild()
+    }
+
     func save() async {
         guard !busy, !selection.isEmpty else { return }
         guard selected.allSatisfy({ workspace.note($0.id, canvasId: canvasId).map(BatchItem.init(note:)) == BatchItem(note: $0) }) else {
@@ -247,14 +292,10 @@ final class FeedbackPreviewModel {
         } else { error = String(localized: "Couldn't save draft.", bundle: .module) }
     }
     func retry() async {
-        guard !busy, let batchId else { return }
-        busy = true
-        await workspace.deliver(batchId: batchId, canvasId: canvasId)
-        await workspace.saveNow()
-        busy = false
+        await deliverSeries()
     }
     func reconcile() async {
-        guard !busy, let batchId else { return }
+        guard !busy, let batchId = entry?.id else { return }
         busy = true
         let startsThread = entry?.newThread != nil
         let result = await workspace.reconcile(batchId: batchId, canvasId: canvasId)
@@ -266,5 +307,29 @@ final class FeedbackPreviewModel {
         }
         await workspace.saveNow()
         busy = false
+        // A part found in the thread is Sent: continue with the rest of the series.
+        if result == .found, !allSent { await deliverSeries() }
+    }
+
+    var resultPhase: FeedbackResultPhase {
+        if allSent { return .sent }
+        if busy { return .working }
+        switch entry?.state {
+        case .uploading, .sending: return .working
+        case .deliveryUnknown: return .unknown
+        case .readyToSend: return .ready
+        case .failed, .sent, nil: return .failed
+        }
+    }
+
+    // MARK: - Selection
+
+    func setSelection(_ selected: Bool, for notes: [Note]) {
+        let ids = Set(notes.map(\.id))
+        if selected { selection.formUnion(ids) } else { selection.subtract(ids) }
+    }
+
+    func isSelected(all notes: [Note]) -> Bool {
+        !notes.isEmpty && notes.allSatisfy { selection.contains($0.id) }
     }
 }

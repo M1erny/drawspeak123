@@ -24,6 +24,7 @@
 		4BC1867C16B29F452EDA85E1 /* RootView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 47C1A23D5CFEB9A13558B99C /* RootView.swift */; };
 		4CC0188F1E668AA6B38355DC /* NoCanvasView.swift in Sources */ = {isa = PBXBuildFile; fileRef = FB80BFFE4CE9FC9CB04178FB /* NoCanvasView.swift */; };
 		51FFCB81CA55822BF1F42B84 /* CanvasAlert.swift in Sources */ = {isa = PBXBuildFile; fileRef = D529415A94A9F46E65BB1493 /* CanvasAlert.swift */; };
+		572C95301FDBF93379E80ABD /* DebugFakeThreads.swift in Sources */ = {isa = PBXBuildFile; fileRef = D6A4D624F1690766F92F4053 /* DebugFakeThreads.swift */; };
 		5B021807825BAE0C6D792AA7 /* CanvasSidebarRow.swift in Sources */ = {isa = PBXBuildFile; fileRef = DD359A1C4533863AC9CDFF85 /* CanvasSidebarRow.swift */; };
 		5C5706C8B6C77569CA8CCF63 /* RefineKit in Frameworks */ = {isa = PBXBuildFile; productRef = F075803C1E81434965C49627 /* RefineKit */; };
 		6140A784E80F839E16411004 /* CanvasKit in Frameworks */ = {isa = PBXBuildFile; productRef = 6236E16418C85716B1AF964E /* CanvasKit */; };
@@ -36,6 +37,7 @@
 		7433664504F1864508A01C1C /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = D3E65FDFF3AC7940DF4DEAFD /* Assets.xcassets */; };
 		74A4565F46B7114442B4E980 /* CanvasNaming.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4050DCDDF46089263B54479A /* CanvasNaming.swift */; };
 		792C4E0555AB73F818931439 /* DebugOpenState.swift in Sources */ = {isa = PBXBuildFile; fileRef = CC15179CC35F65F97C6C1E4B /* DebugOpenState.swift */; };
+		7A4A6F1AB901E95F5EA1C3D0 /* CommentsPanel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8F04A99A413F8529F8F2CF09 /* CommentsPanel.swift */; };
 		7AF8EED8418198BA3A81FF12 /* HTMLKit in Frameworks */ = {isa = PBXBuildFile; productRef = E112867C26FB283C9CB750CD /* HTMLKit */; };
 		7B8469FE647F9B00151682C3 /* PendingImport.swift in Sources */ = {isa = PBXBuildFile; fileRef = 38B48378852355DDB7CB242F /* PendingImport.swift */; };
 		851BE346FC00C95F94FC7536 /* CanvasDetail.swift in Sources */ = {isa = PBXBuildFile; fileRef = A0B8921D039E34EE1D513E86 /* CanvasDetail.swift */; };
@@ -106,6 +108,7 @@
 		89574CB1BEA1A2146A3E9509 /* MarksSettingsSection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MarksSettingsSection.swift; sourceTree = "<group>"; };
 		8B8EFAA1B90983F882ABC170 /* CanvasToolbar.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CanvasToolbar.swift; sourceTree = "<group>"; };
 		8E6CCBF7A5B67116BA620936 /* HTMLCaptureAdapter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HTMLCaptureAdapter.swift; sourceTree = "<group>"; };
+		8F04A99A413F8529F8F2CF09 /* CommentsPanel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CommentsPanel.swift; sourceTree = "<group>"; };
 		9183AE035B7536C7BE18812F /* CanvasSheetContent.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CanvasSheetContent.swift; sourceTree = "<group>"; };
 		98769D420DEA9CD4F7CE2DC5 /* Drawspeak.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = Drawspeak.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		988D301BF1B18B9F16B44D3C /* RefineInstructionsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RefineInstructionsView.swift; sourceTree = "<group>"; };
@@ -125,6 +128,7 @@
 		CC15179CC35F65F97C6C1E4B /* DebugOpenState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DebugOpenState.swift; sourceTree = "<group>"; };
 		D3E65FDFF3AC7940DF4DEAFD /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		D529415A94A9F46E65BB1493 /* CanvasAlert.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CanvasAlert.swift; sourceTree = "<group>"; };
+		D6A4D624F1690766F92F4053 /* DebugFakeThreads.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DebugFakeThreads.swift; sourceTree = "<group>"; };
 		D8361ABB3067E5EF8A7FC90E /* ImportChoice.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ImportChoice.swift; sourceTree = "<group>"; };
 		DD359A1C4533863AC9CDFF85 /* CanvasSidebarRow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CanvasSidebarRow.swift; sourceTree = "<group>"; };
 		E4AE16034F7E7E65797CF428 /* MainSplitView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MainSplitView.swift; sourceTree = "<group>"; };
@@ -217,6 +221,7 @@
 			children = (
 				EEDAF1C1CFD010606BD2AAA6 /* CanvasController+DebugLaunch.swift */,
 				316AB0722C72FACC26D723A6 /* DebugEndToEnd.swift */,
+				D6A4D624F1690766F92F4053 /* DebugFakeThreads.swift */,
 				7E5CCA45EC340E0486EFA6F2 /* DebugLaunch.swift */,
 				CC15179CC35F65F97C6C1E4B /* DebugOpenState.swift */,
 				2D7B1642E79DAEBCA66DE766 /* DemoContent.swift */,
@@ -240,6 +245,7 @@
 				ED15DE6D6DE49DB5CBDDEEF1 /* CanvasTitleMenu.swift */,
 				8B8EFAA1B90983F882ABC170 /* CanvasToolbar.swift */,
 				ABBE68682557957D3887C2D2 /* CommentsColumn.swift */,
+				8F04A99A413F8529F8F2CF09 /* CommentsPanel.swift */,
 				152B148FD406395E55F0D4C5 /* EmptyCanvasView.swift */,
 				C9B77FC9FD1460ACF9B9A977 /* FeedbackPopover.swift */,
 				B5C355A74C21BA542846994D /* FramingKey.swift */,
@@ -434,7 +440,9 @@
 				D7F1D0CB911D8B0C6991186F /* CanvasTitleMenu.swift in Sources */,
 				64456860912D7C6D5539834E /* CanvasToolbar.swift in Sources */,
 				0417A6F5F3BD3213694C00C3 /* CommentsColumn.swift in Sources */,
+				7A4A6F1AB901E95F5EA1C3D0 /* CommentsPanel.swift in Sources */,
 				EF9FD73DACB8D6FAE4F2FC19 /* DebugEndToEnd.swift in Sources */,
+				572C95301FDBF93379E80ABD /* DebugFakeThreads.swift in Sources */,
 				C9A3AFEC5CD2321136204459 /* DebugLaunch.swift in Sources */,
 				792C4E0555AB73F818931439 /* DebugOpenState.swift in Sources */,
 				65A2A296B037CF574856D9E5 /* DemoContent.swift in Sources */,
@@ -532,7 +540,7 @@
 				GCC_WARN_UNUSED_VARIABLE = YES;
 				IPHONEOS_DEPLOYMENT_TARGET = 27.0;
 				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
-				MARKETING_VERSION = 0.5.3;
+				MARKETING_VERSION = 0.7.0;
 				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
 				MTL_FAST_MATH = YES;
 				ONLY_ACTIVE_ARCH = YES;
@@ -618,7 +626,7 @@
 				GCC_WARN_UNUSED_VARIABLE = YES;
 				IPHONEOS_DEPLOYMENT_TARGET = 27.0;
 				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
-				MARKETING_VERSION = 0.5.3;
+				MARKETING_VERSION = 0.7.0;
 				MTL_ENABLE_DEBUG_INFO = NO;
 				MTL_FAST_MATH = YES;
 				PRODUCT_NAME = "$(TARGET_NAME)";

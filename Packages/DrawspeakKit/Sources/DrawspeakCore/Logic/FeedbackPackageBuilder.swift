@@ -33,8 +33,10 @@ public enum FeedbackPackageBuilder {
                 ? "Now"
                 : "\(CanvasLayout.proposalTitle(snapshot.proposalId ?? "?")) · Iteration \(snapshot.iteration)"
             let screen = canvas.screens.first { $0.id == snapshot.screenId }
+            // Follow-up columns share their proposal's identity, so count iterations across all of them.
             let latest = snapshot.role == .proposal
-                ? CanvasLayout.proposalIterations(in: canvas, screenId: snapshot.screenId, proposalId: snapshot.proposalId ?? "").last?.iteration
+                ? canvas.snapshots.filter { $0.screenId == snapshot.screenId && $0.role == .proposal && $0.proposalId == snapshot.proposalId }
+                    .map(\.iteration).max()
                 : nil
             return FeedbackPackage.Group(
                 snapshot: snapshot,
@@ -43,7 +45,11 @@ public enum FeedbackPackageBuilder {
                 items: bySnapshot[snapshotId] ?? [],
                 compositeFileName: String(format: "%02d-%@.png", index + 1, safeFileComponent(snapshot.id)),
                 latestIteration: latest,
-                existingProposalIds: screen.map { CanvasLayout.proposalIds(in: canvas, screen: $0) } ?? []
+                existingProposalIds: (screen.map { CanvasLayout.proposalIds(in: canvas, screen: $0) } ?? [])
+                    .reduce(into: [String]()) { ids, lane in
+                        let base = CanvasLayout.baseProposalId(lane)
+                        if !ids.contains(base) { ids.append(base) }
+                    }
             )
         }
         let alreadySent = notes.contains { $0.lastSentRevision != nil }
@@ -101,7 +107,16 @@ public enum FeedbackPackageBuilder {
     public static func messageText(for package: FeedbackPackage) -> String {
         let count = package.items.count
         var lines: [String] = []
-        lines.append("\(package.marker) Drawspeak feedback for review \"\(package.canvasTitle)\": \(count) comment\(count == 1 ? "" : "s") on \(package.groups.count) snapshot\(package.groups.count == 1 ? "" : "s").")
+        let partLabel = package.part.map { " Message \($0.index) of \($0.count)." } ?? ""
+        lines.append("\(package.marker) Drawspeak feedback for review \"\(package.canvasTitle)\": \(count) comment\(count == 1 ? "" : "s") on \(package.groups.count) snapshot\(package.groups.count == 1 ? "" : "s").\(partLabel)")
+        if let part = package.part {
+            lines.append("This review is split into \(part.count) messages (series \(part.seriesId)) because one message carries at most \(FeedbackPackageSplitter.maxAttachmentsPerMessage) attachments. Comment numbers are shared across the messages.")
+            if part.isLast {
+                lines.append("This is the last message of the series. Now handle every comment from all \(part.count) messages together.")
+            } else {
+                lines.append("More messages of this series follow. Do not change any files yet: reply only that you are waiting for message \(part.index + 1) of \(part.count).")
+            }
+        }
         if package.isRepeat {
             lines.append("Note: this repeats comments that were sent before.")
         }

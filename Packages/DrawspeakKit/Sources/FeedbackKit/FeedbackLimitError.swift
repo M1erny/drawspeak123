@@ -1,8 +1,8 @@
 import Foundation
 
 public nonisolated enum FeedbackLimitError: LocalizedError {
-    case tooManySnapshots(max: Int)
-    case tooManyAttachments(count: Int, snapshotsToRemove: Int)
+    /// Internal: a multi-message package reached the single-message builder.
+    case needsSplit
     case missingHTML(String)
     case textTooLong
     case missingImage(String)
@@ -10,11 +10,9 @@ public nonisolated enum FeedbackLimitError: LocalizedError {
 
     public var errorDescription: String? {
         switch self {
-        case .tooManySnapshots(let max): String(AttributedString(localized: "Select comments on up to ^[\(max) screen](inflect: true).", bundle: .module).characters)
-        case .tooManyAttachments(let count, let remove):
-            String(AttributedString(localized: "Too many attachments (\(count) of 8). Deselect comments on ^[\(remove) screen](inflect: true).", bundle: .module).characters)
+        case .needsSplit: String(localized: "Couldn't split the feedback into messages.", bundle: .module)
         case .missingHTML: String(localized: "HTML missing.", bundle: .module)
-        case .textTooLong: String(localized: "Message too long. Deselect some comments.", bundle: .module)
+        case .textTooLong: String(localized: "A comment is too long to send. Shorten it and try again.", bundle: .module)
         case .missingImage: String(localized: "Image missing", bundle: .module)
         case .renderingFailed: String(localized: "Couldn't render image.", bundle: .module)
         }

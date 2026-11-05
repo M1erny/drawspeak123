@@ -48,12 +48,17 @@ enum DebugEndToEnd {
                 batchId: Workspace.newBatchId(now: .now), now: .now
             )
             do {
-                let attachments = try await FeedbackPayloadBuilder.attachments(for: package, blobs: workspace.blobs)
-                report["attachments"] = attachments.map { "\($0.fileName) \($0.data.count)B" }.joined(separator: ", ")
-                let entry = await workspace.send(package: package, attachments: attachments, canvasId: canvasId)
+                // A review over T3's eight attachments per message goes out as several messages.
+                let parts = FeedbackPackageSplitter.split(package)
+                let blobs = workspace.blobs
+                let entries = try await workspace.sendSeries(parts, canvasId: canvasId) { part in
+                    try await FeedbackPayloadBuilder.attachments(for: part, blobs: blobs)
+                }
                 report["batchId"] = package.batchId
-                report["state"] = entry.map { "\($0.state)" } ?? "nil"
-                report["messageId"] = entry?.receipt?.messageId ?? ""
+                report["messages"] = String(parts.count)
+                report["attachments"] = parts.map { String(FeedbackPackageSplitter.attachmentCount(of: $0)) }.joined(separator: ", ")
+                report["state"] = entries.map { "\($0.state)" }.joined(separator: ", ")
+                report["messageId"] = entries.compactMap { $0.receipt?.messageId }.joined(separator: ", ")
             } catch {
                 report["error"] = "\(error)"
             }
@@ -95,15 +100,15 @@ enum DebugEndToEnd {
         report["canvas"] = canvas.title
         report["batchId"] = package.batchId
         do {
-            let attachments = try await FeedbackPayloadBuilder.attachments(for: package, blobs: workspace.blobs)
-            report["attachments"] = attachments.map { "\($0.fileName) \($0.data.count)B" }.joined(separator: ", ")
-            let entry = await workspace.sendToNewThread(
-                package: package, attachments: attachments, canvasId: canvas.id,
-                projectId: projectId, projectTitle: nil, threadTitle: title
-            )
-            report["state"] = entry.map { "\($0.state)" } ?? "nil"
+            let parts = FeedbackPackageSplitter.split(package)
+            let blobs = workspace.blobs
+            let entries = try await workspace.sendSeries(
+                parts, canvasId: canvas.id, newThread: Workspace.NewThreadRequest(projectId: projectId, projectTitle: nil, title: title)
+            ) { part in try await FeedbackPayloadBuilder.attachments(for: part, blobs: blobs) }
+            report["messages"] = String(parts.count)
+            report["state"] = entries.map { "\($0.state)" }.joined(separator: ", ")
             report["threadId"] = workspace.canvas(canvas.id)?.thread?.threadId ?? ""
-            report["messageId"] = entry?.receipt?.messageId ?? ""
+            report["messageId"] = entries.compactMap { $0.receipt?.messageId }.joined(separator: ", ")
         } catch {
             report["error"] = "\(error)"
         }

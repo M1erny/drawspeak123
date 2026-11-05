@@ -25,12 +25,14 @@ struct CanvasContent: View {
                         actions: actions,
                         interactingSnapshotId: interactingSnapshotId
                     )
-                    MarksLayer(marks: presentation.marks, focusedNoteId: workspace.focusedNoteId, camera: interaction.camera)
+                    MarksLayer(marks: presentation.marks, focusedNoteId: workspace.focusedNoteId,
+                               selectedNoteIds: workspace.commentSelection ?? [], camera: interaction.camera)
                     ComponentOutlineLayer(pick: interaction.pick, camera: interaction.camera)
                     DraftLayer(draft: interaction.draft, camera: interaction.camera)
                 }
             }
             CanvasInputLayer(interaction: interaction)
+            CanvasScrollIndicators(camera: interaction.camera, contentBounds: presentation.layout?.contentBounds)
             ScreenOverlay(
                 bubbleInsets: bubbleInsets,
                 rows: presentation.layout?.rows ?? [],

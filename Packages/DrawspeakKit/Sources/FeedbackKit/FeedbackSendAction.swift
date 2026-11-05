@@ -12,7 +12,7 @@ struct FeedbackSendAction: View {
                 Text("Send", bundle: .module).foregroundStyle(.white)
             }
         }
-        .buttonStyle(.glassProminent).tint(Theme.actionFill)
+        .buttonStyle(.glassProminent)
         .disabled(model.busy || model.selection.isEmpty || model.sendBlock != nil || !canSend)
         .accessibilityHint(Text(model.sendBlock ?? ""))
     }

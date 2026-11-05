@@ -78,6 +78,7 @@ final class CanvasInteraction {
         cancelMarking()
         dismissChooser()
         endHover()
+        stopCoasting(persist: false)
         camera.apply(state)
         camera.settle()
     }
@@ -87,13 +88,17 @@ final class CanvasInteraction {
     @discardableResult
     func adoptCamera(_ state: CameraState) -> Bool {
         guard !isCameraGestureActive, state != camera.state else { return false }
+        stopCoasting(persist: false)
         camera.apply(state)
         camera.settle()
         return true
     }
 
     func cameraGestureBegan() {
+        stopCoasting(persist: false)
         isCameraGestureActive = true
+        camera.isScrolling = true
+        contentBounds = currentContentBounds()
         // A pinch or pan while pressing with the component tool cancels the selection.
         if pressure != nil {
             pressure = nil
@@ -101,22 +106,102 @@ final class CanvasInteraction {
         }
     }
 
+    /// A finger drag. Past the edge of the content it resists, like a system scroll view.
     func pan(by translation: CGPoint) {
         guard translation != .zero else { return }
-        camera.offset = CGPoint(x: camera.offset.x + translation.x, y: camera.offset.y + translation.y)
+        var offset = camera.offset
+        if let range = offsetRanges() {
+            offset.x += ScrollPhysics.resisted(delta: translation.x, at: offset.x, in: range.x, viewLength: camera.viewSize.width)
+            offset.y += ScrollPhysics.resisted(delta: translation.y, at: offset.y, in: range.y, viewLength: camera.viewSize.height)
+        } else {
+            offset.x += translation.x
+            offset.y += translation.y
+        }
+        camera.offset = offset
     }
 
     func zoom(by factor: Double, around point: CGPoint) {
         camera.apply(CanvasFraming.zoomed(camera.state, by: factor, around: point))
     }
 
-    /// Persists the camera once, when the last camera gesture ends.
-    func cameraGestureEnded() {
+    /// The last camera gesture ended. `velocity` is the finger's speed (points per second); the
+    /// canvas coasts on from it, and springs back when it rests past the content's edge.
+    func cameraGestureEnded(velocity: CGPoint = .zero) {
         isCameraGestureActive = false
+        if startCoasting(velocity: velocity) { return }
+        finishCameraMotion()
+    }
+
+    /// Persists the camera once, when the last camera gesture or coast ends.
+    private func finishCameraMotion() {
+        camera.isScrolling = false
         camera.settle()
         guard let workspace, let canvasId = workspace.currentCanvasId,
               workspace.currentCanvas?.camera != camera.state else { return }
         workspace.updateCamera(camera.state, canvasId: canvasId)
+    }
+
+    // MARK: - Coasting
+
+    /// The input surface runs a display link while the canvas coasts.
+    var onCoastingChange: ((Bool) -> Void)?
+    private(set) var isCoasting = false
+    private var coastX = ScrollPhysics.Axis()
+    private var coastY = ScrollPhysics.Axis()
+    /// World extent of the cards, taken when a gesture starts so a pan frame does not lay them out.
+    private var contentBounds: CGRect?
+
+    private func currentContentBounds() -> CGRect? {
+        workspace?.currentCanvas.flatMap { CanvasWorldLayout(canvas: $0).contentBounds }
+    }
+
+    /// Offsets the canvas may rest at: some of the content always stays in view.
+    func offsetRanges() -> (x: ClosedRange<CGFloat>, y: ClosedRange<CGFloat>)? {
+        guard let bounds = contentBounds, camera.viewSize.width > 0, camera.viewSize.height > 0 else { return nil }
+        return (
+            ScrollPhysics.offsetRange(content: bounds.minX...bounds.maxX, zoom: camera.zoom, viewLength: camera.viewSize.width),
+            ScrollPhysics.offsetRange(content: bounds.minY...bounds.maxY, zoom: camera.zoom, viewLength: camera.viewSize.height)
+        )
+    }
+
+    private func startCoasting(velocity: CGPoint) -> Bool {
+        guard let range = offsetRanges() else { return false }
+        let outside = ScrollPhysics.isOutside(camera.offset.x, range.x) || ScrollPhysics.isOutside(camera.offset.y, range.y)
+        let fast = max(abs(velocity.x), abs(velocity.y)) >= ScrollPhysics.stopSpeed
+        guard outside || fast else { return false }
+        coastX = ScrollPhysics.Axis(position: camera.offset.x, velocity: velocity.x)
+        coastY = ScrollPhysics.Axis(position: camera.offset.y, velocity: velocity.y)
+        isCoasting = true
+        camera.isScrolling = true
+        onCoastingChange?(true)
+        return true
+    }
+
+    /// One display-link frame of a coast.
+    func advanceCoasting(dt: TimeInterval) {
+        guard isCoasting else { return }
+        guard let range = offsetRanges() else {
+            stopCoasting(persist: true)
+            return
+        }
+        let movingX = ScrollPhysics.step(&coastX, in: range.x, dt: dt)
+        let movingY = ScrollPhysics.step(&coastY, in: range.y, dt: dt)
+        camera.offset = CGPoint(x: coastX.position, y: coastY.position)
+        // Cards and image resolutions follow the settled camera; keep it near a long coast.
+        let settled = camera.settled
+        if abs(camera.offset.x - settled.offsetX) > camera.viewSize.width / 2
+            || abs(camera.offset.y - settled.offsetY) > camera.viewSize.height / 2 {
+            camera.settle()
+        }
+        if !movingX && !movingY { stopCoasting(persist: true) }
+    }
+
+    /// A touch or an outside camera change ends a coast where it is.
+    func stopCoasting(persist: Bool) {
+        guard isCoasting else { return }
+        isCoasting = false
+        onCoastingChange?(false)
+        if persist { finishCameraMotion() } else { camera.isScrolling = false }
     }
 
     // MARK: - Marks

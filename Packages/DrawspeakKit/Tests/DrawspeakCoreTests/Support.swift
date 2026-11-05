@@ -135,6 +135,10 @@ struct FakeThreadService: ThreadService {
     var onSend: @Sendable () -> Void = {}
     /// Keeps `send` in flight this long before answering.
     var sendDelay: Duration?
+    /// When set, every `send` after this many successful ones fails with `.notSent`.
+    var failSendsAfter: Int?
+    /// One entry per `send`: "<threadId>:<attachment count>:<first line of the text>".
+    var sentMessages = CallLog()
 
     var projects: [ProjectSummary] = [ProjectSummary(id: "proj-1", title: "Shop")]
     var launchFailure: DeliveryFailure?
@@ -162,6 +166,8 @@ struct FakeThreadService: ThreadService {
         if let sendDelay { try? await Task.sleep(for: sendDelay) }
         progress(attachments.count, attachments.count)
         if let sendFailure { throw sendFailure }
+        if let failSendsAfter, sentMessages.calls.count >= failSendsAfter { throw DeliveryFailure.notSent("offline") }
+        sentMessages.record("\(threadId):\(attachments.count):\(text.split(separator: "\n").first ?? "")")
         return MessageAck(messageId: "msg-1", acknowledgedAt: fixedDate)
     }
     func downloadAttachment(threadId: String, attachment: ThreadAttachment) async throws -> Data { Data() }

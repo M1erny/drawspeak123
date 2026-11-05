@@ -48,6 +48,7 @@ final class CanvasInputSurface: UIView, UIGestureRecognizerDelegate {
         }
         configure()
         interaction.onSettingsChange = { [weak self] in self?.configure() }
+        interaction.onCoastingChange = { [weak self] coasting in self?.coastingChanged(coasting) }
     }
 
     @available(*, unavailable)
@@ -77,7 +78,10 @@ final class CanvasInputSurface: UIView, UIGestureRecognizerDelegate {
         case .changed:
             applyTranslation(of: recognizer)
         case .ended, .cancelled, .failed:
-            endCameraGestureIfIdle()
+            // Fingers carry on from their release speed; trackpad scrolls bring their own momentum.
+            let velocity = recognizer === panRecognizer && recognizer.state == .ended
+                ? recognizer.velocity(in: self) : .zero
+            endCameraGestureIfIdle(velocity: velocity)
         default:
             break
         }
@@ -102,9 +106,34 @@ final class CanvasInputSurface: UIView, UIGestureRecognizerDelegate {
         }
     }
 
-    private func endCameraGestureIfIdle() {
+    private func endCameraGestureIfIdle(velocity: CGPoint = .zero) {
         let active = [panRecognizer, scrollRecognizer, pinchRecognizer].contains { $0.state == .began || $0.state == .changed }
-        if !active { interaction.cameraGestureEnded() }
+        if !active { interaction.cameraGestureEnded(velocity: velocity) }
+    }
+
+    // MARK: - Coasting
+
+    private var displayLink: CADisplayLink?
+
+    private func coastingChanged(_ coasting: Bool) {
+        if coasting {
+            guard displayLink == nil else { return }
+            let link = CADisplayLink(target: self, selector: #selector(coastTick(_:)))
+            link.add(to: .main, forMode: .common)
+            displayLink = link
+        } else {
+            displayLink?.invalidate()
+            displayLink = nil
+        }
+    }
+
+    @objc private func coastTick(_ link: CADisplayLink) {
+        interaction.advanceCoasting(dt: link.targetTimestamp - link.timestamp)
+    }
+
+    override func willMove(toWindow newWindow: UIWindow?) {
+        super.willMove(toWindow: newWindow)
+        if newWindow == nil { interaction.stopCoasting(persist: true) }
     }
 
     // MARK: - Taps and hover
@@ -126,6 +155,8 @@ final class CanvasInputSurface: UIView, UIGestureRecognizerDelegate {
     // MARK: - Marking touches
 
     override func touchesBegan(_ touches: Set<UITouch>, with event: UIEvent?) {
+        // A touch catches a coasting canvas, like a system scroll view.
+        interaction.stopCoasting(persist: true)
         guard markingTouch == nil else { return }
         for touch in touches {
             let kind = Self.kind(of: touch)

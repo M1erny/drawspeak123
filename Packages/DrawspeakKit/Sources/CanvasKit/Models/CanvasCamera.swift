@@ -11,6 +11,8 @@ final class CanvasCamera {
     var zoom: Double = 1
     /// Size of the canvas view, in points.
     var viewSize: CGSize = .zero
+    /// True while a gesture or a coast moves the canvas; scroll indicators show then.
+    var isScrolling = false
     /// The camera when the last gesture ended. Culling and image resolution
     /// follow it, so they do not churn during a gesture.
     private(set) var settled = CameraState()

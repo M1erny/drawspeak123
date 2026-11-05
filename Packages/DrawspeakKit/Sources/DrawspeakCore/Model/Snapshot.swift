@@ -25,6 +25,13 @@ public struct Snapshot: Codable, Hashable, Identifiable, Sendable {
     public var addressedNoteIds: [String]
     public var origin: SnapshotOrigin
     public var title: String
+    /// The canvas column this version is shown in when it is not `proposalId`'s own: a pulled
+    /// follow-up kept next to the earlier iteration (Settings › Pulled Versions). `proposalId`
+    /// stays the identity the thread knows.
+    public var lane: String?
+
+    /// The column of a proposal version; `nil` for Now.
+    public var laneId: String? { role == .baseline ? nil : (lane ?? proposalId) }
 
     public init(
         id: String,
@@ -45,7 +52,8 @@ public struct Snapshot: Codable, Hashable, Identifiable, Sendable {
         changeSummary: String?,
         addressedNoteIds: [String],
         origin: SnapshotOrigin,
-        title: String
+        title: String,
+        lane: String? = nil
     ) {
         self.id = id
         self.screenId = screenId
@@ -66,6 +74,7 @@ public struct Snapshot: Codable, Hashable, Identifiable, Sendable {
         self.addressedNoteIds = addressedNoteIds
         self.origin = origin
         self.title = title
+        self.lane = lane
     }
 
     /// Width divided by height of the captured content.

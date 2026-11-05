@@ -32,8 +32,10 @@ struct CanvasStage: View {
         .overlay(alignment: .bottomLeading) {
             CanvasStatusBar(controller: controller)
         }
-        .task(id: FramingKey(canvasId: workspace.currentCanvasId, width: Int(controller.viewSize.width), height: Int(controller.viewSize.height))) {
+        .task(id: FramingKey(canvasId: workspace.currentCanvasId, width: Int(controller.viewSize.width),
+                             height: Int(controller.viewSize.height), coverage: Int(controller.inspectorCoverage))) {
             controller.frameIfNeeded()
+            controller.keepFocusedMarkVisible()
         }
     }
 

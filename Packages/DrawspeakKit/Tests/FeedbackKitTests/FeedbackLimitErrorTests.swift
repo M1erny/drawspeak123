@@ -3,16 +3,15 @@ import Testing
 
 @Suite("FeedbackLimitError")
 struct FeedbackLimitErrorTests {
-    @Test func messagesResolveInflectionMarkup() throws {
-        let one = try #require(FeedbackLimitError.tooManyAttachments(count: 9, snapshotsToRemove: 1).errorDescription)
-        let five = try #require(FeedbackLimitError.tooManyAttachments(count: 13, snapshotsToRemove: 5).errorDescription)
-        let up = try #require(FeedbackLimitError.tooManySnapshots(max: 6).errorDescription)
-        for message in [one, five, up] {
+    /// A review over the attachment limit is now split into several messages instead of refused,
+    /// so no message mentions a count; none may show raw inflection markup either.
+    @Test func messagesShowNoRawMarkup() throws {
+        let errors: [FeedbackLimitError] = [.needsSplit, .missingHTML("a"), .textTooLong, .missingImage("a"), .renderingFailed]
+        for error in errors {
+            let message = try #require(error.errorDescription)
+            #expect(!message.isEmpty)
             #expect(!message.contains("^["))
             #expect(!message.contains("inflect"))
         }
-        #expect(one == "Too many attachments (9 of 8). Deselect comments on 1 screen.")
-        #expect(five == "Too many attachments (13 of 8). Deselect comments on 5 screens.")
-        #expect(up == "Select comments on up to 6 screens.")
     }
 }

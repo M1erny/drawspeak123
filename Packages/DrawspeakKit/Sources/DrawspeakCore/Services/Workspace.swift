@@ -10,6 +10,9 @@ public final class Workspace {
     public var currentCanvasId: UUID?
     /// The note whose inspector is open, if any.
     public var focusedNoteId: UUID?
+    /// Comments picked in Select mode, shared by the Comments list and the canvas pins;
+    /// nil when not selecting. Cleared when the canvas changes.
+    public var commentSelection: Set<UUID>?
     /// The single active recording, captured with its owner at start.
     public private(set) var activeRecording: RecordingScope?
     public private(set) var lastSaveError: String?
@@ -39,6 +42,10 @@ public final class Workspace {
     @ObservationIgnored public var refinerModelId: String?
     /// Read when a transcript becomes final; manual `refine(noteId:)` ignores it.
     @ObservationIgnored public var refineEnabled: () -> Bool = { true }
+    /// Pull: a newer iteration of a proposal already on the canvas is added as its own column next
+    /// to the earlier one (true), or replaces it in the same column, the earlier ones staying in the
+    /// version menu (false).
+    @ObservationIgnored public var pullFollowUpsAdditive: () -> Bool = { true }
     /// Renders the marked region (with some context and the mark) as PNG for the refiner.
     @ObservationIgnored public var regionImage: (@MainActor (Note, Snapshot) async -> Data?)?
     /// The active recording stops after this long without speech.
@@ -275,6 +282,7 @@ public final class Workspace {
         guard id != currentCanvasId else { return }
         if activeRecording != nil { stopRecording() }
         focusedNoteId = nil
+        commentSelection = nil
         currentCanvasId = id
         document.lastCanvasId = id
         scheduleSave()
@@ -293,6 +301,7 @@ public final class Workspace {
     }
 
     public func deleteCanvas(_ id: UUID) {
+        commentSelection = nil
         if activeRecording?.canvasId == id {
             activeRecording = nil
             voice?.discard()
@@ -406,7 +415,8 @@ public final class Workspace {
         capturedAt: Date?,
         captureImage: (data: Data, contentType: String)?,
         renderPolicy: RenderPolicy?,
-        promoteBaseline: Bool
+        promoteBaseline: Bool,
+        lane: String? = nil
     ) throws -> Snapshot {
         guard let canvas = canvas(canvasId) else { throw ImportError.noCanvas }
         let resolvedViewport = viewport ?? Viewport(width: pixelSize.width, height: pixelSize.height, deviceScaleFactor: 1)
@@ -436,7 +446,10 @@ public final class Workspace {
             screenId = id
             role = .proposal
             proposalId = proposal
-            let previous = CanvasLayout.proposalIterations(in: canvas, screenId: id, proposalId: proposal)
+            // Iterations count across follow-up columns of the same proposal.
+            let previous = canvas.snapshots
+                .filter { $0.screenId == id && $0.role == .proposal && $0.proposalId == proposal }
+                .sorted { ($0.iteration, $0.capturedAt) < ($1.iteration, $1.capturedAt) }
             iteration = (previous.map(\.iteration).max() ?? 0) + 1
             if parent == nil { parent = previous.last?.id }
         }
@@ -461,7 +474,8 @@ public final class Workspace {
             changeSummary: changeSummary,
             addressedNoteIds: addressedNoteIds,
             origin: origin ?? .manualImport(fileName: fileName),
-            title: fileName
+            title: fileName,
+            lane: lane
         )
         if canvas.snapshots.contains(where: { $0.id == id }) { return canvas.snapshots.first { $0.id == id }! }
         mutateCanvas(canvasId) { canvas in
@@ -473,11 +487,20 @@ public final class Workspace {
                 canvas.baselineRevisions.append(BaselineRevision(screenId: screenId, snapshotId: id, promotedFromSnapshotId: nil, createdAt: timestamp))
                 canvas.laneSelections[LaneKey(screenId: screenId, proposalId: nil).description] = id
             case .proposal:
-                if let index = canvas.screens.firstIndex(where: { $0.id == screenId }), let proposalId,
-                   !canvas.screens[index].proposalOrder.contains(proposalId) {
-                    canvas.screens[index].proposalOrder.append(proposalId)
+                let laneId = lane ?? proposalId
+                if let index = canvas.screens.firstIndex(where: { $0.id == screenId }), let laneId,
+                   !canvas.screens[index].proposalOrder.contains(laneId) {
+                    // A follow-up column sits right after the last column of its own proposal.
+                    var order = canvas.screens[index].proposalOrder
+                    let base = CanvasLayout.baseProposalId(laneId)
+                    if lane != nil, let last = order.lastIndex(where: { CanvasLayout.baseProposalId($0) == base }) {
+                        order.insert(laneId, at: last + 1)
+                    } else {
+                        order.append(laneId)
+                    }
+                    canvas.screens[index].proposalOrder = order
                 }
-                canvas.laneSelections[LaneKey(screenId: screenId, proposalId: proposalId).description] = id
+                canvas.laneSelections[LaneKey(screenId: screenId, proposalId: laneId).description] = id
             }
         }
         return snapshot
@@ -576,6 +599,15 @@ public final class Workspace {
             }
         }
         return note.id
+    }
+
+    /// In Select mode, adds a comment to the selection or removes it. Returns false when not selecting.
+    @discardableResult
+    public func toggleCommentSelection(_ id: UUID) -> Bool {
+        guard var selection = commentSelection else { return false }
+        if selection.contains(id) { selection.remove(id) } else { selection.insert(id) }
+        commentSelection = selection
+        return true
     }
 
     public func note(_ id: UUID, canvasId: UUID? = nil) -> Note? {
@@ -1307,6 +1339,7 @@ public final class Workspace {
             items: package.items,
             isRepeat: package.isRepeat,
             state: .readyToSend,
+            part: package.part,
             directive: package.directive
         )
         mutateCanvas(canvasId) { canvas in
@@ -1351,6 +1384,7 @@ public final class Workspace {
                 projectId: projectId, projectTitle: projectTitle, title: title, clientRequestId: package.batchId,
                 previousThread: canvas.thread
             ),
+            part: package.part,
             directive: package.directive
         )
         mutateCanvas(canvasId) { canvas in
@@ -1360,6 +1394,71 @@ public final class Workspace {
         stagedAttachments[entry.id] = (FeedbackPackageBuilder.messageText(for: package), attachments)
         await deliver(batchId: entry.id, canvasId: canvasId)
         return self.canvas(canvasId)?.outbox.first { $0.id == entry.id }
+    }
+
+    /// Where a series that starts a new thread goes.
+    public struct NewThreadRequest: Hashable, Sendable {
+        public var projectId: String
+        public var projectTitle: String?
+        public var title: String
+
+        public init(projectId: String, projectTitle: String?, title: String) {
+            self.projectId = projectId
+            self.projectTitle = projectTitle
+            self.title = title
+        }
+    }
+
+    /// Sends the parts of one review (`FeedbackPackageSplitter.split`) in order, one
+    /// message each, and stops at the first part that is not Sent. Calling it again with
+    /// the same parts continues: Sent parts are skipped, a Failed or Ready to Send part is
+    /// delivered again, and a part that may have arrived (Delivery Unknown) stops the
+    /// series until it is reconciled.
+    ///
+    /// With `newThread`, the first part launches the thread and the others follow in it.
+    /// `render` builds one part's attachments once its recipient is final.
+    @discardableResult
+    public func sendSeries(
+        _ parts: [FeedbackPackage], canvasId: UUID, newThread: NewThreadRequest? = nil,
+        render: @MainActor (FeedbackPackage) async throws -> [OutgoingAttachment]
+    ) async throws -> [OutboxEntry] {
+        for (index, original) in parts.enumerated() {
+            var part = original
+            if index > 0, newThread != nil {
+                // Later parts go to the thread the first part created.
+                guard let first = canvas(canvasId)?.outbox.first(where: { $0.id == parts[0].batchId }),
+                      first.state == .sent, !first.thread.threadId.isEmpty else { break }
+                part.thread = first.thread
+            }
+            let entry: OutboxEntry?
+            if let existing = canvas(canvasId)?.outbox.first(where: { $0.id == part.batchId }) {
+                switch existing.state {
+                case .sent: continue
+                case .uploading, .sending, .deliveryUnknown: entry = existing
+                case .readyToSend, .failed:
+                    if !hasStagedPayload(batchId: part.batchId) {
+                        part.thread = existing.thread
+                        stagePayload(batchId: part.batchId, text: FeedbackPackageBuilder.messageText(for: part), attachments: try await render(part))
+                    }
+                    await deliver(batchId: part.batchId, canvasId: canvasId)
+                    entry = canvas(canvasId)?.outbox.first { $0.id == part.batchId }
+                }
+            } else {
+                let attachments = try await render(part)
+                if index == 0, let newThread {
+                    entry = await sendToNewThread(
+                        package: part, attachments: attachments, canvasId: canvasId,
+                        projectId: newThread.projectId, projectTitle: newThread.projectTitle, threadTitle: newThread.title
+                    )
+                } else {
+                    entry = await send(package: part, attachments: attachments, canvasId: canvasId)
+                }
+            }
+            guard entry?.state == .sent else { break }
+        }
+        let ids = parts.map(\.batchId)
+        let outbox = canvas(canvasId)?.outbox ?? []
+        return ids.compactMap { id in outbox.first { $0.id == id } }
     }
 
     /// True while an entry of this canvas is uploading or sending.
@@ -1797,6 +1896,14 @@ public final class Workspace {
                 ? .baseline(screenId: screenId)
                 : .proposal(screenId: screenId, proposalId: entry.proposalId ?? "a")
             let promote = canvas(canvasId).map { CanvasLayout.now(in: $0, screenId: screenId) == nil } ?? false
+            // Additive pulls keep the earlier iteration visible and give the follow-up its own column.
+            var lane: String?
+            if entry.role == .proposal, pullFollowUpsAdditive(), let proposalId = entry.proposalId,
+               canvas(canvasId)?.snapshots.contains(where: {
+                   $0.screenId == screenId && $0.role == .proposal && $0.proposalId == proposalId && $0.iteration < entry.iteration
+               }) == true {
+                lane = CanvasLayout.followUpLaneId(proposalId: proposalId, iteration: entry.iteration)
+            }
             do {
                 let isImage = entry.kind == .image
                 try storeArtifact(
@@ -1816,7 +1923,8 @@ public final class Workspace {
                     capturedAt: nil,
                     captureImage: capture,
                     renderPolicy: isImage ? nil : entry.renderPolicy,
-                    promoteBaseline: promote
+                    promoteBaseline: promote,
+                    lane: lane
                 )
                 mutateCanvas(canvasId) { canvas in
                     if let index = canvas.snapshots.firstIndex(where: { $0.id == entry.snapshotId }) {
