@@ -32,6 +32,7 @@ struct CanvasContent: View {
                 }
             }
             CanvasInputLayer(interaction: interaction)
+            CanvasScrollIndicators(camera: interaction.camera, contentBounds: presentation.layout?.contentBounds)
             ScreenOverlay(
                 bubbleInsets: bubbleInsets,
                 rows: presentation.layout?.rows ?? [],
