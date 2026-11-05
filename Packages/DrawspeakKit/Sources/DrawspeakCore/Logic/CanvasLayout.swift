@@ -36,18 +36,31 @@ public enum CanvasLayout {
 
     public static func proposalIterations(in canvas: ReviewCanvas, screenId: String, proposalId: String) -> [Snapshot] {
         canvas.snapshots
-            .filter { $0.screenId == screenId && $0.role == .proposal && $0.proposalId == proposalId }
+            .filter { $0.screenId == screenId && $0.role == .proposal && $0.laneId == proposalId }
             .sorted { ($0.iteration, $0.capturedAt) < ($1.iteration, $1.capturedAt) }
     }
 
+    /// The column id of a follow-up kept next to its earlier iteration: `a` → `a-2`.
+    public static func followUpLaneId(proposalId: String, iteration: Int) -> String { "\(proposalId)-\(iteration)" }
+
+    /// The proposal a column belongs to: `a-2` → `a`.
+    public static func baseProposalId(_ laneId: String) -> String {
+        guard let dash = laneId.lastIndex(of: "-"), Int(laneId[laneId.index(after: dash)...]) != nil else { return laneId }
+        return String(laneId[..<dash])
+    }
+
     public static func proposalIds(in canvas: ReviewCanvas, screen: Screen) -> [String] {
-        let present = Set(canvas.snapshots.filter { $0.screenId == screen.id && $0.role == .proposal }.compactMap(\.proposalId))
+        let present = Set(canvas.snapshots.filter { $0.screenId == screen.id && $0.role == .proposal }.compactMap(\.laneId))
         let ordered = screen.proposalOrder.filter(present.contains)
         let rest = present.subtracting(ordered).sorted()
         return ordered + rest
     }
 
     public static func proposalTitle(_ proposalId: String) -> String {
+        let base = baseProposalId(proposalId)
+        if base != proposalId, let iteration = proposalId.split(separator: "-").last {
+            return "\(proposalTitle(base)) · \(iteration)"
+        }
         let trimmed = proposalId.trimmingCharacters(in: .whitespaces)
         if trimmed.count <= 2 { return "Proposal \(trimmed.uppercased())" }
         return "Proposal \(trimmed)"

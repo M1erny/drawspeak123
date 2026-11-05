@@ -194,7 +194,7 @@ final class CanvasController {
     func showSource(_ noteId: UUID) {
         guard let canvas = workspace.currentCanvas, let note = canvas.notes.first(where: { $0.id == noteId }),
               let snapshot = canvas.snapshots.first(where: { $0.id == note.snapshotId }) else { return }
-        let lane = LaneKey(screenId: snapshot.screenId, proposalId: snapshot.role == .baseline ? nil : snapshot.proposalId)
+        let lane = LaneKey(screenId: snapshot.screenId, proposalId: snapshot.laneId)
         workspace.selectVersion(snapshot.id, lane: lane)
         workspace.focusedNoteId = noteId
         guard let updated = workspace.currentCanvas,

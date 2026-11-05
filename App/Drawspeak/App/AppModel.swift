@@ -118,6 +118,7 @@ final class AppModel {
         workspace.refiner = refiner
         workspace.refinerModelId = "claude-sonnet-5-5"
         workspace.refineEnabled = { UserDefaults.standard.bool(forKey: AppPreferences.refineWithClaude) }
+        workspace.pullFollowUpsAdditive = { UserDefaults.standard.bool(forKey: AppPreferences.pullFollowUpsAdditive) }
         workspace.regionImage = { [blobs = workspace.blobs] note, snapshot in
             await RegionCropper.png(for: note, snapshot: snapshot, blobs: blobs)
         }

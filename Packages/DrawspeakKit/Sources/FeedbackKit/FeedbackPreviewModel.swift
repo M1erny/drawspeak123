@@ -195,7 +195,12 @@ final class FeedbackPreviewModel {
         let screen = canvas.screens.first { $0.id == snapshot.screenId }?.title ?? String(localized: "Screen", bundle: .module)
         if snapshot.role == .baseline { return String(localized: "\(screen) · Now", bundle: .module) }
         let screenModel = canvas.screens.first { $0.id == snapshot.screenId }
-        let ids = screenModel.map { CanvasLayout.proposalIds(in: canvas, screen: $0) } ?? []
+        // Follow-up columns share their proposal's letter.
+        let ids = (screenModel.map { CanvasLayout.proposalIds(in: canvas, screen: $0) } ?? [])
+            .reduce(into: [String]()) { ids, lane in
+                let base = CanvasLayout.baseProposalId(lane)
+                if !ids.contains(base) { ids.append(base) }
+            }
         let index = ids.firstIndex(of: snapshot.proposalId ?? "") ?? 0
         let letter = index < 26 ? String(UnicodeScalar(65 + index)!) : String(index + 1)
         let proposal = String(localized: "Proposal \(letter)", bundle: .module)

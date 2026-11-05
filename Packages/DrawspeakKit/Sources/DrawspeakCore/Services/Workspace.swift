@@ -42,6 +42,10 @@ public final class Workspace {
     @ObservationIgnored public var refinerModelId: String?
     /// Read when a transcript becomes final; manual `refine(noteId:)` ignores it.
     @ObservationIgnored public var refineEnabled: () -> Bool = { true }
+    /// Pull: a newer iteration of a proposal already on the canvas is added as its own column next
+    /// to the earlier one (true), or replaces it in the same column, the earlier ones staying in the
+    /// version menu (false).
+    @ObservationIgnored public var pullFollowUpsAdditive: () -> Bool = { true }
     /// Renders the marked region (with some context and the mark) as PNG for the refiner.
     @ObservationIgnored public var regionImage: (@MainActor (Note, Snapshot) async -> Data?)?
     /// The active recording stops after this long without speech.
@@ -411,7 +415,8 @@ public final class Workspace {
         capturedAt: Date?,
         captureImage: (data: Data, contentType: String)?,
         renderPolicy: RenderPolicy?,
-        promoteBaseline: Bool
+        promoteBaseline: Bool,
+        lane: String? = nil
     ) throws -> Snapshot {
         guard let canvas = canvas(canvasId) else { throw ImportError.noCanvas }
         let resolvedViewport = viewport ?? Viewport(width: pixelSize.width, height: pixelSize.height, deviceScaleFactor: 1)
@@ -466,7 +471,8 @@ public final class Workspace {
             changeSummary: changeSummary,
             addressedNoteIds: addressedNoteIds,
             origin: origin ?? .manualImport(fileName: fileName),
-            title: fileName
+            title: fileName,
+            lane: lane
         )
         if canvas.snapshots.contains(where: { $0.id == id }) { return canvas.snapshots.first { $0.id == id }! }
         mutateCanvas(canvasId) { canvas in
@@ -478,11 +484,20 @@ public final class Workspace {
                 canvas.baselineRevisions.append(BaselineRevision(screenId: screenId, snapshotId: id, promotedFromSnapshotId: nil, createdAt: timestamp))
                 canvas.laneSelections[LaneKey(screenId: screenId, proposalId: nil).description] = id
             case .proposal:
-                if let index = canvas.screens.firstIndex(where: { $0.id == screenId }), let proposalId,
-                   !canvas.screens[index].proposalOrder.contains(proposalId) {
-                    canvas.screens[index].proposalOrder.append(proposalId)
+                let laneId = lane ?? proposalId
+                if let index = canvas.screens.firstIndex(where: { $0.id == screenId }), let laneId,
+                   !canvas.screens[index].proposalOrder.contains(laneId) {
+                    // A follow-up column sits right after the last column of its own proposal.
+                    var order = canvas.screens[index].proposalOrder
+                    let base = CanvasLayout.baseProposalId(laneId)
+                    if lane != nil, let last = order.lastIndex(where: { CanvasLayout.baseProposalId($0) == base }) {
+                        order.insert(laneId, at: last + 1)
+                    } else {
+                        order.append(laneId)
+                    }
+                    canvas.screens[index].proposalOrder = order
                 }
-                canvas.laneSelections[LaneKey(screenId: screenId, proposalId: proposalId).description] = id
+                canvas.laneSelections[LaneKey(screenId: screenId, proposalId: laneId).description] = id
             }
         }
         return snapshot
@@ -1876,6 +1891,14 @@ public final class Workspace {
                 ? .baseline(screenId: screenId)
                 : .proposal(screenId: screenId, proposalId: entry.proposalId ?? "a")
             let promote = canvas(canvasId).map { CanvasLayout.now(in: $0, screenId: screenId) == nil } ?? false
+            // Additive pulls keep the earlier iteration visible and give the follow-up its own column.
+            var lane: String?
+            if entry.role == .proposal, pullFollowUpsAdditive(), let proposalId = entry.proposalId,
+               canvas(canvasId)?.snapshots.contains(where: {
+                   $0.screenId == screenId && $0.role == .proposal && $0.proposalId == proposalId && $0.iteration < entry.iteration
+               }) == true {
+                lane = CanvasLayout.followUpLaneId(proposalId: proposalId, iteration: entry.iteration)
+            }
             do {
                 let isImage = entry.kind == .image
                 try storeArtifact(
@@ -1895,7 +1918,8 @@ public final class Workspace {
                     capturedAt: nil,
                     captureImage: capture,
                     renderPolicy: isImage ? nil : entry.renderPolicy,
-                    promoteBaseline: promote
+                    promoteBaseline: promote,
+                    lane: lane
                 )
                 mutateCanvas(canvasId) { canvas in
                     if let index = canvas.snapshots.firstIndex(where: { $0.id == entry.snapshotId }) {

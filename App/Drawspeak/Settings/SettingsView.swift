@@ -8,6 +8,7 @@ struct SettingsView: View {
     @AppStorage(AppPreferences.drawWithFinger) private var drawWithFinger = false
     @AppStorage(AppPreferences.transcriptionLanguage) private var language = TranscriptionLanguage.automatic.rawValue
     @AppStorage(AppPreferences.refineWithClaude) private var refineWithClaude = true
+    @AppStorage(AppPreferences.pullFollowUpsAdditive) private var pullFollowUpsAdditive = true
     @State private var path: [SettingsRoute] = []
 
     var body: some View {
@@ -26,6 +27,16 @@ struct SettingsView: View {
                     Text("Voice")
                 } footer: {
                     Text("Audio goes to ElevenLabs; refining sends the marked area and its text to Anthropic.")
+                }
+
+                Section {
+                    Toggle("Keep Earlier Versions Visible", isOn: $pullFollowUpsAdditive)
+                } header: {
+                    Text("Pulled Versions")
+                } footer: {
+                    Text(pullFollowUpsAdditive
+                         ? "A newer version of a proposal is added as its own column next to the earlier one."
+                         : "A newer version of a proposal replaces the earlier one in the same column. Earlier versions stay in its version menu.")
                 }
 
                 MarksSettingsSection()
