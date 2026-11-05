@@ -37,4 +37,19 @@ struct DraftResumeTests {
         #expect(resumed.copiedCount == 1)
         #expect(!resumed.noteIds.contains(id))
     }
+
+    @Test func draftKeepsTheAgentDirectiveAndResumeHandsItOverOnce() throws {
+        let ws = makeWorkspace()
+        try addImage(ws, id: "s1")
+        let id = addTextNote(ws, snapshotId: "s1", text: "draft")
+        let canvasId = try #require(ws.currentCanvasId)
+        let directive = AgentDirective(mode: .replyOnly, variantCount: 3, note: "only answer")
+        let draft = try #require(ws.saveDraft(noteIds: [id], canvasId: canvasId, directive: directive))
+        #expect(draft.directive == directive)
+        let back = try JSONDecoder().decode(SavedDraft.self, from: JSONEncoder().encode(draft))
+        #expect(back.directive == directive)
+
+        _ = ws.resumeDraft(draft.id, canvasId: canvasId)
+        #expect(ws.resumedDirective == directive)
+    }
 }

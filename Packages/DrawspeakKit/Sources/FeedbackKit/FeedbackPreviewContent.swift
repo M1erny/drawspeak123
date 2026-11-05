@@ -10,7 +10,7 @@ struct FeedbackPreviewContent: View {
         ZStack {
             if let saved = model.savedCount {
                 ContentUnavailableView {
-                    Label { Text("Saved as Draft", bundle: .module) } icon: { Image(systemName: "doc.badge.checkmark") }
+                    Label { Text("Saved as Draft", bundle: .module) } icon: { Image(systemName: "doc.badge.checkmark").accessibilityHidden(true) }
                 } description: {
                     Text("^[\(saved) comment](inflect: true) saved on this iPad. Find them in Drafts and Sent.", bundle: .module)
                 }

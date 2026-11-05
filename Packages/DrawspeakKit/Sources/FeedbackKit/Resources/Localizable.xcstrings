@@ -834,6 +834,17 @@
         }
       }
     },
+    "Adds the next version to the proposals you commented on. Comments on Now become one new proposal.": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Adds the next version to the proposals you commented on. Comments on Now become one new proposal."
+          }
+        }
+      }
+    },
     "Comments on Now become one new proposal.": {
       "extractionState": "manual",
       "localizations": {

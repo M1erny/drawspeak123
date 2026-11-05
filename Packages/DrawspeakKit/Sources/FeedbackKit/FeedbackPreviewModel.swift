@@ -32,6 +32,7 @@ final class FeedbackPreviewModel {
         set { modeOverride = newValue; rebuild() }
     }
     var hasProposalComments: Bool { package?.groups.contains(where: \.isProposal) ?? false }
+    var hasNowComments: Bool { package?.groups.contains { !$0.isProposal } ?? false }
     private(set) var projects: [ProjectSummary] = []
     private(set) var loadingProjects = false
     private(set) var projectsError: String?
@@ -224,6 +225,12 @@ final class FeedbackPreviewModel {
         let ids = Set(scope.ready.map(\.id) + scope.unavailable.map { $0.note.id }).union(initialSelection ?? [])
         candidates = canvas.notes.filter { ids.contains($0.id) }.sorted { $0.ordinal < $1.ordinal }
         selection = (initialSelection ?? ids).intersection(Set(candidates.map(\.id)))
+        if let resumed = workspace.resumedDirective {
+            workspace.resumedDirective = nil
+            variantCount = resumed.variantCount
+            directiveNote = resumed.note
+            directiveMode = resumed.mode
+        }
         refresh()
     }
     func addNew() {
@@ -286,7 +293,7 @@ final class FeedbackPreviewModel {
         }
         busy = true
         defer { busy = false }
-        if let draft = workspace.saveDraft(noteIds: selection, canvasId: canvasId) {
+        if let draft = workspace.saveDraft(noteIds: selection, canvasId: canvasId, directive: AgentDirective(mode: directiveMode, variantCount: variantCount, note: directiveNote)) {
             await workspace.saveNow()
             if let failure = workspace.lastSaveError { error = failure } else { savedCount = draft.items.count }
         } else { error = String(localized: "Couldn't save draft.", bundle: .module) }

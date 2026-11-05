@@ -9,7 +9,7 @@ nonisolated public enum T3FileError: Error, Sendable, Equatable, LocalizedError 
         switch self {
         case .notPaired: String(localized: "Pair with T3 Code again so Drawspeak can download files the agent saved on the Mac.", bundle: .module)
         case .unauthorized: String(localized: "T3 Code no longer accepts Drawspeak's file access. Pair again.", bundle: .module)
-        case .outsideWorkspace: String(localized: "The file is outside the thread's workspace.", bundle: .module)
+        case .outsideWorkspace: String(localized: "The file is outside the thread's project folder. Ask the agent to save it inside the project, then pull again.", bundle: .module)
         case .notFound: String(localized: "The file does not exist on the Mac.", bundle: .module)
         case .typeNotAllowed: String(localized: "T3 Code does not serve this file type.", bundle: .module)
         case .tooLarge: String(localized: "The file exceeds the 10 MiB limit.", bundle: .module)
