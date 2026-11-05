@@ -26,7 +26,7 @@ npm run demo
 
 `npm run login` signs Claude Code in on the command line, once: the copy inside the desktop app has none of its own. Everything but Send to Agent works without it.
 
-Open `http://localhost:5190/demo/`: a small three.js room, named by nothing but its scene graph. Or on Swing Shop Web: start the game as usual (`npm run fake-gateway`, `npm run dev:server`, `npm run dev` in `../../swing-shop-web`) and open it with `?draw`:
+Open `http://localhost:5190/demo/`: a small three.js room, named by nothing but its scene graph. Or on Swing Shop Web: `npm run draw` in `../../swing-shop-web` starts the game and this hub together. Then open it with `?draw`:
 
 ```
 http://localhost:5180/?draw
