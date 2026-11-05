@@ -27,6 +27,10 @@ export interface RunState {
   error?: string;
   /** The notes this run was sent for. */
   noteIds?: string[];
+  /** What it was asked, in a few words. */
+  about?: string;
+  /** Files another agent changed too, while both were at work. */
+  shared?: string[];
 }
 
 export class HubClient {
@@ -72,18 +76,19 @@ export class HubClient {
     return this.post<RunState>(`/batches/${encodeURIComponent(batchId)}/send`, options);
   }
 
-  stop() {
-    return this.post<{ stopped: boolean }>("/stop", {});
+  /** Stops one agent. */
+  stop(runId: string) {
+    return this.post<{ stopped: boolean }>("/stop", { runId });
   }
 
-  /** Run updates as they happen; keeps trying. Returns the way to stop listening. */
-  listen(onRun: (run: RunState | null) => void): () => void {
+  /** The runs, as they change; keeps trying. Returns the way to stop listening. */
+  listen(onRuns: (runs: RunState[]) => void): () => void {
     let source: EventSource | undefined;
     let closed = false;
     const connect = () => {
       if (closed) return;
       source = new EventSource(this.path("/events"));
-      source.addEventListener("run", (e) => onRun(JSON.parse((e as MessageEvent).data) as RunState | null));
+      source.addEventListener("runs", (e) => onRuns(JSON.parse((e as MessageEvent).data) as RunState[]));
       source.onerror = () => {
         source?.close();
         setTimeout(connect, 5000);

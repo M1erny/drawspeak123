@@ -529,7 +529,7 @@ export class Sheet {
     }
     const trouble = hub && (hub.agent.problem ?? (hub.agent.available ? undefined : `${hub.agent.label} was not found.`));
     const to = hub
-      ? h("div", { class: "ds3d-to" }, h("span", { class: `ds3d-dot ${trouble ? "off" : ""}` }), trouble ? `${trouble} Save Draft and Copy prompt still work.` : `To: ${hub.agent.label} in ${hub.folder}`)
+      ? h("div", { class: "ds3d-to" }, h("span", { class: `ds3d-dot ${trouble ? "off" : ""}` }), trouble ? `${trouble} Save Draft and Copy prompt still work.` : `To: ${hub.agent.label} in ${hub.folder}${this.tool.agentsWorking > 0 ? ` · ${this.tool.agentsWorking} already at work, this one joins ${this.tool.agentsWorking === 1 ? "it" : "them"}` : ""}`)
       : h("div", { class: "ds3d-to" }, h("span", { class: "ds3d-dot off" }), "The hub is not running: start it with npm run hub (in drawspeak123/3d)");
     this.scrim.replaceChildren(
       h(
@@ -668,71 +668,110 @@ export class Sheet {
 
 // ------------------------------------------------------------------------------- the agent at work
 
-const NOT_SHOWN = "ds3d.run.dismissed";
+const NOT_SHOWN = "ds3d.runs.dismissed";
+const MOST_CARDS = 4;
 
-export class RunCard {
+const elapsed = (run: RunState): string => {
+  const seconds = Math.max(0, Math.floor((Date.now() - Date.parse(run.startedAt)) / 1000));
+  return `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, "0")}`;
+};
+const lastLine = (run: RunState) => run.activity[run.activity.length - 1] ?? "Reading your comments…";
+
+/** A card for each agent at work and each that just finished, over the world. */
+export class RunCards {
   private readonly tool: Drawspeak3D;
   private readonly el: HTMLElement;
-  private run: RunState | null = null;
-  private clock?: HTMLElement;
-  private seenWorking?: string;
+  private runs: RunState[] = [];
+  private readonly seenWorking = new Set<string>();
+  /** Kept between updates: a press on a button that gets rebuilt half way is lost. */
+  private readonly cards = new Map<string, { status: RunState["status"]; el: HTMLElement; line?: HTMLElement; clock?: HTMLElement; run: RunState }>();
 
   constructor(tool: Drawspeak3D) {
     this.tool = tool;
-    this.el = h("div", { class: "ds3d-run ds3d-glass" });
+    this.el = h("div", { class: "ds3d-runs" });
     this.el.style.display = "none";
     tool.root.append(this.el);
   }
 
-  update(run: RunState | null) {
-    this.run = run;
+  get working(): number {
+    return this.runs.filter((run) => run.status === "running").length;
+  }
+
+  update(runs: RunState[]) {
+    this.runs = runs;
     this.render();
   }
 
   /** A run seen working here, or just finished (an agent's edit reloads the page): an old one is no news. */
   private isNews(run: RunState): boolean {
-    if (run.status === "running") {
-      this.seenWorking = run.id;
-      return true;
-    }
-    if (this.seenWorking === run.id) return true;
-    return Date.now() - Date.parse(run.endedAt ?? run.startedAt) < 180_000;
+    return this.seenWorking.has(run.id) || Date.now() - Date.parse(run.endedAt ?? run.startedAt) < 180_000;
   }
 
-  private dismiss() {
-    if (this.run) {
-      try {
-        localStorage.setItem(NOT_SHOWN, this.run.id);
-      } catch {
-        // it shows again after a reload, no harm
-      }
+  private dismissed(): string[] {
+    try {
+      return JSON.parse(localStorage.getItem(NOT_SHOWN) ?? "[]") as string[];
+    } catch {
+      return [];
     }
-    this.el.style.display = "none";
+  }
+
+  private dismiss(run: RunState) {
+    try {
+      localStorage.setItem(NOT_SHOWN, JSON.stringify([...this.dismissed(), run.id].slice(-24)));
+    } catch {
+      // it shows again after a reload, no harm
+    }
+    this.seenWorking.delete(run.id);
+    this.runs = this.runs.filter((other) => other !== run);
+    this.render();
   }
 
   private render() {
-    const run = this.run;
-    this.clock = undefined;
-    if (!run || !this.isNews(run) || (run.status !== "running" && localStorage.getItem(NOT_SHOWN) === run.id)) {
-      this.el.style.display = "none";
-      return;
+    const gone = this.dismissed();
+    const atWork = this.runs.filter((run) => run.status === "running");
+    for (const run of atWork) this.seenWorking.add(run.id);
+    const finished = this.runs.filter((run) => run.status !== "running" && !gone.includes(run.id) && this.isNews(run)).reverse();
+    const shown = [...atWork, ...finished].slice(0, MOST_CARDS);
+    for (const id of this.cards.keys()) if (!shown.some((run) => run.id === id)) this.cards.delete(id);
+    const wanted = shown.map((run) => this.card(run));
+    const current = [...this.el.children];
+    if (wanted.length !== current.length || wanted.some((card, i) => card !== current[i])) this.el.replaceChildren(...wanted);
+    this.el.style.display = shown.length > 0 ? "" : "none";
+  }
+
+  private card(run: RunState): HTMLElement {
+    const known = this.cards.get(run.id);
+    // A finished agent's card can still learn that a later one changed the same file.
+    if (known?.status === run.status && known.run.shared?.length === run.shared?.length) {
+      known.run = run;
+      if (known.line && known.line.textContent !== lastLine(run)) known.line.textContent = lastLine(run);
+      return known.el;
     }
-    this.el.style.display = "";
-    if (run.status === "running") {
-      this.clock = h("span", { class: "ds3d-time" }, this.elapsed(run));
-      this.el.replaceChildren(
-        h(
-          "div",
-          { class: "ds3d-run-head" },
-          h("span", { class: "ds3d-spin" }),
-          h("span", { class: "ds3d-run-title" }, `${run.agent} is working`),
-          this.clock,
-          button(ICON.stop, undefined, () => void this.tool.hub.stop(), { class: "ds3d-small ds3d-danger", title: "Stop the agent" }),
-        ),
-        h("div", { class: "ds3d-run-line" }, run.activity[run.activity.length - 1] ?? "Reading your comments…"),
-      );
-      return;
-    }
+    const made = run.status === "running" ? this.workingCard(run) : this.finishedCard(run);
+    this.cards.set(run.id, { status: run.status, run, ...made });
+    return made.el;
+  }
+
+  private workingCard(run: RunState) {
+    const clock = h("span", { class: "ds3d-time" }, elapsed(run));
+    const line = h("div", { class: "ds3d-run-line" }, lastLine(run));
+    const el = h(
+      "div",
+      { class: "ds3d-run ds3d-glass" },
+      h(
+        "div",
+        { class: "ds3d-run-head" },
+        h("span", { class: "ds3d-spin" }),
+        h("span", { class: "ds3d-run-title", title: run.about ?? "" }, run.about ? `Working on: ${run.about}` : `${run.agent} is working`),
+        clock,
+        button(ICON.stop, undefined, () => void this.tool.hub.stop(run.id), { class: "ds3d-small ds3d-danger", title: "Stop this agent" }),
+      ),
+      line,
+    );
+    return { el, line, clock };
+  }
+
+  private finishedCard(run: RunState) {
     const ok = run.status === "done";
     const files = run.changed ?? [];
     const title = ok ? (files.length > 0 ? `Done: ${files.length} file${files.length === 1 ? "" : "s"} changed` : "Done") : run.status === "stopped" ? "Stopped" : "The agent could not finish";
@@ -742,23 +781,21 @@ export class RunCard {
         { class: "ds3d-run-head" },
         iconSpan(ok ? ICON.check : ICON.close, ok ? "ds3d-run-ok" : "ds3d-run-bad"),
         h("span", { class: "ds3d-run-title" }, title),
-        button(ICON.close, undefined, () => this.dismiss(), { class: "ds3d-small", title: "Close" }),
+        button(ICON.close, undefined, () => this.dismiss(run), { class: "ds3d-small", title: "Close" }),
       ),
     ];
+    if (run.about) parts.push(h("div", { class: "ds3d-run-line" }, run.about));
     if (run.reply || run.error) parts.push(h("div", { class: "ds3d-run-reply" }, run.reply ?? run.error ?? ""));
     if (files.length > 0) parts.push(h("div", { class: "ds3d-run-files" }, files.join(" · ")));
-    this.el.replaceChildren(...parts);
-  }
-
-  private elapsed(run: RunState): string {
-    const seconds = Math.max(0, Math.floor((Date.now() - Date.parse(run.startedAt)) / 1000));
-    return `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, "0")}`;
+    if (run.shared?.length) parts.push(h("div", { class: "ds3d-run-shared" }, `Another agent changed this too, worth a look: ${run.shared.join(", ")}`));
+    return { el: h("div", { class: "ds3d-run ds3d-glass" }, ...parts) };
   }
 
   tick() {
-    if (this.clock && this.run) {
-      const text = this.elapsed(this.run);
-      if (this.clock.textContent !== text) this.clock.textContent = text;
+    for (const { clock, run } of this.cards.values()) {
+      if (!clock) continue;
+      const text = elapsed(run);
+      if (clock.textContent !== text) clock.textContent = text;
     }
   }
 }

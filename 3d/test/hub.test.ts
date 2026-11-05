@@ -1,9 +1,10 @@
-import { mkdtempSync, readFileSync, rmSync } from "node:fs";
+import { execFileSync } from "node:child_process";
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { ClaudeStream, LOOK, childEnvironment, claudeArgs, describeToolUse, startOptions } from "../hub/agents.ts";
-import type { Project } from "../hub/data.ts";
+import { gitChanged, type Project } from "../hub/data.ts";
 import { startHub, type Hub } from "../hub/hub.ts";
 
 process.env.DRAWSPEAK_AGENT = "fake";
@@ -20,14 +21,16 @@ const batch = (batchId: string, extra: object = {}) => ({ batchId, message: "1. 
 const post = (path: string, body: unknown, headers: Record<string, string> = { origin: PAGE }) =>
   fetch(`${base}${path}`, { method: "POST", headers: { "content-type": "application/json", ...headers }, body: JSON.stringify(body) });
 
+const listRuns = async () => (await fetch(`${base}/v1/projects/shop/runs`)).json();
+
 async function runDone(id: string) {
   for (let i = 0; i < 100; i++) {
     const response = await fetch(`${base}/v1/projects/${id}/events`);
     const reader = response.body!.getReader();
     const { value } = await reader.read();
     await reader.cancel();
-    const data = JSON.parse(/data: (.*)/.exec(new TextDecoder().decode(value))![1]);
-    if (data && data.status !== "running") return data;
+    const list = JSON.parse(/data: (.*)/.exec(new TextDecoder().decode(value))![1]) as Array<{ status: string }>;
+    if (list.length > 0 && list.every((run) => run.status !== "running")) return list[list.length - 1] as Record<string, any>;
     await new Promise((r) => setTimeout(r, 25));
   }
   throw new Error("the run did not finish");
@@ -124,18 +127,81 @@ describe("the agent", () => {
     expect(hub.inbox.thread("shop")).toBe("fake-session");
     expect(readFileSync(join(hub.inbox.folderOf("shop", "r1"), "reply.md"), "utf8")).toContain("Stand-in");
   });
-  it("one run at a time", async () => {
+  it("the same comments twice are refused", async () => {
     await post("/v1/projects/shop/batches", batch("r2"));
     await post("/v1/projects/shop/batches/r2/send", {});
     const second = await post("/v1/projects/shop/batches/r2/send", {});
     expect(second.status).toBe(409);
     await runDone("shop");
   });
+  it("several agents work side by side, up to three", async () => {
+    process.env.DRAWSPEAK_FAKE_MS = "250";
+    const said = (text: string) => ({ snapshots: [{ notes: [{ text }] }], directive: { mode: "apply", note: "" } });
+    for (const [id, text] of [["s1", "Put a bench here"], ["s2", "Add a plant there"], ["s3", "Move the desk"], ["s4", "One too many"]]) {
+      await post("/v1/projects/shop/batches", { ...batch(id), manifest: said(text) });
+    }
+    const first = await (await post("/v1/projects/shop/batches/s1/send", {})).json();
+    expect(first.status).toBe("running");
+    expect(first.about).toBe("Put a bench here");
+    const second = await post("/v1/projects/shop/batches/s2/send", {});
+    expect(second.status).toBe(200);
+    const third = await post("/v1/projects/shop/batches/s3/send", {});
+    expect(third.status).toBe(200);
+    const fourth = await post("/v1/projects/shop/batches/s4/send", {});
+    expect(fourth.status).toBe(409);
+    expect((await fourth.json()).error).toContain("3 agents");
+
+    await runDone("shop");
+    const list = await listRuns();
+    const run = (batchId: string) => list.find((r: { batchId: string }) => r.batchId === batchId);
+    // The first carries the conversation on; the others cannot, and know who else is at work.
+    expect(run("s1").reply).toContain("Carried on");
+    expect(run("s2").reply).not.toContain("Carried on");
+    expect(run("s2").reply).toContain("Knows about the others");
+    expect(run("s3").reply).toContain("Knows about the others");
+    // All three changed the same file, and each card says so.
+    for (const id of ["s1", "s2", "s3"]) {
+      expect(run(id).status).toBe("done");
+      expect(run(id).changed).toEqual(["client/world/products.ts"]);
+      expect(run(id).shared).toEqual(["client/world/products.ts"]);
+    }
+  });
+  it("one agent can be stopped while the other goes on", async () => {
+    await post("/v1/projects/shop/batches", batch("t1"));
+    await post("/v1/projects/shop/batches", batch("t2"));
+    const one = await (await post("/v1/projects/shop/batches/t1/send", {})).json();
+    await post("/v1/projects/shop/batches/t2/send", {});
+    expect(await (await post("/v1/projects/shop/stop", { runId: one.id })).json()).toEqual({ stopped: true });
+    await runDone("shop");
+    const list = await listRuns();
+    expect(list.find((r: { batchId: string }) => r.batchId === "t1").status).toBe("stopped");
+    expect(list.find((r: { batchId: string }) => r.batchId === "t2").status).toBe("done");
+    process.env.DRAWSPEAK_FAKE_MS = "20";
+  });
+  it("working alone, it isn't told about others, and nothing is called shared", async () => {
+    await post("/v1/projects/shop/batches", batch("u1"));
+    await post("/v1/projects/shop/batches/u1/send", {});
+    const done = await runDone("shop");
+    expect(done.reply).not.toContain("Knows about the others");
+    expect(done.shared).toBeUndefined();
+  });
   it("can be stopped", async () => {
     await post("/v1/projects/shop/batches", batch("r3"));
     await post("/v1/projects/shop/batches/r3/send", {});
     expect(await (await post("/v1/projects/shop/stop", {})).json()).toEqual({ stopped: true });
     expect((await runDone("shop")).status).toBe("stopped");
+  });
+  it("changed files are named from the project's folder, as the agent names them", () => {
+    const repo = mkdtempSync(join(tmpdir(), "ds3d-git-"));
+    const quiet = { stdio: "ignore", windowsHide: true } as const;
+    execFileSync("git", ["-C", repo, "init"], quiet);
+    mkdirSync(join(repo, "a"));
+    writeFileSync(join(repo, "a", "b.txt"), "b");
+    writeFileSync(join(repo, "c.txt"), "c");
+    execFileSync("git", ["-C", repo, "add", "."], quiet);
+    expect([...gitChanged(join(repo, "a"))].sort()).toEqual(["../c.txt", "b.txt"]);
+    expect([...gitChanged(repo)].sort()).toEqual(["a/b.txt", "c.txt"]);
+    rmSync(repo, { recursive: true, force: true });
   });
   it("Claude Code gets what it needs and no more", () => {
     expect(LOOK).toMatch(/\/hub\/look\.mjs$/);
@@ -148,6 +214,7 @@ describe("the agent", () => {
     expect(tools).toContain("Bash(npm test:*)");
     expect(edit).not.toContain("--dangerously-skip-permissions");
     expect(edit.join(" ")).toContain("Do not commit, push, publish, deploy");
+    expect(edit.join(" ")).toContain("Other agents may be working in this same folder");
     expect(edit).not.toContain("--resume");
     // It can look at what it did, and is told to.
     expect(tools).toMatch(/Bash\(node \S*\/hub\/look\.mjs:\*\)/);
@@ -159,6 +226,7 @@ describe("the agent", () => {
     expect(replyTools).not.toContain("Edit");
     expect(replyTools).not.toContain("Bash");
     expect(reply[reply.indexOf("--append-system-prompt") + 1]).not.toContain("look.mjs");
+    expect(reply[reply.indexOf("--append-system-prompt") + 1]).not.toContain("Other agents");
     expect(reply[reply.indexOf("--resume") + 1]).toBe("abc");
   });
   it("Claude Code's stream becomes activity, changed files and a reply", () => {

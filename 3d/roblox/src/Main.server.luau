@@ -14,6 +14,11 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RunService = game:GetService("RunService")
 local UserInputService = game:GetService("UserInputService")
 
+-- Only ever in Studio: a plugin is no part of the place, and players never get it. This makes sure of it.
+if not RunService:IsStudio() then
+	return
+end
+
 local Core = require(script.Core)
 local Scene = require(script.Scene)
 
@@ -1028,21 +1033,40 @@ local function watchRun()
 	end
 	running = true
 	task.spawn(function()
+		-- Several agents can be at work at once: this says what they do, and reports when all are done.
+		local watched: { [string]: boolean } = {}
 		while true do
-			local ok, run = request("GET", path("/run"))
-			if ok and run and run.status then
-				if run.status == "running" then
+			local ok, runs = request("GET", path("/runs"))
+			if ok and runs then
+				local working = {}
+				for _, run in runs do
+					if run.status == "running" then
+						table.insert(working, run)
+						watched[run.id] = true
+					end
+				end
+				if #working > 0 then
+					local run = working[#working]
 					local line = run.activity and run.activity[#run.activity] or "Reading your comments…"
-					say(run.agent .. " is working: " .. line, nil)
-				else
-					local changed = run.changed and #run.changed or 0
-					local reply = run.reply or run.error or ""
-					if run.status == "done" then
-						say("Done: " .. changed .. " file" .. (if changed == 1 then "" else "s") .. " changed. " .. reply .. "\nRebuild the place to see it (node tools/build-place.mjs).", 30)
-					elseif run.status == "stopped" then
+					say((if #working == 1 then run.agent .. " is working: " else #working .. " agents are working: ") .. line, nil)
+				elseif #runs > 0 then
+					local changed, agents, failed = 0, 0, nil
+					local reply = ""
+					local last = runs[#runs]
+					for _, run in runs do
+						if watched[run.id] or run == last then
+							agents += 1
+							changed += if run.changed then #run.changed else 0
+							reply = run.reply or reply
+							failed = if run.status == "failed" then (run.error or "") else failed
+						end
+					end
+					if failed then
+						say("The agent could not finish: " .. failed, 20)
+					elseif agents == 1 and last.status == "stopped" then
 						say("Stopped.", 5)
 					else
-						say("The agent could not finish: " .. reply, 20)
+						say("Done" .. (if agents > 1 then " (" .. agents .. " agents)" else "") .. ": " .. changed .. " file" .. (if changed == 1 then "" else "s") .. " changed. " .. reply .. "\nRebuild the place to see it (node tools/build-place.mjs).", 30)
 					end
 					statusLabel.TextWrapped = true
 					break
@@ -1148,9 +1172,12 @@ task.spawn(function()
 			if ok and found then
 				project = found.id
 				syncMarks()
-				local running_ok, run = request("GET", path("/run"))
-				if running_ok and run and run.status == "running" then
-					watchRun()
+				local runs_ok, runs = request("GET", path("/runs"))
+				for _, run in if runs_ok and runs then runs else {} do
+					if run.status == "running" then
+						watchRun()
+						break
+					end
 				end
 			else
 				say("Drawspeak: start the hub with npm run hub (in drawspeak123/3d).", 6)

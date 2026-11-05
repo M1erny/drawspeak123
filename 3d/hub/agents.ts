@@ -61,6 +61,7 @@ export function claudeArgs(job: Pick<AgentJob, "project" | "folder" | "mode" | "
     "You are receiving feedback from Drawspeak 3D: a person walked through a running 3D world, marked things and places on screen and said what should change.",
     "Look at the pictures in the batch folder with the Read tool before changing anything.",
     looks ? `After changing the world, see it as the reviewer will before you finish: run node ${LOOK} "<the view's Open this view link>" "${after}" (it can take a minute or more, and it prints any errors on the page), read that picture and compare it with the reviewer's. If something is not right (in the wrong place, floating or sunk into the floor, in the way, facing the wrong way, or the page broke), fix it and look again, twice at most.` : "",
+    editing ? "Other agents may be working in this same folder at the same time, on other comments from the same person, and every save reloads the running world. So read a file again right before you edit it, keep your edits small, and never rewrite a whole file that already exists. Leave changes you did not make alone, even if they look unfinished. If something breaks in code you did not touch, say so in your reply rather than fixing it." : "",
     "Do not commit, push, publish, deploy or restart anything.",
     "When you finish, reply in two or three plain sentences, in the language the comments are in: what you changed and anything they should check. It is shown in a small card over the game.",
     job.project.agentNote ?? "",
@@ -292,7 +293,7 @@ export const fakeAgent: Agent = {
         job.onActivity("Editing client/world/products.ts");
         job.onChangedFile("client/world/products.ts");
       }, delay * 2));
-      timers.push(setTimeout(() => resolve({ ok: true, reply: `Stand-in reply. I got ${(job.message.match(/^\d+\. \[/gm) ?? []).length} comment(s).`, sessionId: "fake-session" }), delay * 3));
+      timers.push(setTimeout(() => resolve({ ok: true, reply: `Stand-in reply. I got ${(job.message.match(/^\d+\. \[/gm) ?? []).length} comment(s).${job.resume ? " Carried on." : ""}${job.message.includes("Other agents are at work") ? " Knows about the others." : ""}`, sessionId: "fake-session" }), delay * 3));
     });
     return {
       done,

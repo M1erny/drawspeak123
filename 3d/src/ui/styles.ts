@@ -122,7 +122,9 @@ body.ds3d-armed canvas { cursor: crosshair !important; }
 .ds3d-check input { accent-color: ${ACTION}; }
 .ds3d-foot-buttons { display: flex; gap: 6px; }
 
-.ds3d-run { position: fixed; left: 50%; top: calc(12px + var(--ds3d-top, 0px)); transform: translateX(-50%); z-index: 2; width: min(470px, calc(100vw - 24px)); padding: 10px 10px 10px 14px; border-radius: 17px; display: flex; flex-direction: column; gap: 6px; animation: ds3d-rise 0.18s ease-out; }
+.ds3d-runs { position: fixed; left: 50%; top: calc(12px + var(--ds3d-top, 0px)); transform: translateX(-50%); z-index: 2; width: min(470px, calc(100vw - 24px)); max-height: calc(100vh - 150px - var(--ds3d-top, 0px)); overflow-y: auto; scrollbar-width: none; display: flex; flex-direction: column; gap: 6px; pointer-events: none; }
+.ds3d-run { flex: none; pointer-events: auto; padding: 10px 10px 10px 14px; border-radius: 17px; display: flex; flex-direction: column; gap: 6px; animation: ds3d-rise 0.18s ease-out; }
+.ds3d-run-shared { font-size: 12px; color: #ffd28a; }
 .ds3d-run-head { display: flex; align-items: center; gap: 9px; min-height: 32px; font-weight: 650; }
 .ds3d-run-title { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .ds3d-spin { width: 15px; height: 15px; border-radius: 50%; border: 2px solid rgba(255, 255, 255, 0.28); border-top-color: #fff; animation: ds3d-turn 0.8s linear infinite; flex: none; }

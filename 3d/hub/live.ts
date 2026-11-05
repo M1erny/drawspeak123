@@ -178,8 +178,8 @@ export class LiveMarks {
     }
     if (!project || parts[0] !== "v1" || parts[1] !== "projects") return false;
     const what = parts[3];
-    if (what === "run" && req.method === "GET") {
-      json(200, api.runOf(project.id) ?? null);
+    if (what === "runs" && req.method === "GET") {
+      json(200, api.runsOf(project.id));
       return true;
     }
     if (what !== "marks") return false;

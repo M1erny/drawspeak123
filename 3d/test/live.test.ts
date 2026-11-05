@@ -191,9 +191,9 @@ describe("marks from a Studio plugin", () => {
     expect(noPicture.notes[0].text).toBe("Bez obrazka");
 
     for (let i = 0; i < 100; i++) {
-      const run = await get("/run");
-      if (run?.status !== "running") {
-        expect(run.status).toBe("done");
+      const runs = await get("/runs");
+      if (runs.every((run: { status: string }) => run.status !== "running")) {
+        expect(runs[runs.length - 1].status).toBe("done");
         break;
       }
       await new Promise((r) => setTimeout(r, 20));

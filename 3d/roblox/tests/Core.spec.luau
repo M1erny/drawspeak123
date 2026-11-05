@@ -127,7 +127,7 @@ check("groups climb to what their members share", #common == 2 and common[1].key
 
 -- the bridge
 check("the bridge finds the project", Core.allowedOverBridge("GET", "/v1/roblox"))
-check("the bridge carries marks", Core.allowedOverBridge("POST", "/v1/projects/swing-shop/marks") and Core.allowedOverBridge("POST", "/v1/projects/swing-shop/marks/abc123") and Core.allowedOverBridge("GET", "/v1/projects/swing-shop/marks") and Core.allowedOverBridge("GET", "/v1/projects/swing-shop/run"))
+check("the bridge carries marks", Core.allowedOverBridge("POST", "/v1/projects/swing-shop/marks") and Core.allowedOverBridge("POST", "/v1/projects/swing-shop/marks/abc123") and Core.allowedOverBridge("GET", "/v1/projects/swing-shop/marks") and Core.allowedOverBridge("GET", "/v1/projects/swing-shop/runs"))
 check("the bridge never sends to the agent", not Core.allowedOverBridge("POST", "/v1/projects/swing-shop/marks/send"))
 check("the bridge carries no batches", not Core.allowedOverBridge("POST", "/v1/projects/swing-shop/batches") and not Core.allowedOverBridge("POST", "/v1/projects/swing-shop/batches/b1/send") and not Core.allowedOverBridge("POST", "/v1/projects/swing-shop/stop"))
 check("the bridge takes no strange paths", not Core.allowedOverBridge("POST", "/v1/projects/../marks") and not Core.allowedOverBridge("DELETE", "/v1/roblox") and not Core.allowedOverBridge(1, {}))

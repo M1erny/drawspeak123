@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { convexHull, enclosure, lowDiscrepancyOrder, pointInPolygon, samplePolygon, simplified } from "../src/core/geometry.ts";
+import { isThisComputer } from "../src/core/local.ts";
 import { buildPackage, displayNumbers, lookingAt, manifestOf, messageText, readiness } from "../src/core/package.ts";
 import { PressureDepthTracker, commonChain, current, groupChain, rank, selectDepth, selectLayer } from "../src/core/selection.ts";
 import { isClosedLoop, isCurling, isTap, isValidShape, kindLabel, linePoints, shapeFor } from "../src/core/stroke.ts";
@@ -93,6 +94,13 @@ describe("strokes: a circle, a line or a tap", () => {
     ];
     expect(shapes.map(kindLabel)).toEqual(["Loop", "Line", "Spot", "Thing", "View"]);
     expect(shapes.every(isValidShape)).toBe(true);
+  });
+});
+
+describe("who it runs for", () => {
+  it("only on pages served from this computer", () => {
+    for (const host of ["localhost", "LOCALHOST", "127.0.0.1", "127.0.1.1", "[::1]", "::1", "store.localhost"]) expect(isThisComputer(host)).toBe(true);
+    for (const host of ["swingshop.example", "192.168.1.20", "10.0.0.5", "", "localhost.evil.example", "127.0.0.1.evil.example", "notlocalhost"]) expect(isThisComputer(host)).toBe(false);
   });
 });
 

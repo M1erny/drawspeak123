@@ -107,7 +107,7 @@
     events?.close();
     // Only a page with the microphone on counts as a desk: the plugin then expects voice.
     events = new EventSource(`/v1/projects/${encodeURIComponent(project)}/events${micOn ? "?desk=1" : ""}`);
-    events.addEventListener("run", (e) => showRun(JSON.parse(e.data)));
+    events.addEventListener("runs", (e) => showRuns(JSON.parse(e.data)));
     events.addEventListener("voice", (e) => onVoice(JSON.parse(e.data)));
   }
 
@@ -154,15 +154,18 @@
     refresh();
   }
 
-  function showRun(run) {
+  function showRuns(runs) {
+    const working = runs.filter((r) => r.status === "running");
+    const run = working.at(-1) ?? runs.at(-1);
     $("runPanel").hidden = !run;
     if (!run) return;
-    const working = run.status === "running";
-    $("stopRun").hidden = !working;
-    $("runTitle").textContent = working ? `${run.agent} is working…` : run.status === "done" ? `Done${run.changed?.length ? `: ${run.changed.length} file${run.changed.length === 1 ? "" : "s"} changed` : ""}` : run.status === "stopped" ? "Stopped" : "The agent could not finish";
-    $("runLine").textContent = working ? (run.activity.at(-1) ?? "Reading your comments…") : (run.changed ?? []).join(" · ");
-    $("runReply").textContent = run.reply ?? run.error ?? "";
-    if (!working) refresh();
+    $("stopRun").hidden = working.length === 0;
+    $("stopRun").textContent = working.length > 1 ? "Stop all" : "Stop";
+    const finished = run.status === "done" ? `Done${run.changed?.length ? `: ${run.changed.length} file${run.changed.length === 1 ? "" : "s"} changed` : ""}` : run.status === "stopped" ? "Stopped" : "The agent could not finish";
+    $("runTitle").textContent = working.length > 1 ? `${working.length} agents are working…` : working.length === 1 ? `${run.agent} is working…` : finished;
+    $("runLine").textContent = working.length > 0 ? (run.activity.at(-1) ?? "Reading your comments…") : (run.changed ?? []).join(" · ");
+    $("runReply").textContent = working.length > 0 ? "" : (run.reply ?? run.error ?? "");
+    if (working.length === 0) refresh();
   }
 
   let lastKey = "";

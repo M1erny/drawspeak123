@@ -201,7 +201,7 @@ function Core.allowedOverBridge(method: any, path: any): boolean
 	end
 	if method == "GET" then
 		return path == "/v1/roblox"
-			or string.match(path, "^/v1/projects/[%w_-]+/run$") ~= nil
+			or string.match(path, "^/v1/projects/[%w_-]+/runs$") ~= nil
 			or string.match(path, "^/v1/projects/[%w_-]+/marks$") ~= nil
 			or string.match(path, "^/v1/projects/[%w_-]+/marks/%w+$") ~= nil
 	end

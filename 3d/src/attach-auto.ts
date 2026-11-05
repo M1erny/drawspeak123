@@ -1,4 +1,5 @@
 import type * as THREE from "three";
+import { isThisComputer } from "./core/local.ts";
 import { Drawspeak3D } from "./tool.ts";
 
 /**
@@ -32,7 +33,7 @@ export function attachTo(renderer: THREE.WebGLRenderer): Drawspeak3D {
 }
 
 const devtools = (window.__THREE_DEVTOOLS__ ??= new EventTarget());
-devtools.addEventListener("observe", (event) => {
+if (isThisComputer(location.hostname)) devtools.addEventListener("observe", (event) => {
   const object = (event as CustomEvent).detail as { isWebGLRenderer?: boolean; domElement?: HTMLCanvasElement } | undefined;
   // A page may make small renderers for thumbnails: the one that goes on screen is the one to draw on.
   if (object?.isWebGLRenderer !== true || window.__ds3d) return;

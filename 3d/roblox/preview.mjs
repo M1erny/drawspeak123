@@ -17,6 +17,42 @@ const source = (name) => readFileSync(join(here, "src", name), "utf8").replace(/
 const template = readFileSync(join(here, "tests", "plugin-scenario.template.luau"), "utf8");
 
 const endings = {
+  // Two agents at once: the status says so, and reports when both are done.
+  "plugin-agents": `
+Hub.notes[1].live = "Zrób to większe"
+ui.click("Stop")
+advance(0.5)
+ui.click("Done")
+advance(4)
+ui.click("Send (1)")
+advance(2)
+Hub.runs = {
+	{ id = "a", status = "running", agent = "Claude Code", activity = { "Editing a.luau" } },
+	{ id = "b", status = "running", agent = "Claude Code", activity = { "Editing b.luau" } },
+}
+advance(2)
+local status = gui:FindFirstChild("Status")
+step("two agents at work say so", string.find(status.Text, "2 agents are working", 1, true) ~= nil, status.Text)
+Hub.runs[1].status = "done"
+Hub.runs[1].changed = { "a.luau", "c.luau" }
+Hub.runs[1].reply = "Pierwszy gotowy."
+advance(2)
+step("one done, one still at work", string.find(status.Text, "Claude Code is working", 1, true) ~= nil, status.Text)
+Hub.runs[2].status = "done"
+Hub.runs[2].changed = { "b.luau" }
+Hub.runs[2].reply = "Drugi gotowy."
+advance(2)
+step("when both are done it says so, with all their files", string.find(status.Text, "2 agents", 1, true) ~= nil and string.find(status.Text, "3 files", 1, true) ~= nil, status.Text)
+preview.note("Plugin: two agents, both done")
+`,
+  // A plugin only runs in Studio; this makes sure that anywhere else it does nothing at all.
+  "plugin-outside-studio": `
+services.CoreGui:FindFirstChild("Drawspeak3D"):Destroy()
+inStudio = false
+runPlugin()
+advance(0.2)
+step("outside Studio the plugin does nothing at all", services.CoreGui:FindFirstChild("Drawspeak3D") == nil)
+`,
   // Anything in the world: a spot on the floor, a route, a move, a comment on the whole view.
   "plugin-world": `
 local function lastPost()

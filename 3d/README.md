@@ -24,7 +24,7 @@ npm run hub
 npm run demo
 ```
 
-`npm run login` signs Claude Code in on the command line, once: the copy inside the desktop app has none of its own. Everything but Send to Agent works without it.
+`npm run login` signs Claude Code in on the command line, once, with your own Claude account: the copy inside the desktop app has none of its own. No API key is needed. Everything but Send to Agent works without it.
 
 Open `http://localhost:5190/demo/`: a small three.js room, named by nothing but its scene graph. Or on Swing Shop Web: `npm run draw` in `../../swing-shop-web` starts the game and this hub together. Then open it with `?draw`:
 
@@ -77,6 +77,21 @@ An app's adapter can add how things get built there (`world.notes`, which goes i
 Then the agent can look at what it did: `node hub/look.mjs "<view link>" picture.png` opens that exact view of the running page in a silent headless browser and saves it, without the tool's marks, and prints any errors on the page. It's told to compare that with your picture and fix what's off, twice at most. Only pages on this computer can be opened. In Roblox, the agent uses swing-shop's `tools/store-preview.mjs` for the same thing.
 
 To try an agent by hand, `demo/batch.mjs` plays a set of requests like these in the demo room and saves them as a draft.
+
+## Several agents at once
+
+You don't have to wait. Press Send, keep walking, mark another part of the world and press Send again: up to three agents work on a project at the same time, each with its own card and its own Stop. They all work in the same folder, so what each one does shows up in the running world straight away.
+
+Each is told that others may be at work (and on what, if they already are), to read a file again right before editing it, and to leave changes it didn't make alone. If two change the same file anyway, both cards say so, because that's worth a look. An agent working alone carries on your last conversation; one that starts while others are at work begins a new one. Each uses your Claude plan like any other session.
+
+## Only for you
+
+It's a tool for whoever is editing the world, and players never get it.
+
+- **In the browser:** it comes only with a development build and `?draw` in the address. Production builds contain none of it, and it refuses to start on a page that isn't served from this computer.
+- **In Roblox:** it's a plugin in your own copy of Studio. Nothing goes into the place, `game/src` has none of it, and it does nothing outside Studio.
+- **The hub** listens only on this computer. A web page reaches it only from an origin listed for its project, and a program with no origin needs the key in `~/.drawspeak3d/key`.
+- **The agent** is told not to commit, push, publish or deploy, so what it changes stays on your computer until you say otherwise.
 
 ## Put it on your own three.js app
 
@@ -138,7 +153,7 @@ The whole flow, played in a silent headless browser with a stand-in agent and sc
 
 ## Not verified yet
 
-- **The hub starting a real agent.** The real command line starts, takes its flags and reports back, but stopped at "not logged in" on the computer this was built on, so Send has only run with a stand-in agent. By hand, a real model was given a batch from `demo/batch.mjs` with the same message and rules: it put a tree on the marked spot and the red box on the marked floor, added a robot walking the marked line and a window in the wall, and checked its work with `look.mjs`, all in the right places.
+- **Two real agents at once through Send.** One real agent has gone all the way through Send: in under a minute it put a cone on the tapped spot in the demo room, and checked it with `look.mjs`. Two at once have run with stand-in agents through the hub, and as two real models started by hand, editing the same file with nothing lost, but not yet both real and through the hub.
 - **Real speech.** Tests use scripted speech. Voice uses the browser's own engine (Chrome and Edge; free, no key), which needs a real microphone and a person.
 - **A pen on real hardware.** Tests send pen events with force; pressure thresholds need calibrating by hand, as the iPad's ADR-0003 says too.
 - **An iPad.** The page needs HTTPS for the microphone there (for example `tailscale serve`), and the hub would have to listen beyond this computer, which it doesn't yet.

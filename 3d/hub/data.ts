@@ -2,7 +2,7 @@ import { execFileSync } from "node:child_process";
 import { randomBytes } from "node:crypto";
 import { existsSync, mkdirSync, readFileSync, readdirSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
-import { dirname, join, resolve } from "node:path";
+import { dirname, join, resolve, posix } from "node:path";
 import { fileURLToPath } from "node:url";
 
 /**
@@ -158,8 +158,10 @@ function readRevision(cwd: string): { commit?: string; dirty?: boolean } {
 
 export function gitChanged(cwd: string): Set<string> {
   try {
-    const status = execFileSync("git", ["-C", cwd, "status", "--porcelain"], { encoding: "utf8", stdio: ["ignore", "pipe", "ignore"], windowsHide: true });
-    return new Set(status.split("\n").filter(Boolean).map((line) => line.slice(3).trim().replace(/^"|"$/g, "")));
+    const git = (...args: string[]) => execFileSync("git", ["-C", cwd, ...args], { encoding: "utf8", stdio: ["ignore", "pipe", "ignore"], windowsHide: true });
+    // Git names files from the top of the repository; the agent, from the project's folder inside it.
+    const folder = git("rev-parse", "--show-prefix").trim();
+    return new Set(git("status", "--porcelain").split("\n").filter(Boolean).map((line) => posix.relative(folder, line.slice(3).trim().replace(/^"|"$/g, ""))));
   } catch {
     return new Set();
   }

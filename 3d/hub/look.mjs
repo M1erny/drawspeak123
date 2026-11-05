@@ -10,7 +10,7 @@
  * so a change that broke the world says so.
  */
 import { spawn } from "node:child_process";
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 
@@ -57,6 +57,25 @@ const WIDTH = 1280;
 const HEIGHT = 800;
 
 const sleep = (ms) => new Promise((done) => setTimeout(done, ms));
+
+// Several agents can be at work at once, and each browser here renders in software, which is heavy on
+// a computer someone is playing on. So one at a time; a lock left behind by a crash goes stale.
+const LOCK = join(tmpdir(), "drawspeak-look.lock");
+let locked = false;
+for (const until = Date.now() + 60_000; Date.now() < until && !locked; ) {
+  try {
+    mkdirSync(LOCK);
+    locked = true;
+  } catch {
+    try {
+      if (Date.now() - statSync(LOCK).mtimeMs > 130_000) rmSync(LOCK, { recursive: true, force: true });
+    } catch {
+      // someone else just took it, or just let go
+    }
+    if (!locked) await sleep(500);
+  }
+}
+
 const work = mkdtempSync(join(tmpdir(), "drawspeak-look-"));
 const browser = spawn(BROWSER, ["--headless=new", "--remote-debugging-port=0", `--user-data-dir=${work}`, "--use-angle=swiftshader", "--enable-unsafe-swiftshader", "--no-first-run", "--hide-scrollbars", "--mute-audio", "--autoplay-policy=no-user-gesture-required", "about:blank"], { windowsHide: true, stdio: "ignore" });
 
@@ -74,6 +93,7 @@ async function finish(code) {
       await sleep(250);
     }
   }
+  if (locked) rmSync(LOCK, { recursive: true, force: true });
   process.exit(code);
 }
 for (const signal of ["SIGTERM", "SIGINT", "SIGHUP"]) process.on(signal, () => void finish(1));

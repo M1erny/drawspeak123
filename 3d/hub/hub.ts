@@ -31,7 +31,34 @@ export interface RunState {
   changed?: string[];
   error?: string;
   noteIds?: string[];
+  /** What it was asked, in a few words. */
+  about?: string;
+  /** Files another agent changed too, while both were at work: worth a look. */
+  shared?: string[];
 }
+
+/** One agent's run. Several can work on a project at once, in the same folder, so that every edit shows up in the running world. */
+interface RunEntry {
+  state: RunState;
+  agent?: RunningAgent;
+  /** The files its agent has changed. */
+  files: Set<string>;
+  /** Another agent worked at the same time, so the folder's changes are not all its own. */
+  alongside: boolean;
+  comments: string[];
+}
+
+/** Agents at work on one project at a time. Each one uses the person's own Claude plan. */
+export const MAX_AGENTS = 3;
+const RUNS_KEPT = 12;
+
+/** The words of a batch's comments, from its manifest. */
+function commentsOf(manifest: unknown): string[] {
+  const { snapshots } = manifest as { snapshots?: Array<{ notes?: Array<{ text?: string }> }> };
+  return (snapshots ?? []).flatMap((view) => view.notes ?? []).map((note) => note.text?.trim() ?? "").filter(Boolean);
+}
+
+const shortly = (text: string, length: number) => (text.length > length ? `${text.slice(0, length - 1).trimEnd()}…` : text);
 
 export interface HubOptions {
   port?: number;
@@ -47,8 +74,9 @@ export interface HubOptions {
 export interface HubApi {
   projects: Map<string, Project>;
   inbox: Inbox;
-  runOf(projectId: string): RunState | undefined;
-  /** Starts the agent on a saved batch. */
+  /** A project's runs, oldest first: those at work, and the last few that finished. */
+  runsOf(projectId: string): RunState[];
+  /** Starts an agent on a saved batch, alongside any already at work. */
   startSend(project: Project, batchId: string, body: { noteIds?: string[]; newThread?: boolean }): RunState;
   /** An event for the pages listening on a project. */
   emit(projectId: string, event: string, data: unknown): void;
@@ -78,7 +106,7 @@ export interface Hub {
 
 export async function startHub(options: HubOptions): Promise<Hub> {
   const inbox = new Inbox(options.dataDir);
-  const runs = new Map<string, { state: RunState; agent?: RunningAgent }>();
+  const runs = new Map<string, RunEntry[]>();
   const listeners = new Map<string, Set<ServerResponse>>();
   const desks = new Map<string, Set<ServerResponse>>();
   const live = new LiveMarks(options.dataDir, options.capture);
@@ -89,20 +117,38 @@ export async function startHub(options: HubOptions): Promise<Hub> {
     const line = `event: ${event}\ndata: ${JSON.stringify(data)}\n\n`;
     for (const res of listeners.get(projectId) ?? []) res.write(line);
   };
-  const broadcast = (projectId: string) => emit(projectId, "run", runs.get(projectId)?.state ?? null);
+  const runsOf = (projectId: string) => (runs.get(projectId) ?? []).map((entry) => entry.state);
+  const atWork = (projectId: string) => (runs.get(projectId) ?? []).filter((entry) => entry.state.status === "running");
+  const broadcast = (projectId: string) => emit(projectId, "runs", runsOf(projectId));
 
   const api: HubApi = {
     projects: options.projects,
     inbox,
-    runOf: (projectId) => runs.get(projectId)?.state,
+    runsOf,
     startSend: (project, batchId, body) => {
-      if (runs.get(project.id)?.state.status === "running") throw Object.assign(new Error("The agent is still working on the last batch."), { status: 409 });
+      const others = atWork(project.id);
+      if (others.some((entry) => entry.state.batchId === batchId)) throw Object.assign(new Error("An agent is already working on these comments."), { status: 409 });
+      if (others.length >= MAX_AGENTS) throw Object.assign(new Error(`${MAX_AGENTS} agents are already working here. Wait for one to finish, or stop one.`), { status: 409 });
       const message = inbox.message(project.id, batchId);
       const manifest = inbox.manifest(project.id, batchId);
-      const state: RunState = { id: randomUUID(), batchId, status: "running", agent: agentFor(project).label, startedAt: new Date().toISOString(), activity: [], noteIds: body.noteIds };
-      runs.set(project.id, { state });
+      const comments = commentsOf(manifest);
+      const about = comments[0] ? `${shortly(comments[0], 60)}${comments.length > 1 ? ` +${comments.length - 1}` : ""}` : undefined;
+      const state: RunState = { id: randomUUID(), batchId, status: "running", agent: agentFor(project).label, startedAt: new Date().toISOString(), activity: [], noteIds: body.noteIds, about };
+      const entry: RunEntry = { state, files: new Set(), alongside: others.length > 0, comments };
+      for (const other of others) other.alongside = true;
+      const list = runs.get(project.id) ?? [];
+      runs.set(project.id, list);
+      list.push(entry);
+      while (list.length > RUNS_KEPT) {
+        const old = list.findIndex((run) => run.state.status !== "running");
+        if (old < 0) break;
+        list.splice(old, 1);
+      }
       try {
-        startRun(project, batchId, message, manifest.directive?.mode ?? "apply", body.newThread ? undefined : inbox.thread(project.id), state);
+        // One conversation cannot be carried on in two places at once.
+        const resume = body.newThread || others.length > 0 ? undefined : inbox.thread(project.id);
+        const nearby = others.flatMap((other) => other.comments).slice(0, 8).map((comment) => shortly(comment, 120));
+        startRun(project, batchId, message, manifest.directive?.mode ?? "apply", resume, entry, nearby);
       } catch (error) {
         // It never started: say so, and do not stay "running" for ever.
         state.status = "failed";
@@ -228,7 +274,7 @@ export async function startHub(options: HubOptions): Promise<Hub> {
       }
       if (req.method === "GET" && what === "events") {
         res.writeHead(200, { "content-type": "text/event-stream", "cache-control": "no-store", connection: "keep-alive" });
-        res.write(`event: run\ndata: ${JSON.stringify(runs.get(project.id)?.state ?? null)}\n\n`);
+        res.write(`event: runs\ndata: ${JSON.stringify(runsOf(project.id))}\n\n`);
         const set = listeners.get(project.id) ?? new Set();
         listeners.set(project.id, set);
         set.add(res);
@@ -265,11 +311,11 @@ export async function startHub(options: HubOptions): Promise<Hub> {
         return;
       }
       if (req.method === "POST" && what === "stop") {
-        const current = runs.get(project.id);
-        if (current?.state.status === "running") {
-          current.agent?.stop();
-          json(200, { stopped: true });
-        } else json(200, { stopped: false });
+        // One agent, by its run's id; with no id, all of them.
+        const { runId } = await readJson<{ runId?: string }>(1024);
+        const stopping = atWork(project.id).filter((entry) => !runId || entry.state.id === runId);
+        for (const entry of stopping) entry.agent?.stop();
+        json(200, { stopped: stopping.length > 0 });
         return;
       }
       json(404, { error: "Nothing here." });
@@ -279,10 +325,19 @@ export async function startHub(options: HubOptions): Promise<Hub> {
     }
   }
 
-  function startRun(project: Project, batchId: string, message: string, mode: string, resume: string | undefined, state: RunState) {
-    const entry = runs.get(project.id)!;
+  /** Two agents changed the same file while both were at work: each one's card says so. */
+  function noteShared(projectId: string, entry: RunEntry, file: string) {
+    for (const other of runs.get(projectId) ?? []) {
+      if (other === entry || !other.files.has(file)) continue;
+      const overlapped = other.state.status === "running" || Date.parse(other.state.endedAt ?? "") > Date.parse(entry.state.startedAt);
+      if (!overlapped) continue;
+      for (const run of [entry.state, other.state]) if (!run.shared?.includes(file)) run.shared = [...(run.shared ?? []), file];
+    }
+  }
+
+  function startRun(project: Project, batchId: string, message: string, mode: string, resume: string | undefined, entry: RunEntry, nearby: string[]) {
+    const { state, files } = entry;
     const before = gitChanged(project.cwd);
-    const files = new Set<string>();
     const folder = inbox.folderOf(project.id, batchId);
     const agent = agentFor(project);
     let stopped = false;
@@ -290,7 +345,7 @@ export async function startHub(options: HubOptions): Promise<Hub> {
       agent.start({
         project,
         folder,
-        message: `${message}\n\nThe batch is in ${folder} (manifest.json and these pictures: ${inbox.pictures(project.id, batchId).filter((f) => !f.includes("-clean")).join(", ")}).`,
+        message: `${message}\n\nThe batch is in ${folder} (manifest.json and these pictures: ${inbox.pictures(project.id, batchId).filter((f) => !f.includes("-clean")).join(", ")}).${nearby.length > 0 ? `\n\nOther agents are at work in this folder right now, on these comments, so leave those to them: ${nearby.map((comment) => `"${comment}"`).join("; ")}.` : ""}`,
         mode,
         resume: resumeFrom,
         onActivity: (line) => {
@@ -298,7 +353,10 @@ export async function startHub(options: HubOptions): Promise<Hub> {
           if (state.activity.length > 40) state.activity.shift();
           broadcast(project.id);
         },
-        onChangedFile: (file) => files.add(file),
+        onChangedFile: (file) => {
+          files.add(file);
+          noteShared(project.id, entry, file);
+        },
       });
     const running = start(resume);
     entry.agent = {
@@ -318,7 +376,8 @@ export async function startHub(options: HubOptions): Promise<Hub> {
         entry.agent = { done: again.done, stop: () => ((stopped = true), again.stop()) };
         result = await again.done;
       }
-      for (const file of gitChanged(project.cwd)) if (!before.has(file)) files.add(file);
+      // What else changed in the folder is its doing only if it worked alone.
+      if (!entry.alongside) for (const file of gitChanged(project.cwd)) if (!before.has(file)) files.add(file);
       state.status = stopped ? "stopped" : result.ok ? "done" : "failed";
       state.endedAt = new Date().toISOString();
       state.reply = result.reply;
@@ -345,7 +404,7 @@ export async function startHub(options: HubOptions): Promise<Hub> {
     close: () =>
       new Promise((resolve) => {
         for (const set of listeners.values()) for (const res of set) res.end();
-        for (const { agent } of runs.values()) agent?.stop();
+        for (const list of runs.values()) for (const { agent } of list) agent?.stop();
         stopCapture();
         server.close(() => resolve());
         server.closeAllConnections();

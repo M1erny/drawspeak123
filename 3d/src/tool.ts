@@ -1,5 +1,6 @@
 import * as THREE from "three";
 import { boundsOf, distance, simplified } from "./core/geometry.ts";
+import { isThisComputer } from "./core/local.ts";
 import { displayNumbers, readiness } from "./core/package.ts";
 import { PressureDepthTracker, current } from "./core/selection.ts";
 import { isClosedLoop, isCurling, isTap, shapeFor } from "./core/stroke.ts";
@@ -11,7 +12,7 @@ import { Picker, boxOnScreen, inkPlane, isSurfaceLike, lineInWorld, lineLength, 
 import { pinSpot, renderComposite, scaledCopy, toBlob } from "./ui/composite.ts";
 import { domTargetFor } from "./ui/domTarget.ts";
 import { Overlay } from "./ui/overlay.ts";
-import { Bubble, Column, Palette, RunCard, Sheet, Toast, lightbox } from "./ui/panels.ts";
+import { Bubble, Column, Palette, RunCards, Sheet, Toast, lightbox } from "./ui/panels.ts";
 import { CSS } from "./ui/styles.ts";
 import { FAILURE_TEXT, Voice } from "./voice/speech.ts";
 
@@ -108,7 +109,7 @@ export class Drawspeak3D {
   private readonly bubble: Bubble;
   private readonly column: Column;
   private readonly sheet: Sheet;
-  private readonly runCard: RunCard;
+  private readonly runCards: RunCards;
   private readonly toastBox: Toast;
   private readonly pins = new Map<string, HTMLButtonElement>();
   private readonly occludedNotes = new Set<string>();
@@ -138,6 +139,7 @@ export class Drawspeak3D {
   private heardBeforeReload?: { id: string; text: string };
 
   constructor(options: AttachOptions) {
+    if (!isThisComputer(location.hostname)) throw new Error("Drawspeak 3D only runs on pages served from this computer.");
     this.adapter = options.adapter ?? {};
     this.project = options.project;
     this.hiddenWhen = options.hidden;
@@ -165,7 +167,7 @@ export class Drawspeak3D {
     this.bubble = new Bubble(this);
     this.column = new Column(this);
     this.sheet = new Sheet(this);
-    this.runCard = new RunCard(this);
+    this.runCards = new RunCards(this);
     this.toastBox = new Toast(this.root);
 
     this.listen(window, "pointerdown", (e) => this.onPointerDown(e as PointerEvent));
@@ -234,7 +236,7 @@ export class Drawspeak3D {
     // The hub is looked for when it matters: no stream of failed requests while it is not running.
     if (this.hubProject && !this.listening) {
       this.listening = true;
-      this.cleanups.push(this.hub.listen((run) => this.runCard.update(run)));
+      this.cleanups.push(this.hub.listen((runs) => this.runCards.update(runs)));
     }
     this.palette.render();
     return this.hubProject;
@@ -257,6 +259,11 @@ export class Drawspeak3D {
 
   get numbers(): Map<string, number> {
     return displayNumbers(this.notes, this.showSent);
+  }
+
+  /** Agents at work right now. */
+  get agentsWorking(): number {
+    return this.runCards.working;
   }
 
   get canUndo(): boolean {
@@ -1042,7 +1049,7 @@ export class Drawspeak3D {
     this.placePins(numbers, camera, rect);
     this.placeBubble(camera, rect);
     this.bubble.tick();
-    this.runCard.tick();
+    this.runCards.tick();
     this.checkOcclusion(camera);
   }
 

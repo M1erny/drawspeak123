@@ -95,7 +95,7 @@ preview.geometry({
 
 -- ------------------------------------------------------------------ a fake hub
 
-local Hub = { requests = {}, notes = {}, nextId = 1, run = nil, desks = 1 }
+local Hub = { requests = {}, notes = {}, nextId = 1, runs = nil, desks = 1 }
 local function view(note)
 	note.number = note.ordinal
 	note.readiness = if note.recording then "recording" elseif note.sent then "sent" elseif (note.text or "") ~= "" then "ready" else "markOnly"
@@ -127,11 +127,11 @@ local function answer(method, path, body)
 		for _, note in Hub.notes do
 			note.sent = true
 		end
-		Hub.run = { status = "running", agent = "Claude Code", activity = { "Editing game/src/server/StoreBuilder.luau" } }
-		return Hub.run
+		Hub.runs = { { id = "run1", status = "running", agent = "Claude Code", activity = { "Editing game/src/server/StoreBuilder.luau" } } }
+		return Hub.runs[1]
 	end
-	if rest == "/run" then
-		return Hub.run or {}
+	if rest == "/runs" then
+		return Hub.runs or {}
 	end
 	local id = string.match(rest or "", "^/marks/([%w]+)$")
 	if id then
@@ -175,7 +175,11 @@ local fakeHttp = setmetatable({
 }, { __index = HttpServiceReal })
 
 -- In Edit mode, as in Studio before pressing Play: no client-server bridge.
+local inStudio = true
 local fakeRun = setmetatable({
+	IsStudio = function()
+		return inStudio
+	end,
 	IsRunning = function()
 		return false
 	end,
