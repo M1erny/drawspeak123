@@ -1,7 +1,9 @@
 // Renders the Drawspeak app icon: a 1024x1024 opaque PNG (no alpha channel).
 // Usage: swift scripts/make-icon.swift <out.png>
-// Motif: a screen card on a calm canvas, a red pencil loop marking part of it,
-// and a speech-wave badge. No text; shapes stay legible at 40 px.
+// Motif "Pencil Wave": a white waveform whose centre bar is a coral pencil, on a flat
+// near-black ground (the same ground as the Apassy icon; the coral is the annotation
+// colour of the app). No text; the shapes stay legible at 29 px.
+// Coordinates below are SVG-style (origin top left, y down) on a 1024 grid.
 import CoreGraphics
 import Foundation
 import ImageIO
@@ -22,6 +24,10 @@ func rgb(_ hex: UInt32) -> CGColor {
             blue: CGFloat(hex & 0xFF) / 255, alpha: 1)
 }
 
+let ground = rgb(0x0E1820)
+let coral = rgb(0xFF5A6E)
+let white = rgb(0xFFFFFF)
+
 let space = CGColorSpace(name: CGColorSpace.sRGB)!
 // noneSkipLast: 32-bit pixels without an alpha channel, so the PNG is opaque.
 guard let ctx = CGContext(data: nil, width: size, height: size, bitsPerComponent: 8, bytesPerRow: 0,
@@ -32,79 +38,41 @@ ctx.setAllowsAntialiasing(true)
 ctx.setShouldAntialias(true)
 ctx.interpolationQuality = .high
 
-// 1. Canvas background: soft off-white to blue-gray vertical gradient.
-let bg = CGGradient(colorsSpace: space, colors: [rgb(0xF3F5F8), rgb(0xD9E0E8)] as CFArray, locations: [0, 1])!
-ctx.drawLinearGradient(bg, start: CGPoint(x: 0, y: s), end: CGPoint(x: 0, y: 0), options: [])
+// Flip to a y-down system so the numbers match the SVG source of the design.
+ctx.translateBy(x: 0, y: s)
+ctx.scaleBy(x: 1, y: -1)
 
-// 2. Screen card with a soft shadow, header bar and content lines.
-let card = CGRect(x: 132, y: 250, width: 680, height: 560)
-let cardPath = CGPath(roundedRect: card, cornerWidth: 70, cornerHeight: 70, transform: nil)
-ctx.saveGState()
-ctx.setShadow(offset: CGSize(width: 0, height: -18), blur: 48, color: rgb(0x7D8A9C).copy(alpha: 0.45))
-ctx.addPath(cardPath)
-ctx.setFillColor(rgb(0xFFFFFF))
-ctx.fillPath()
-ctx.restoreGState()
+// 1. Flat ground.
+ctx.setFillColor(ground)
+ctx.fill(CGRect(x: 0, y: 0, width: s, height: s))
 
-ctx.saveGState()
-ctx.addPath(cardPath)
-ctx.clip()
-ctx.setFillColor(rgb(0x3E4F66))
-ctx.fill(CGRect(x: card.minX, y: card.maxY - 120, width: card.width, height: 120))
-ctx.restoreGState()
-
-func bar(_ x: CGFloat, _ y: CGFloat, _ w: CGFloat, _ h: CGFloat, _ color: CGColor) {
-    ctx.addPath(CGPath(roundedRect: CGRect(x: x, y: y, width: w, height: h),
-                       cornerWidth: min(w, h) / 2, cornerHeight: min(w, h) / 2, transform: nil))
-    ctx.setFillColor(color)
-    ctx.fillPath()
-}
-let line = rgb(0xC5CEDA)
-bar(card.minX + 64, card.maxY - 210, 420, 40, line)
-bar(card.minX + 64, card.maxY - 290, 300, 40, line)
-// A content block, the part the loop marks.
-ctx.addPath(CGPath(roundedRect: CGRect(x: card.minX + 64, y: card.minY + 70, width: 330, height: 170),
-                   cornerWidth: 28, cornerHeight: 28, transform: nil))
-ctx.setFillColor(rgb(0xDCE3EC))
-ctx.fillPath()
-
-// 3. Red pencil loop: a slightly widening ellipse that overshoots its start, like a hand lasso.
-let loop = CGMutablePath()
-let center = CGPoint(x: 370, y: 410)
-let rx: CGFloat = 250, ry: CGFloat = 160
-let rot: CGFloat = -0.16
-let start: CGFloat = 2.35
-let sweep: CGFloat = 2 * .pi + 0.55
-let steps = 240
-for i in 0...steps {
-    let t = start + sweep * CGFloat(i) / CGFloat(steps)
-    let grow = 1 + 0.10 * CGFloat(i) / CGFloat(steps)
-    let x0 = cos(t) * rx * grow, y0 = sin(t) * ry * grow
-    let p = CGPoint(x: center.x + x0 * cos(rot) - y0 * sin(rot), y: center.y + x0 * sin(rot) + y0 * cos(rot))
-    if i == 0 { loop.move(to: p) } else { loop.addLine(to: p) }
-}
-ctx.addPath(loop)
-ctx.setStrokeColor(rgb(0xBD3048))
-ctx.setLineWidth(48)
+// 2. Waveform: four white bars (centre x, top y, bottom y of the centre line), round caps.
+let barWidth: CGFloat = 78
+let bars: [(x: CGFloat, y1: CGFloat, y2: CGFloat)] = [
+    (272, 449, 491), (392, 359, 581), (632, 359, 581), (752, 449, 491),
+]
+ctx.setStrokeColor(white)
+ctx.setLineWidth(barWidth)
 ctx.setLineCap(.round)
-ctx.setLineJoin(.round)
-ctx.strokePath()
-
-// 4. Speech-wave badge: dark slate disc with a light ring and five rounded bars.
-let badgeC = CGPoint(x: 770, y: 262)
-let badgeR: CGFloat = 158
-ctx.setFillColor(rgb(0xF3F5F8))
-ctx.fillEllipse(in: CGRect(x: badgeC.x - badgeR - 20, y: badgeC.y - badgeR - 20,
-                           width: 2 * (badgeR + 20), height: 2 * (badgeR + 20)))
-ctx.setFillColor(rgb(0x2E3A4B))
-ctx.fillEllipse(in: CGRect(x: badgeC.x - badgeR, y: badgeC.y - badgeR, width: 2 * badgeR, height: 2 * badgeR))
-let heights: [CGFloat] = [70, 140, 200, 140, 70]
-let bw: CGFloat = 30, gap: CGFloat = 22
-let total = CGFloat(heights.count) * bw + CGFloat(heights.count - 1) * gap
-for (i, h) in heights.enumerated() {
-    let x = badgeC.x - total / 2 + CGFloat(i) * (bw + gap)
-    bar(x, badgeC.y - h / 2, bw, h, rgb(0xFFFFFF))
+for b in bars {
+    ctx.move(to: CGPoint(x: b.x, y: b.y1))
+    ctx.addLine(to: CGPoint(x: b.x, y: b.y2))
+    ctx.strokePath()
 }
+
+// 3. The coral pencil: a rounded top, a straight body and a pointed tip.
+let k: CGFloat = 0.5523 * 39 // quarter-circle control offset for a radius of 39
+let pencil = CGMutablePath()
+pencil.move(to: CGPoint(x: 473, y: 289))
+pencil.addCurve(to: CGPoint(x: 512, y: 250), control1: CGPoint(x: 473, y: 289 - k), control2: CGPoint(x: 512 - k, y: 250))
+pencil.addCurve(to: CGPoint(x: 551, y: 289), control1: CGPoint(x: 512 + k, y: 250), control2: CGPoint(x: 551, y: 289 - k))
+pencil.addLine(to: CGPoint(x: 551, y: 690))
+pencil.addLine(to: CGPoint(x: 512, y: 822))
+pencil.addLine(to: CGPoint(x: 473, y: 690))
+pencil.closeSubpath()
+ctx.addPath(pencil)
+ctx.setFillColor(coral)
+ctx.fillPath()
 
 guard let image = ctx.makeImage(),
       let dest = CGImageDestinationCreateWithURL(outURL as CFURL, UTType.png.identifier as CFString, 1, nil) else {
