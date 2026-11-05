@@ -2,26 +2,23 @@
 import DrawspeakCore
 import SwiftUI
 
-/// A monochrome tool toggle with a shape cue as well as selected semantics.
+/// A tool toggle. A Toggle (not a Button with its own background) so the toolbar's
+/// glass group draws the selected state itself; it drops custom backgrounds on buttons.
 struct ToolButton: View {
     let tool: CanvasTool
     let isSelected: Bool
     let action: () -> Void
 
     var body: some View {
-        Button(tool.title, systemImage: tool.systemImage, action: action)
-            .labelStyle(.iconOnly)
-            .font(.title3)
-            .foregroundStyle(.primary)
-            .frame(minWidth: Theme.minTarget, minHeight: Theme.minTarget)
-            .background(isSelected ? Color.primary.opacity(0.12) : .clear, in: .capsule)
-            .overlay { Capsule().strokeBorder(.primary, lineWidth: isSelected ? 1.5 : 0) }
-            .contentShape(.capsule)
-            .hoverEffect(.highlight)
-            .keyboardShortcut(KeyEquivalent(tool.shortcutKey), modifiers: [])
-            .help(tool.title)
-            .accessibilityAddTraits(isSelected ? .isSelected : [])
-            .accessibilityShowsLargeContentViewer()
+        Toggle(tool.title, systemImage: tool.systemImage, isOn: Binding(
+            get: { isSelected },
+            set: { isOn in if isOn { action() } }
+        ))
+        .toggleStyle(.button)
+        .labelStyle(.iconOnly)
+        .keyboardShortcut(KeyEquivalent(tool.shortcutKey), modifiers: [])
+        .help(tool.title)
+        .accessibilityShowsLargeContentViewer()
     }
 }
 #endif
