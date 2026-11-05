@@ -446,7 +446,10 @@ public final class Workspace {
             screenId = id
             role = .proposal
             proposalId = proposal
-            let previous = CanvasLayout.proposalIterations(in: canvas, screenId: id, proposalId: proposal)
+            // Iterations count across follow-up columns of the same proposal.
+            let previous = canvas.snapshots
+                .filter { $0.screenId == id && $0.role == .proposal && $0.proposalId == proposal }
+                .sorted { ($0.iteration, $0.capturedAt) < ($1.iteration, $1.capturedAt) }
             iteration = (previous.map(\.iteration).max() ?? 0) + 1
             if parent == nil { parent = previous.last?.id }
         }
@@ -1336,7 +1339,8 @@ public final class Workspace {
             items: package.items,
             isRepeat: package.isRepeat,
             state: .readyToSend,
-            part: package.part
+            part: package.part,
+            directive: package.directive
         )
         mutateCanvas(canvasId) { canvas in
             canvas.outbox.removeAll { $0.id == entry.id }
@@ -1380,7 +1384,8 @@ public final class Workspace {
                 projectId: projectId, projectTitle: projectTitle, title: title, clientRequestId: package.batchId,
                 previousThread: canvas.thread
             ),
-            part: package.part
+            part: package.part,
+            directive: package.directive
         )
         mutateCanvas(canvasId) { canvas in
             canvas.outbox.removeAll { $0.id == entry.id }

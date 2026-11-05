@@ -33,6 +33,7 @@ struct FeedbackPreviewContent: View {
                             Text("This canvas will continue in the new thread.", bundle: .module)
                         }
                     }
+                    FeedbackDirectiveSection(model: model)
                     if !model.candidates.isEmpty {
                         Section {
                             FeedbackSummaryRow(model: model)
