@@ -92,7 +92,8 @@ nonisolated public struct T3ThreadService: ThreadService, Sendable {
             let existing = text[range.upperBound...].prefix { $0.isASCII && ($0.isLetter || $0.isNumber || $0 == "-" || $0 == "_") }
             batchId = existing.isEmpty ? UUID().uuidString : String(existing)
         } else { batchId = UUID().uuidString }
-        let message = "[drawspeak-batch:\(batchId)]\n" + text
+        let marker = "[drawspeak-batch:\(batchId)]"
+        let message = text.hasPrefix(marker) ? text : marker + "\n" + text
         guard message.utf16.count <= 120_000 else { throw .notSent(String(localized: "Message including its delivery marker must be at most 120,000 characters.", bundle: .module)) }
         try validate(attachments)
         var uploaded: [JSONValue] = []

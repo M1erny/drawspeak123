@@ -1235,16 +1235,19 @@ public final class Workspace {
 
     /// Save Draft: keeps exactly this package locally. Never sends or queues.
     @discardableResult
-    public func saveDraft(noteIds: Set<UUID>, canvasId: UUID) -> SavedDraft? {
+    public func saveDraft(noteIds: Set<UUID>, canvasId: UUID, directive: AgentDirective? = nil) -> SavedDraft? {
         guard let canvas = canvas(canvasId) else { return nil }
         let numbers = NoteNumbering.displayNumbers(in: canvas, showsSentNotes: showsSentNotes, including: noteIds)
         let items = canvas.notes.filter { noteIds.contains($0.id) }.sorted { $0.ordinal < $1.ordinal }
             .map { BatchItem(note: $0, displayNumber: numbers[$0.id]) }
         guard !items.isEmpty else { return nil }
-        let draft = SavedDraft(createdAt: now(), thread: canvas.thread, items: items)
+        let draft = SavedDraft(createdAt: now(), thread: canvas.thread, items: items, directive: directive)
         mutateCanvas(canvasId) { $0.drafts.insert(draft, at: 0) }
         return draft
     }
+
+    /// The agent directive of the draft that was just resumed; the Send preview takes it once.
+    public var resumedDirective: AgentDirective?
 
     public func deleteDraft(_ id: UUID, canvasId: UUID) {
         mutateCanvas(canvasId) { $0.drafts.removeAll { $0.id == id } }
@@ -1272,6 +1275,7 @@ public final class Workspace {
         guard let canvas = canvas(canvasId), let draft = canvas.drafts.first(where: { $0.id == draftId }) else {
             return DraftResume(noteIds: [], copiedCount: 0, recipientChanged: false)
         }
+        resumedDirective = draft.directive
         var ids = Set<UUID>()
         var copies: [Note] = []
         var ordinal = canvas.nextOrdinal

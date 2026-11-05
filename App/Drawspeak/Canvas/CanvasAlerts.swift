@@ -14,6 +14,10 @@ struct CanvasAlerts: ViewModifier {
             .alert(voiceIssueTitle, isPresented: $controller.showsVoiceIssue) {
                 Button("Open Settings", action: openSettings)
                 Button("Cancel", role: .cancel) {}
+            } message: {
+                Text(controller.workspace.voiceIssue == .microphoneUnavailable
+                    ? "Recording isn't available right now. You can still type your comment."
+                    : "Allow microphone access in Settings to record comments. You can still type them.")
             }
     }
 

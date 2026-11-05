@@ -37,7 +37,9 @@ struct FeedbackDirectiveSection: View {
             model.startsNewThread
                 ? "Adds the next version to the proposals you commented on. A new thread starts without the agent's earlier work, so it can't continue it."
                 : model.hasProposalComments
-                    ? "Adds the next version to the proposals you commented on."
+                    ? (model.hasNowComments
+                        ? "Adds the next version to the proposals you commented on. Comments on Now become one new proposal."
+                        : "Adds the next version to the proposals you commented on.")
                     : "Comments on Now become one new proposal."
         case .newVariants: "Builds new proposals next to the existing ones and leaves them unchanged."
         case .replyOnly: "The agent answers in text. No mockups, no file changes."

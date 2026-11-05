@@ -8,6 +8,7 @@ struct FeedbackPopover: View {
     let controller: CanvasController
     /// Read where the popover is anchored; inside a popover the size class is compact.
     let isRegularWidth: Bool
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
     var body: some View {
         if let canvasId = workspace.currentCanvasId {
@@ -20,7 +21,7 @@ struct FeedbackPopover: View {
             )
             .frame(
                 width: isRegularWidth ? ShellMetrics.feedbackPopoverSize.width : nil,
-                height: isRegularWidth ? ShellMetrics.feedbackPopoverSize.height : nil
+                height: isRegularWidth ? (dynamicTypeSize.isAccessibilitySize ? ShellMetrics.feedbackPopoverLargeTextHeight : ShellMetrics.feedbackPopoverSize.height) : nil
             )
             .presentationCompactAdaptation(.sheet)
         }

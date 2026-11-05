@@ -98,7 +98,9 @@ struct FeedbackPackageBuilderTests {
 
         let one = FeedbackPackageBuilder.build(canvas: canvas, noteIds: [note], thread: testThread, batchId: "b", now: fixedDate,
             directive: AgentDirective(mode: .newVariants, variantCount: 1))
-        #expect(FeedbackPackageBuilder.messageText(for: one).contains("create 1 new alternative proposal that"))
+        #expect(FeedbackPackageBuilder.messageText(for: one).contains("create 1 new alternative proposal that addresses these comments"))
+        #expect(FeedbackPackageBuilder.messageText(for: package).contains("create 2 new alternative proposals that address these comments"))
+        #expect(FeedbackPackageBuilder.messageText(for: package).contains("inside the project directory"))
     }
 
     @Test func newVariantsListUsedProposalIdsAndKeepExistingUntouched() throws {

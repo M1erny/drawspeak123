@@ -74,6 +74,7 @@ public enum FeedbackPackageBuilder {
     static func instructionLines(for package: FeedbackPackage) -> [String] {
         let directive = package.directive
         let script = "`python3 -I ~/.agents/skills/ui-review-variants/scripts/drawspeak_bundle.py`"
+        let location = "Write the bundle and the files it lists inside the project directory (for example `output/review` under the project root), not in /tmp or a scratchpad: Drawspeak can only pull files from inside the project."
         var lines: [String] = []
         switch directive.mode {
         case .replyOnly:
@@ -89,13 +90,15 @@ public enum FeedbackPackageBuilder {
                     lines.append("- \(group.screenTitle), \(group.laneTitle): this is the current UI, so put the changes into one new proposal with an unused proposalId\(used) and screenId `\(group.snapshot.screenId)`.")
                 }
             }
-            lines.append("End your reply with the verbatim output of \(script). Pass `--previous <your last review-manifest.json>` so every row continues its chain (Drawspeak imports them with Pull from Thread).")
+            lines.append(location)
+            lines.append("End your reply with the verbatim output of \(script). If you already made a bundle in this thread, pass `--previous <path to its review-manifest.json>` so every row continues its chain (Drawspeak imports them with Pull from Thread).")
         case .newVariants:
             let count = directive.variantCount
-            lines.append("Instruction: create \(count) new alternative proposal\(count == 1 ? "" : "s") that address these comments. Use the ui-review-variants skill. Leave existing proposals unchanged.")
+            lines.append("Instruction: create \(count) new alternative proposal\(count == 1 ? "" : "s") that \(count == 1 ? "addresses" : "address") these comments. Use the ui-review-variants skill. Leave existing proposals unchanged.")
             for group in package.groups where !group.existingProposalIds.isEmpty {
                 lines.append("- \(group.screenTitle): proposalIds already used: \(group.existingProposalIds.joined(separator: ", ")). Choose others.")
             }
+            lines.append(location)
             lines.append("End your reply with the verbatim output of \(script) (Drawspeak imports them with Pull from Thread).")
         }
         let note = directive.note.trimmingCharacters(in: .whitespacesAndNewlines)
