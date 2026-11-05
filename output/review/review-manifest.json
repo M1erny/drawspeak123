@@ -1,0 +1,119 @@
+{
+ "schemaVersion": 1,
+ "reviewId": "review",
+ "status": "ready_for_review",
+ "snapshots": [
+  {
+   "snapshotId": "01-canvas-list-baseline-9df366ec0c",
+   "screenId": "01-canvas-list",
+   "screenTitle": "Canvas list",
+   "role": "baseline",
+   "proposalId": null,
+   "iteration": 0,
+   "parentSnapshotId": null,
+   "artifactKind": "image",
+   "imagePath": "baseline/01-canvas-list.png",
+   "sha256": "9df366ec0cd0f606d647d4e412dd6434335808933403e7724a3e56be757f683c",
+   "widthPx": 2732,
+   "heightPx": 2048,
+   "viewport": {
+    "width": 2732,
+    "height": 2048,
+    "deviceScaleFactor": 1
+   }
+  },
+  {
+   "snapshotId": "01-canvas-list-b-5bd563388b",
+   "screenId": "01-canvas-list",
+   "screenTitle": "Canvas list",
+   "role": "proposal",
+   "proposalId": "b",
+   "iteration": 2,
+   "parentSnapshotId": "01-canvas-list-b-8746a2bbbd",
+   "artifactKind": "html",
+   "htmlPath": "prototypes/b/01-canvas-list.html",
+   "htmlSha256": "5bd563388bb4ecd79d67aa1865e34db73c604312dc46853ec893da45319f9e7d",
+   "renderPolicy": "static-no-script",
+   "viewport": {
+    "width": 1366,
+    "height": 1024,
+    "deviceScaleFactor": 2.0
+   },
+   "widthPx": 2732,
+   "heightPx": 2048,
+   "changeSummary": "Canvas list iteration 2: rows carry no unsent badges; the primary line is the derived title (assigned thread, or a custom name with the thread below), the secondary line lists screens; an empty canvas shows a muted &quot;New canvas&quot; placeholder under No project; status legend removed, only All/Waiting chips and the swipe hint remain.",
+   "addressedNoteIds": [
+    "A7A3652F-C758-4D7E-AC69-48CC78957F56",
+    "560B1174-B26B-4700-B4E0-802E17FC7F04",
+    "ECAC3E30-6EA8-41CC-B8FC-7D6B2CFE09E3"
+   ]
+  },
+  {
+   "snapshotId": "02-add-to-canvas-baseline-922c411253",
+   "screenId": "02-add-to-canvas",
+   "screenTitle": "Add to Canvas",
+   "role": "baseline",
+   "proposalId": null,
+   "iteration": 0,
+   "parentSnapshotId": null,
+   "artifactKind": "image",
+   "imagePath": "baseline/02-add-to-canvas.png",
+   "sha256": "922c41125373cbf52dd3610800318f2c3b44fb14bf288fe4ed27487205b3a243",
+   "widthPx": 2732,
+   "heightPx": 2048,
+   "viewport": {
+    "width": 2732,
+    "height": 2048,
+    "deviceScaleFactor": 1
+   }
+  },
+  {
+   "snapshotId": "02-add-to-canvas-a-aae87caea1",
+   "screenId": "02-add-to-canvas",
+   "screenTitle": "Add to Canvas",
+   "role": "proposal",
+   "proposalId": "a",
+   "iteration": 2,
+   "parentSnapshotId": "02-add-to-canvas-a-59306fa1d0",
+   "artifactKind": "html",
+   "htmlPath": "prototypes/a/02-add-to-canvas.html",
+   "htmlSha256": "aae87caea1d318a9902a53d55b994e86e55f53a045cb95c0e422ec4dc2d529fc",
+   "renderPolicy": "static-no-script",
+   "viewport": {
+    "width": 1366,
+    "height": 1024,
+    "deviceScaleFactor": 2.0
+   },
+   "widthPx": 2732,
+   "heightPx": 2048,
+   "changeSummary": "Add to Canvas iteration 2, progressive disclosure: by default the sheet is one choice, &quot;Add as a new screen&quot; with an inline editable title, plus the Add button; the New/Existing switch, canvas map and Now/Proposal explanation sit behind a collapsed &quot;Choose another place\u2026&quot; row; live summary stays in the footer.",
+   "addressedNoteIds": [
+    "3C89F141-F8FE-43CF-B780-ED79C552E782"
+   ]
+  },
+  {
+   "snapshotId": "03-add-to-existing-a-7cf38a5ffd",
+   "screenId": "03-add-to-existing",
+   "screenTitle": "Add to existing screen",
+   "role": "proposal",
+   "proposalId": "a",
+   "iteration": 2,
+   "parentSnapshotId": "03-add-to-existing-a-b83d69ff6a",
+   "artifactKind": "html",
+   "htmlPath": "prototypes/a/03-add-to-existing.html",
+   "htmlSha256": "7cf38a5ffdc292707aabbac5cd9226513347aaa1eba70fe2a8526ffee412b2fa",
+   "renderPolicy": "static-no-script",
+   "viewport": {
+    "width": 1366,
+    "height": 1024,
+    "deviceScaleFactor": 2.0
+   },
+   "widthPx": 2732,
+   "heightPx": 2048,
+   "changeSummary": "Add to Canvas iteration 2, &quot;Choose another place&quot; expanded with Existing Screen: one global &quot;Add as&quot; segmented control (Update Now | Proposal) with a one-line explanation, then a single-select list of screen cards without per-row buttons; only the selected card (Photo 2) shows its lane chip &quot;New Proposal A&quot;; summary: &quot;Adds Photo.jpg as Proposal A on Photo 2.&quot;",
+   "addressedNoteIds": [
+    "AAC30AF8-ED7B-46C2-83AB-9FB19568B4F5"
+   ]
+  }
+ ]
+}
