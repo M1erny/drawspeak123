@@ -503,7 +503,7 @@ local function ensureMark(note: any)
 		marks[note.id] = mark
 	end
 	mark.note = note
-	mark.pinLabel.Text = tostring(note.number or note.ordinal)
+	mark.pinLabel.Text = if note.working then "…" else tostring(note.number or note.ordinal)
 	mark.pinLabel.BackgroundColor3 = if note.readiness == "markOnly" then WHITE else INK
 	mark.pinLabel.TextColor3 = if note.readiness == "markOnly" then INK else WHITE
 	return mark
@@ -520,7 +520,8 @@ local function syncMarks()
 	end
 	local seen = {}
 	for _, note in data.notes do
-		if note.readiness ~= "sent" then
+		-- A mark stays while an agent works on it.
+		if note.readiness ~= "sent" or note.working then
 			seen[note.id] = true
 			ensureMark(note)
 		end

@@ -35,6 +35,12 @@ export const ICON = {
   spark: svg('<path d="M12 3.500l1.800 5.200 5.200 1.800-5.200 1.800L12 17.500l-1.800-5.200-5.200-1.800 5.200-1.800L12 3.500z"/>'),
 };
 
+/** Lets an element fade before it goes. */
+export function leave(el: HTMLElement) {
+  el.classList.add("ds3d-leaving");
+  setTimeout(() => el.remove(), 160);
+}
+
 export function iconSpan(icon: string, className = "ds3d-ic"): HTMLElement {
   return h("span", { class: className, html: icon });
 }

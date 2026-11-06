@@ -5,19 +5,40 @@ import type { AgentDirective, Note, Vec2 } from "../core/types.ts";
 import type { RunState } from "../hubClient.ts";
 import type { Drawspeak3D } from "../tool.ts";
 import { blobToDataUrl, renderComposite, toBlob } from "./composite.ts";
-import { ICON, h, iconSpan } from "./dom.ts";
+import { ICON, h, iconSpan, leave } from "./dom.ts";
 
 /** The interface of the tool. It stays small while you play, and asks for nothing until there is something to send. */
 
 function button(icon: string | undefined, label: string | undefined, onClick: () => void, options: { class?: string; title?: string; disabled?: boolean; kbd?: string } = {}) {
   return h(
     "button",
-    { class: `ds3d-btn ${options.class ?? ""}`, title: options.title ?? label, "aria-label": options.title ?? label, disabled: options.disabled, onclick: onClick },
+    {
+      class: `ds3d-btn ${options.class ?? ""}`,
+      title: options.title ?? label,
+      "aria-label": options.title ?? label,
+      disabled: options.disabled,
+      // The keyboard belongs to the game: a button that was clicked doesn't keep it (Space is a jump).
+      onclick: (e: Event) => {
+        const pressed = e.currentTarget as HTMLElement;
+        onClick();
+        pressed.blur();
+      },
+    },
     icon && iconSpan(icon),
     label && h("span", { class: "ds3d-label" }, label),
     options.kbd && h("kbd", {}, options.kbd),
   );
 }
+
+const setLabel = (el: HTMLElement, text: string) => {
+  let label = el.querySelector<HTMLElement>(".ds3d-label");
+  if (!label) {
+    label = h("span", { class: "ds3d-label" });
+    el.append(label);
+  }
+  if (label.textContent !== text) label.textContent = text;
+  label.style.display = text ? "" : "none";
+};
 
 const targetText = (note: Note): string => {
   const { path } = note.world;
@@ -29,43 +50,106 @@ const targetText = (note: Note): string => {
 
 // ------------------------------------------------------------------------------- the palette
 
+const DRAW_HINT = "Circle a thing, tap a spot or draw a line, then say it.";
+const FIRST_HINT = "Press <kbd>C</kbd> and circle anything in the world, then say what should change.";
+const KNOWS_HOW = "ds3d.knowsHow";
+
 export class Palette {
   private readonly tool: Drawspeak3D;
   private readonly el: HTMLElement;
   private readonly hint: HTMLElement;
   private readonly chip: HTMLElement;
+  private readonly draw: HTMLElement;
+  private readonly more: HTMLElement;
+  private readonly undoButton: HTMLButtonElement;
+  private readonly voice: HTMLElement;
+  private readonly list: HTMLElement;
+  private readonly send: HTMLButtonElement;
+  private readonly sendKey = h("kbd", {}, "Enter");
+  private voiceOn?: boolean;
+  private firstHint = false;
+  private knowsHow = false;
 
   constructor(tool: Drawspeak3D) {
     this.tool = tool;
-    this.el = h("div", { class: "ds3d-palette ds3d-glass", role: "toolbar", "aria-label": "Drawspeak" });
-    this.hint = h("div", { class: "ds3d-hint ds3d-glass", html: "Circle a thing or an area, tap a spot, or draw a line from here to there. Then say it. <em>Right-drag still turns the camera.</em>" });
-    this.hint.style.display = "none";
+    this.draw = button(ICON.pencil, "Draw", () => tool.toggleArmed(), { title: "Draw marks on the world (hold or tap C; a pen always draws)", kbd: "C" });
+    this.undoButton = button(ICON.undo, undefined, () => tool.undo(), { title: "Undo the last mark (Ctrl+Z)" });
+    this.voice = button(ICON.mic, undefined, () => tool.setAutoVoice(!tool.autoVoice));
+    // The tools for drawing open out of the palette, and what is under the pointer stays put.
+    this.more = h("div", { class: "ds3d-more" }, h("div", {}, h("span", { class: "ds3d-sep" }), this.undoButton, this.voice));
+    this.list = button(ICON.list, undefined, () => tool.toggleColumn(), { title: "Comments" });
+    this.send = button(ICON.send, "Send", () => tool.openFeedback(), { title: "Feedback: review and send to the agent" });
+    this.el = h(
+      "div",
+      { class: "ds3d-palette ds3d-glass", role: "toolbar", "aria-label": "Drawspeak" },
+      this.draw,
+      this.more,
+      button(ICON.talk, undefined, () => tool.talkAboutView(), { title: "Say something about what is in view, or about the whole experience (T)" }),
+      h("span", { class: "ds3d-sep" }),
+      this.list,
+      this.send,
+    );
+    this.hint = h("div", { class: "ds3d-hint ds3d-glass" });
     this.chip = h("div", { class: "ds3d-chip-label ds3d-glass" });
     this.chip.style.display = "none";
     tool.root.append(this.chip, this.hint, this.el);
+    try {
+      this.knowsHow = localStorage.getItem(KNOWS_HOW) !== null;
+    } catch {
+      this.knowsHow = true;
+    }
   }
 
   render() {
     const t = this.tool;
-    this.hint.style.display = t.armed ? "" : "none";
-    const ready = t.readyCount;
-    const items: Array<HTMLElement> = [
-      button(ICON.pencil, "Draw", () => t.toggleArmed(), { class: t.armed ? "is-on" : "", title: "Draw marks on the world (hold or tap C; a pen always draws)", kbd: "C" }),
-    ];
-    if (t.armed) {
-      items.push(
-        h("span", { class: "ds3d-sep" }),
-        button(ICON.undo, undefined, () => t.undo(), { title: "Undo the last mark (Ctrl+Z)", disabled: !t.canUndo }),
-        button(t.autoVoice ? ICON.mic : ICON.micOff, undefined, () => t.setAutoVoice(!t.autoVoice), { class: t.autoVoice ? "" : "", title: t.autoVoice ? "Voice starts after each mark. Click to type instead." : "Voice is off: you type. Click to speak after each mark." }),
-      );
+    if (t.armed) this.learned();
+    this.draw.classList.toggle("is-on", t.armed);
+    this.more.classList.toggle("is-open", t.armed);
+    this.more.inert = !t.armed;
+    this.undoButton.disabled = !t.canUndo;
+    if (this.voiceOn !== t.autoVoice) {
+      this.voiceOn = t.autoVoice;
+      const title = t.autoVoice ? "Voice starts after each mark. Click to type instead." : "Voice is off: you type. Click to speak after each mark.";
+      this.voice.title = title;
+      this.voice.setAttribute("aria-label", title);
+      this.voice.replaceChildren(iconSpan(t.autoVoice ? ICON.mic : ICON.micOff));
     }
-    items.push(
-      button(ICON.talk, undefined, () => t.talkAboutView(), { title: "Say something about what is in view, or about the whole experience (T)" }),
-      h("span", { class: "ds3d-sep" }),
-      button(ICON.list, t.visibleNotes.length > 0 ? String(t.visibleNotes.length) : undefined, () => t.toggleColumn(), { title: "Comments" }),
-      button(ICON.send, ready > 0 ? `Send (${ready})` : "Send", () => t.openFeedback(), { class: ready > 0 ? "ds3d-primary" : "", title: "Feedback: review and send to the agent", disabled: ready === 0 && t.notes.length === 0 }),
-    );
-    this.el.replaceChildren(...items);
+    const count = t.visibleNotes.length;
+    setLabel(this.list, count > 0 ? String(count) : "");
+    const ready = t.readyCount;
+    setLabel(this.send, ready > 0 ? `Send (${ready})` : "Send");
+    this.send.classList.toggle("ds3d-primary", ready > 0);
+    // Enter does it too, from anywhere in the world.
+    if ((this.sendKey.parentElement !== null) !== ready > 0) {
+      if (ready > 0) this.send.append(this.sendKey);
+      else this.sendKey.remove();
+    }
+    this.send.disabled = ready === 0 && t.notes.length === 0;
+    const hint = t.armed ? DRAW_HINT : this.firstHint ? FIRST_HINT : undefined;
+    if (hint && this.hint.innerHTML !== hint) this.hint.innerHTML = hint;
+    this.hint.classList.toggle("is-on", hint !== undefined);
+  }
+
+  /** Once, the first time the store is in sight: what this little bar is for. */
+  greet() {
+    if (this.knowsHow) return;
+    this.firstHint = true;
+    this.render();
+    setTimeout(() => {
+      this.learned();
+      this.render();
+    }, 14_000);
+  }
+
+  private learned() {
+    this.firstHint = false;
+    if (this.knowsHow) return;
+    this.knowsHow = true;
+    try {
+      localStorage.setItem(KNOWS_HOW, "1");
+    } catch {
+      // it greets again next time, no harm
+    }
   }
 
   /** The name of what a pressed pen is choosing. */
@@ -82,13 +166,14 @@ export class Palette {
 
 // ------------------------------------------------------------------------------- the bubble
 
-/** Beside the pin while you speak: what was heard, what it is about, Stop and Discard. */
+/** Beside the pin while you speak: your words, what they are about, and what to do with them. */
 export class Bubble {
   private readonly tool: Drawspeak3D;
   private readonly el: HTMLElement;
   private readonly text: HTMLTextAreaElement;
   private readonly head: HTMLElement;
-  private readonly chain: HTMLElement;
+  private readonly about: HTMLElement;
+  private readonly choices: HTMLElement;
   private readonly actions: HTMLElement;
   private readonly problemLine: HTMLElement;
   private time?: HTMLElement;
@@ -97,13 +182,15 @@ export class Bubble {
   private x = -1;
   private y = -1;
   private noteId?: string;
+  /** The thing's parents and what is behind it are one click away. */
+  private choosing = false;
 
   constructor(tool: Drawspeak3D) {
     this.tool = tool;
     this.head = h("div", { class: "ds3d-bubble-head" });
     this.text = h("textarea", {
       class: "ds3d-text",
-      rows: 2,
+      rows: 1,
       placeholder: "Say it, or type here…",
       oninput: () => {
         const note = this.tool.active;
@@ -112,11 +199,21 @@ export class Bubble {
         this.fit();
       },
       onfocus: () => (this.closeAt = 0),
+      onkeydown: (e: KeyboardEvent) => {
+        // Like a message: Enter sends it, Shift+Enter is a new line.
+        if (e.key !== "Enter" || e.shiftKey || e.isComposing) return;
+        e.preventDefault();
+        e.stopPropagation();
+        this.text.blur();
+        if (this.tool.recordingNote) void this.tool.stopRecording();
+        else if (!this.tool.sendActive()) this.tool.activate(undefined);
+      },
     }) as HTMLTextAreaElement;
     this.problemLine = h("div", { class: "ds3d-note-line" });
-    this.chain = h("div", { class: "ds3d-chain" });
+    this.about = h("div", { class: "ds3d-about-box" });
     this.actions = h("div", { class: "ds3d-actions" });
-    this.el = h("div", { class: "ds3d-bubble ds3d-glass" }, this.head, this.text, this.problemLine, this.chain, this.actions);
+    this.choices = h("div", { class: "ds3d-choices" });
+    this.el = h("div", { class: "ds3d-bubble ds3d-glass" }, this.head, this.text, this.problemLine, h("div", { class: "ds3d-bubble-foot" }, this.about, this.actions), this.choices);
     this.el.style.display = "none";
     // Hovering keeps it from closing by itself.
     this.el.addEventListener("pointerenter", () => (this.closeAt = 0));
@@ -140,10 +237,12 @@ export class Bubble {
       this.closeAt = 0;
       this.x = -1;
       this.text.value = note.text;
+      this.choosing = false;
     }
     this.el.style.display = "";
     const recording = note.recording === "recording";
     const hearing = note.recording === "transcribing";
+    this.text.placeholder = recording ? "Listening…" : "Say it, or type here…";
     if (document.activeElement !== this.text && !recording) this.text.value = note.text;
     this.fit();
     this.problemLine.style.display = this.problemLine.textContent ? "" : "none";
@@ -164,62 +263,76 @@ export class Bubble {
       this.head.replaceChildren(h("span", { class: "ds3d-spin" }), h("span", {}, "Finishing…"));
     } else {
       this.head.replaceChildren(
-        h("span", {}, note.shape.kind === "view" ? `Comment ${number}: the whole view` : `Comment ${number}`),
+        h("span", { class: "ds3d-bubble-title" }, `Comment ${number}`),
         h("div", { class: "ds3d-level" }),
-        button(ICON.close, undefined, () => this.tool.activate(undefined), { class: "ds3d-small", title: "Close" }),
+        button(ICON.close, undefined, () => this.tool.activate(undefined), { class: "ds3d-small ds3d-quiet", title: "Close" }),
       );
     }
 
-    // What it is about: the thing, then its parents; things behind it are another choice.
-    const target = note.target;
-    const links: HTMLElement[] = [];
-    if (target) {
-      chainOf(target).forEach((entity, depth) => {
-        if (depth > 0) links.push(h("span", { class: "ds3d-link-sep" }, "›"));
-        links.push(
-          h(
-            "button",
-            {
-              class: `ds3d-link ${depth === target.depth ? "is-current" : ""}`,
-              title: `${entity.label} (${entity.kind})`,
-              onclick: () => this.tool.setTarget(note, selectDepth(target, depth)),
-            },
-            entity.label,
-          ),
-        );
-      });
-      const behind = target.layers
-        .map((chain, layer) => ({ entity: chain[0], layer }))
-        .filter(({ layer }) => layer !== target.layer)
-        .slice(0, 4);
-      this.chain.replaceChildren(...links);
-      if (behind.length > 0) {
-        this.chain.append(
-          h(
-            "div",
-            { class: "ds3d-behind" },
-            "Or:",
-            ...behind.map(({ entity, layer }) => h("button", { class: "ds3d-link", title: `${entity.label} (${entity.kind})`, onclick: () => this.tool.setTarget(note, selectLayer(target, layer)) }, entity.label)),
-          ),
-        );
-      }
-      this.chain.style.display = "";
-    } else {
-      this.chain.replaceChildren();
-      this.chain.style.display = "none";
-    }
+    this.renderAbout(note);
 
-    const left: HTMLElement[] = [];
-    const right: HTMLElement[] = [];
+    const buttons: Array<HTMLElement | false> = [];
     if (recording) {
-      left.push(button(ICON.close, "Discard", () => this.tool.discard(note), { class: "ds3d-small ds3d-danger", kbd: "Esc" }));
-      right.push(button(ICON.stop, "Stop", () => void this.tool.stopRecording(), { class: "ds3d-small ds3d-primary", kbd: "Enter" }));
+      buttons.push(
+        button(ICON.close, undefined, () => this.tool.discard(note), { class: "ds3d-small ds3d-quiet ds3d-danger", title: "Discard (Esc)" }),
+        button(ICON.stop, "Stop", () => void this.tool.stopRecording(), { class: "ds3d-small ds3d-primary", kbd: "Enter" }),
+      );
     } else if (!hearing) {
-      left.push(button(ICON.trash, undefined, () => this.tool.deleteNote(note.id), { class: "ds3d-small ds3d-danger", title: "Delete this mark (Undo brings it back)" }));
-      right.push(button(ICON.mic, note.text.trim() ? "Add by voice" : "Speak", () => this.tool.startRecording(note), { class: "ds3d-small" }));
-      if (note.text.trim() && this.tool.snapshotOf(note)) right.push(button(ICON.eye, undefined, () => void this.tool.showPicture(note), { class: "ds3d-small", title: "See the view with this mark" }));
+      const said = note.text.trim() !== "";
+      const sendable = said && this.tool.canSend(note);
+      buttons.push(
+        button(ICON.trash, undefined, () => this.tool.deleteNote(note.id), { class: "ds3d-small ds3d-quiet ds3d-danger", title: "Delete this mark (Undo brings it back)" }),
+        button(ICON.mic, sendable ? undefined : said ? "Add by voice" : "Speak", () => this.tool.startRecording(note), { class: "ds3d-small ds3d-quiet", title: said ? "Add by voice" : "Speak" }),
+        !sendable && said && this.tool.snapshotOf(note) !== undefined && button(ICON.eye, undefined, () => void this.tool.showPicture(note), { class: "ds3d-small ds3d-quiet", title: "See the view with this mark" }),
+        sendable && button(ICON.send, "Send", () => void this.tool.sendActive(), { class: "ds3d-small ds3d-primary", title: "Send this to the agent, and keep walking", kbd: "Enter" }),
+      );
     }
-    this.actions.replaceChildren(h("div", {}, ...left), h("div", { class: "ds3d-card-buttons" }, ...right));
+    this.actions.replaceChildren(...buttons.filter((b): b is HTMLElement => b !== false));
+  }
+
+  /** What it is about, in one line; its parents and what stands behind it fold out. */
+  private renderAbout(note: Note) {
+    const target = note.target;
+    if (!target) {
+      this.about.replaceChildren(h("span", { class: "ds3d-about is-still" }, h("span", { class: "ds3d-about-name" }, note.shape.kind === "view" ? "The whole view" : kindLabel(note.shape))));
+      this.choices.style.display = "none";
+      return;
+    }
+    const chain = chainOf(target);
+    const here = chain[target.depth] ?? chain[0];
+    const behind = target.layers
+      .map((layerChain, layer) => ({ entity: layerChain[0], layer }))
+      .filter(({ layer }) => layer !== target.layer)
+      .slice(0, 4);
+    const more = chain.length > 1 || behind.length > 0;
+    this.about.replaceChildren(
+      h(
+        "button",
+        {
+          class: `ds3d-about ${this.choosing ? "is-open" : ""} ${more ? "" : "is-still"}`,
+          title: more ? `${here.label}: click to choose something else` : here.label,
+          disabled: !more,
+          onclick: () => {
+            this.choosing = !this.choosing;
+            this.render();
+          },
+        },
+        h("span", { class: "ds3d-about-name" }, here.label),
+        more && iconSpan(ICON.chevron),
+      ),
+    );
+    if (!this.choosing) {
+      this.choices.style.display = "none";
+      return;
+    }
+    const links: HTMLElement[] = [];
+    chain.forEach((entity, depth) => {
+      if (depth > 0) links.push(h("span", { class: "ds3d-link-sep" }, "›"));
+      links.push(h("button", { class: `ds3d-link ${depth === target.depth ? "is-current" : ""}`, title: `${entity.label} (${entity.kind})`, onclick: () => this.tool.setTarget(note, selectDepth(target, depth)) }, entity.label));
+    });
+    this.choices.replaceChildren(h("div", { class: "ds3d-chain" }, ...links));
+    if (behind.length > 0) this.choices.append(h("div", { class: "ds3d-behind" }, "Or:", ...behind.map(({ entity, layer }) => h("button", { class: "ds3d-link", title: `${entity.label} (${entity.kind})`, onclick: () => this.tool.setTarget(note, selectLayer(target, layer)) }, entity.label))));
+    this.choices.style.display = "";
   }
 
   private languageButton() {
@@ -237,7 +350,7 @@ export class Bubble {
 
   private fit() {
     this.text.style.height = "auto";
-    this.text.style.height = `${Math.min(148, Math.max(52, this.text.scrollHeight + 2))}px`;
+    this.text.style.height = `${Math.min(148, Math.max(46, this.text.scrollHeight + 2))}px`;
   }
 
   liveText(text: string) {
@@ -264,7 +377,7 @@ export class Bubble {
   }
 
   closeSoon() {
-    this.closeAt = performance.now() + 2600;
+    this.closeAt = performance.now() + 4500;
   }
 
   /** ] goes up to the parent, [ back down. */
@@ -337,9 +450,19 @@ export class Column {
 
   toggle() {
     this.open = !this.open;
-    this.el.style.display = this.open ? "" : "none";
     this.renderedKey = "";
-    this.render();
+    if (this.open) {
+      this.el.classList.remove("ds3d-leaving");
+      this.el.style.display = "";
+      this.render();
+      return;
+    }
+    this.el.classList.add("ds3d-leaving");
+    setTimeout(() => {
+      if (this.open) return;
+      this.el.style.display = "none";
+      this.el.classList.remove("ds3d-leaving");
+    }, 160);
   }
 
   /** Text fields keep focus and caret: only rebuilt when the list itself changes. */
@@ -452,10 +575,29 @@ export class Sheet {
     return this.scrim !== undefined;
   }
 
+  /** Pictures are on their way to the hub. */
+  get sending(): boolean {
+    return this.busy;
+  }
+
   close() {
-    if (this.scrim) this.tool.adapter.freeze?.(false);
-    this.scrim?.remove();
+    if (!this.scrim) return;
+    this.tool.adapter.freeze?.(false);
+    leave(this.scrim);
     this.scrim = undefined;
+  }
+
+  /** Enter, with the window open: what is ticked goes. */
+  sendChosen() {
+    if (this.chosen.size > 0 && !this.busy) void this.deliver("send");
+  }
+
+  /** Said and done: one comment goes to the agent as it is, with no window in the way. */
+  async sendOne(note: Note): Promise<boolean> {
+    if (this.busy) return false;
+    this.chosen = new Set([note.id]);
+    this.directive = { mode: "apply", note: "" };
+    return this.deliver("send");
   }
 
   show() {
@@ -571,6 +713,9 @@ export class Sheet {
       placeholder: "Anything else for the agent? (optional)",
       value: this.directive.note,
       oninput: (e: Event) => (this.directive.note = (e.target as HTMLInputElement).value),
+      onkeydown: (e: KeyboardEvent) => {
+        if (e.key === "Enter") this.sendChosen();
+      },
     });
     foot.replaceChildren(
       h("div", { class: "ds3d-direct" }, h("div", { class: "ds3d-seg" }, seg("apply", "Make the changes"), seg("replyOnly", "Just reply")), extra),
@@ -607,8 +752,8 @@ export class Sheet {
   }
 
   /** Freezes what is shown, and hands it over. */
-  private async deliver(how: "send" | "draft" | "copy") {
-    if (this.busy) return;
+  private async deliver(how: "send" | "draft" | "copy"): Promise<boolean> {
+    if (this.busy) return false;
     const t = this.tool;
     this.busy = true;
     this.renderFoot();
@@ -642,14 +787,13 @@ export class Sheet {
         await navigator.clipboard.writeText(message);
         t.toast("Copied the comments as text. Start the hub to send the pictures too.");
         this.close();
-        return;
+        return true;
       }
       const saved = await t.hub.saveBatch({ batchId, message, manifest: manifestOf(pkg), files });
       if (how === "send") {
         await t.hub.send(batchId, { noteIds: [...ids], newThread: this.newThread });
         t.markSent(ids);
         this.newThread = false;
-        t.toast(`Sent ${ids.size} comment${ids.size === 1 ? "" : "s"} to the agent.`);
       } else if (how === "draft") {
         t.toast(`Draft saved: ${saved.folder}`);
       } else {
@@ -657,8 +801,10 @@ export class Sheet {
         t.toast("Prompt copied. Paste it to any agent.");
       }
       this.close();
+      return true;
     } catch (error) {
       t.toast(error instanceof Error ? error.message : String(error), true);
+      return false;
     } finally {
       this.busy = false;
       this.renderFoot();
@@ -677,14 +823,28 @@ const elapsed = (run: RunState): string => {
 };
 const lastLine = (run: RunState) => run.activity[run.activity.length - 1] ?? "Reading your comments…";
 
-/** A card for each agent at work and each that just finished, over the world. */
+interface RunCard {
+  status: RunState["status"];
+  el: HTMLElement;
+  line?: HTMLElement;
+  clock?: HTMLElement;
+  run: RunState;
+  /** How long a finished card stays, counted only while the world is being looked at. */
+  staysFor?: number;
+  held?: boolean;
+}
+
+/** A card for each agent at work and each that just finished, over the world. Good news leaves by itself. */
 export class RunCards {
   private readonly tool: Drawspeak3D;
   private readonly el: HTMLElement;
   private runs: RunState[] = [];
   private readonly seenWorking = new Set<string>();
+  /** The comments an agent is working on right now. */
+  readonly workingNotes = new Set<string>();
   /** Kept between updates: a press on a button that gets rebuilt half way is lost. */
-  private readonly cards = new Map<string, { status: RunState["status"]; el: HTMLElement; line?: HTMLElement; clock?: HTMLElement; run: RunState }>();
+  private readonly cards = new Map<string, RunCard>();
+  private lastTick = performance.now();
 
   constructor(tool: Drawspeak3D) {
     this.tool = tool;
@@ -699,6 +859,8 @@ export class RunCards {
 
   update(runs: RunState[]) {
     this.runs = runs;
+    this.workingNotes.clear();
+    for (const run of runs) if (run.status === "running") for (const id of run.noteIds ?? []) this.workingNotes.add(id);
     this.render();
   }
 
@@ -722,8 +884,13 @@ export class RunCards {
       // it shows again after a reload, no harm
     }
     this.seenWorking.delete(run.id);
-    this.runs = this.runs.filter((other) => other !== run);
+    this.runs = this.runs.filter((other) => other.id !== run.id);
     this.render();
+  }
+
+  private fadeAway(run: RunState, el: HTMLElement) {
+    el.classList.add("ds3d-leaving");
+    setTimeout(() => this.dismiss(run), 170);
   }
 
   private render() {
@@ -748,25 +915,33 @@ export class RunCards {
       return known.el;
     }
     const made = run.status === "running" ? this.workingCard(run) : this.finishedCard(run);
-    this.cards.set(run.id, { status: run.status, run, ...made });
+    const card: RunCard = { status: run.status, run, ...made };
+    this.cards.set(run.id, card);
+    if (run.status === "done" && !run.shared?.length) {
+      // Time to read it, and a pointer resting on it keeps it.
+      card.staysFor = Math.min(30_000, 10_000 + (run.reply?.length ?? 0) * 45);
+      made.el.addEventListener("pointerenter", () => (card.held = true));
+      made.el.addEventListener("pointerleave", () => (card.held = false));
+    }
     return made.el;
   }
 
   private workingCard(run: RunState) {
-    const clock = h("span", { class: "ds3d-time" }, elapsed(run));
+    const clock = h("span", { class: "ds3d-time ds3d-run-clock" }, elapsed(run));
     const line = h("div", { class: "ds3d-run-line" }, lastLine(run));
     const el = h(
       "div",
-      { class: "ds3d-run ds3d-glass" },
+      { class: "ds3d-run ds3d-glass is-working" },
       h(
         "div",
         { class: "ds3d-run-head" },
         h("span", { class: "ds3d-spin" }),
-        h("span", { class: "ds3d-run-title", title: run.about ?? "" }, run.about ? `Working on: ${run.about}` : `${run.agent} is working`),
+        h("span", { class: "ds3d-run-title", title: run.about ?? "" }, run.about ?? `${run.agent} is working`),
         clock,
-        button(ICON.stop, undefined, () => void this.tool.hub.stop(run.id), { class: "ds3d-small ds3d-danger", title: "Stop this agent" }),
+        button(ICON.stop, undefined, () => void this.tool.hub.stop(run.id), { class: "ds3d-small ds3d-quiet ds3d-danger", title: "Stop this agent" }),
       ),
       line,
+      h("div", { class: "ds3d-run-going" }),
     );
     return { el, line, clock };
   }
@@ -774,28 +949,47 @@ export class RunCards {
   private finishedCard(run: RunState) {
     const ok = run.status === "done";
     const files = run.changed ?? [];
-    const title = ok ? (files.length > 0 ? `Done: ${files.length} file${files.length === 1 ? "" : "s"} changed` : "Done") : run.status === "stopped" ? "Stopped" : "The agent could not finish";
+    const title = ok ? (run.about ?? "Done") : run.status === "stopped" ? "Stopped" : "The agent could not finish";
+    const close = () => this.fadeAway(run, el);
     const parts: HTMLElement[] = [
       h(
         "div",
         { class: "ds3d-run-head" },
         iconSpan(ok ? ICON.check : ICON.close, ok ? "ds3d-run-ok" : "ds3d-run-bad"),
-        h("span", { class: "ds3d-run-title" }, title),
-        button(ICON.close, undefined, () => this.dismiss(run), { class: "ds3d-small", title: "Close" }),
+        h("span", { class: "ds3d-run-title", title }, title),
+        ok && (run.noteIds?.length ?? 0) > 0 ? button(ICON.eye, "See it", () => this.tool.seeRun(run), { class: "ds3d-small ds3d-quiet", title: "Look from where you marked it (any move of yours brings you back)" }) : null,
+        button(ICON.close, undefined, close, { class: "ds3d-small ds3d-quiet", title: "Close" }),
       ),
     ];
-    if (run.about) parts.push(h("div", { class: "ds3d-run-line" }, run.about));
+    if (!ok && run.about) parts.push(h("div", { class: "ds3d-run-line" }, `${run.about}${run.noteIds?.length ? " · still marked, ready to send again" : ""}`));
     if (run.reply || run.error) parts.push(h("div", { class: "ds3d-run-reply" }, run.reply ?? run.error ?? ""));
-    if (files.length > 0) parts.push(h("div", { class: "ds3d-run-files" }, files.join(" · ")));
+    if (files.length > 0) {
+      const count = `${files.length} file${files.length === 1 ? "" : "s"} changed`;
+      const list = files.join(" · ");
+      const line: HTMLElement = h("button", { class: "ds3d-run-files", title: list, onclick: () => (line.textContent = line.textContent === count ? list : count) }, count);
+      parts.push(line);
+    }
     if (run.shared?.length) parts.push(h("div", { class: "ds3d-run-shared" }, `Another agent changed this too, worth a look: ${run.shared.join(", ")}`));
-    return { el: h("div", { class: "ds3d-run ds3d-glass" }, ...parts) };
+    const el = h("div", { class: "ds3d-run ds3d-glass" }, ...parts);
+    return { el };
   }
 
   tick() {
-    for (const { clock, run } of this.cards.values()) {
-      if (!clock) continue;
-      const text = elapsed(run);
-      if (clock.textContent !== text) clock.textContent = text;
+    const now = performance.now();
+    // Frames only come while the world is in sight, and the steps are capped: a reply does not leave while you are away.
+    const step = Math.min(now - this.lastTick, 100);
+    this.lastTick = now;
+    for (const card of this.cards.values()) {
+      if (card.clock) {
+        const text = elapsed(card.run);
+        if (card.clock.textContent !== text) card.clock.textContent = text;
+      }
+      if (card.staysFor === undefined || card.held) continue;
+      card.staysFor -= step;
+      if (card.staysFor <= 0) {
+        card.staysFor = undefined;
+        this.fadeAway(card.run, card.el);
+      }
     }
   }
 }
@@ -815,12 +1009,11 @@ export class Toast {
     const el = h("div", { class: `ds3d-toast ds3d-glass ${warn ? "warn" : ""}` }, text);
     this.root.append(el);
     this.el = el;
-    this.timer = setTimeout(() => el.remove(), warn ? 7000 : 3200);
+    this.timer = setTimeout(() => leave(el), warn ? 7000 : 3200);
   }
 }
 
 export function lightbox(root: HTMLElement, url: string) {
-  const scrim = h("div", { class: "ds3d-scrim", onpointerdown: () => scrim.remove() }, h("img", { class: "ds3d-lightbox", src: url, alt: "The view with its mark" }));
+  const scrim = h("div", { class: "ds3d-scrim ds3d-picture", onpointerdown: () => leave(scrim) }, h("img", { class: "ds3d-lightbox", src: url, alt: "The view with its mark" }));
   root.append(scrim);
 }
-

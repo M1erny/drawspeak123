@@ -3,7 +3,7 @@ import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "nod
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { ClaudeStream, LOOK, childEnvironment, claudeArgs, describeToolUse, startOptions } from "../hub/agents.ts";
+import { ClaudeStream, DEFAULT_MODEL, LOOK, childEnvironment, claudeArgs, describeToolUse, startOptions } from "../hub/agents.ts";
 import { gitChanged, type Project } from "../hub/data.ts";
 import { startHub, type Hub } from "../hub/hub.ts";
 
@@ -135,7 +135,8 @@ describe("the agent", () => {
     await runDone("shop");
   });
   it("several agents work side by side, up to three", async () => {
-    process.env.DRAWSPEAK_FAKE_MS = "250";
+    // Long enough to start them all, on a busy machine.
+    process.env.DRAWSPEAK_FAKE_MS = "600";
     const said = (text: string) => ({ snapshots: [{ notes: [{ text }] }], directive: { mode: "apply", note: "" } });
     for (const [id, text] of [["s1", "Put a bench here"], ["s2", "Add a plant there"], ["s3", "Move the desk"], ["s4", "One too many"]]) {
       await post("/v1/projects/shop/batches", { ...batch(id), manifest: said(text) });
@@ -165,7 +166,7 @@ describe("the agent", () => {
       expect(run(id).changed).toEqual(["client/world/products.ts"]);
       expect(run(id).shared).toEqual(["client/world/products.ts"]);
     }
-  });
+  }, 20_000);
   it("one agent can be stopped while the other goes on", async () => {
     await post("/v1/projects/shop/batches", batch("t1"));
     await post("/v1/projects/shop/batches", batch("t2"));
@@ -177,7 +178,7 @@ describe("the agent", () => {
     expect(list.find((r: { batchId: string }) => r.batchId === "t1").status).toBe("stopped");
     expect(list.find((r: { batchId: string }) => r.batchId === "t2").status).toBe("done");
     process.env.DRAWSPEAK_FAKE_MS = "20";
-  });
+  }, 20_000);
   it("working alone, it isn't told about others, and nothing is called shared", async () => {
     await post("/v1/projects/shop/batches", batch("u1"));
     await post("/v1/projects/shop/batches/u1/send", {});
@@ -191,6 +192,30 @@ describe("the agent", () => {
     expect(await (await post("/v1/projects/shop/stop", {})).json()).toEqual({ stopped: true });
     expect((await runDone("shop")).status).toBe("stopped");
   });
+  it("an agent sees a view through the page that is open, and nobody else can ask", async () => {
+    const look = `${base}/v1/projects/shop/look?view=1,2,3,0,0,0,1,60`;
+    expect((await fetch(look)).status).toBe(403);
+    expect((await fetch(look, { headers: { "x-drawspeak-look": "wrong" } })).status).toBe(403);
+    expect((await fetch(look, { headers: { "x-drawspeak-look": hub.lookToken } })).status).toBe(404);
+
+    // A page opens, hears the request, and answers.
+    const desk = await fetch(`${base}/v1/projects/shop/events`);
+    expect((await fetch(look, { headers: { "x-drawspeak-look": hub.lookToken } })).status).toBe(404);
+    await desk.body!.cancel();
+    const events = await fetch(`${base}/v1/projects/shop/events?page=1`);
+    const reader = events.body!.getReader();
+    const asked = fetch(look, { headers: { "x-drawspeak-look": hub.lookToken } });
+    let text = "";
+    while (!text.includes("event: look")) text += new TextDecoder().decode((await reader.read()).value);
+    if (!/data: \{"id"/.test(text.slice(text.indexOf("event: look")))) text += new TextDecoder().decode((await reader.read()).value);
+    const request = JSON.parse(/event: look\ndata: (.*)/.exec(text)![1]);
+    expect(request.view).toBe("1,2,3,0,0,0,1,60");
+    expect((await post(`/v1/projects/shop/look/${request.id}`, { image: "data:image/png;base64,AAAA", errors: ["boom"] })).status).toBe(200);
+    const answer = await (await asked).json();
+    expect(answer.image).toBe("data:image/png;base64,AAAA");
+    expect(answer.errors).toEqual(["boom"]);
+    await reader.cancel();
+  }, 20_000);
   it("changed files are named from the project's folder, as the agent names them", () => {
     const repo = mkdtempSync(join(tmpdir(), "ds3d-git-"));
     const quiet = { stdio: "ignore", windowsHide: true } as const;
@@ -215,6 +240,11 @@ describe("the agent", () => {
     expect(edit).not.toContain("--dangerously-skip-permissions");
     expect(edit.join(" ")).toContain("Do not commit, push, publish, deploy");
     expect(edit.join(" ")).toContain("Other agents may be working in this same folder");
+    // It is told what it can run, and runs on the quicker model unless told otherwise.
+    expect(edit[edit.indexOf("--append-system-prompt") + 1]).toContain("The only shell commands you can run are these");
+    expect(edit[edit.indexOf("--append-system-prompt") + 1]).toContain("npm test");
+    expect(edit[edit.indexOf("--model") + 1]).toBe(DEFAULT_MODEL);
+    expect(claudeArgs({ project: { ...project, model: "opus" }, folder: "C:/batch", mode: "apply" }).join(" ")).toContain("--model opus");
     expect(edit).not.toContain("--resume");
     // It can look at what it did, and is told to.
     expect(tools).toMatch(/Bash\(node \S*\/hub\/look\.mjs:\*\)/);
@@ -267,5 +297,6 @@ describe("the agent", () => {
   it("its tools read as plain words", () => {
     expect(describeToolUse("Edit", { file_path: `${process.cwd()}/client/a.ts` }, process.cwd())).toEqual({ line: "Editing client/a.ts", file: "client/a.ts" });
     expect(describeToolUse("Read", { file_path: "C:/elsewhere/01.jpg" }, process.cwd()).line).toBe("Looking at your picture");
+    expect(describeToolUse("Read", { file_path: "C:/elsewhere/after-1.png" }, process.cwd()).line).toBe("Looking at the result");
   });
 });

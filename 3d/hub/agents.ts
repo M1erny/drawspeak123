@@ -19,6 +19,8 @@ export interface AgentJob {
   mode: string;
   /** Carry on this conversation. */
   resume?: string;
+  /** For the commands it runs (how look.mjs finds the page that is open). */
+  env?: Record<string, string>;
   onActivity(line: string): void;
   onChangedFile(path: string): void;
 }
@@ -44,6 +46,12 @@ export interface Agent {
   start(job: AgentJob): RunningAgent;
 }
 
+/**
+ * Quick and sharp enough for edits in a world. On a real request (a bench in the store) it had finished
+ * saving after 39 seconds, against Opus's 93 and Haiku's 85. DRAWSPEAK_MODEL, or "model" in a project, changes it.
+ */
+export const DEFAULT_MODEL = "sonnet";
+
 /** The agent's eyes: how a world on a web page looks now, from a view. */
 export const LOOK = fileURLToPath(new URL("./look.mjs", import.meta.url)).replace(/\\/g, "/");
 const READ_TOOLS = ["Read", "Glob", "Grep"];
@@ -60,7 +68,8 @@ export function claudeArgs(job: Pick<AgentJob, "project" | "folder" | "mode" | "
   const rules = [
     "You are receiving feedback from Drawspeak 3D: a person walked through a running 3D world, marked things and places on screen and said what should change.",
     "Look at the pictures in the batch folder with the Read tool before changing anything.",
-    looks ? `After changing the world, see it as the reviewer will before you finish: run node ${LOOK} "<the view's Open this view link>" "${after}" (it can take a minute or more, and it prints any errors on the page), read that picture and compare it with the reviewer's. If something is not right (in the wrong place, floating or sunk into the floor, in the way, facing the wrong way, or the page broke), fix it and look again, twice at most.` : "",
+    looks ? `After changing the world, see it as the reviewer will before you finish: run node ${LOOK} "<the view's Open this view link>" "${after}" (usually a few seconds, and it prints any errors on the page), read that picture and compare it with the reviewer's. If something is not right (in the wrong place, floating or sunk into the floor, in the way, facing the wrong way, or the page broke), fix it and look again, twice at most.` : "",
+    bash.length > 0 ? `The only shell commands you can run are these, exactly as written, from the folder you are in, with no cd or anything else around them: ${bash.map((command) => `${command}`).join("; ")}. Git is not among them. Run your checks once, at the end.` : "",
     editing ? "Other agents may be working in this same folder at the same time, on other comments from the same person, and every save reloads the running world. So read a file again right before you edit it, keep your edits small, and never rewrite a whole file that already exists. Leave changes you did not make alone, even if they look unfinished. If something breaks in code you did not touch, say so in your reply rather than fixing it." : "",
     "Do not commit, push, publish, deploy or restart anything.",
     "When you finish, reply in two or three plain sentences, in the language the comments are in: what you changed and anything they should check. It is shown in a small card over the game.",
@@ -75,8 +84,7 @@ export function claudeArgs(job: Pick<AgentJob, "project" | "folder" | "mode" | "
     "--allowedTools", tools.join(","),
     "--append-system-prompt", rules,
   ];
-  const model = process.env.DRAWSPEAK_MODEL ?? job.project.model;
-  if (model) args.push("--model", model);
+  args.push("--model", process.env.DRAWSPEAK_MODEL ?? job.project.model ?? DEFAULT_MODEL);
   if (job.resume) args.push("--resume", job.resume);
   return args;
 }
@@ -125,6 +133,7 @@ export function describeToolUse(name: string, input: Record<string, unknown>, cw
   const short = path ? (isAbsolute(path) ? relative(cwd, path).replace(/\\/g, "/") : path) : undefined;
   switch (name) {
     case "Read":
+      if (/after-\d+\.png$/.test(short ?? "")) return { line: "Looking at the result" };
       return { line: short?.startsWith("..") ? "Looking at your picture" : `Reading ${short}` };
     case "Edit":
     case "MultiEdit":
@@ -242,7 +251,7 @@ export const claudeAgent: Agent = {
     if (!exe) return { done: Promise.resolve({ ok: false, error: "Claude Code was not found." }), stop() {} };
     const start = startOptions(exe, claudeArgs(job));
     // look.mjs opens only this project's own pages.
-    const env = { ...childEnvironment(process.env), DRAWSPEAK_LOOK_ORIGINS: job.project.origins.join(",") };
+    const env = { ...childEnvironment(process.env), DRAWSPEAK_LOOK_ORIGINS: job.project.origins.join(","), ...job.env };
     const child = spawn(start.command, start.args, { cwd: job.project.cwd, env, stdio: ["pipe", "pipe", "pipe"], windowsHide: true, shell: start.shell });
     child.stdin!.end(job.message);
     let buffer = "";
@@ -289,11 +298,21 @@ export const fakeAgent: Agent = {
     const done = new Promise<AgentResult>((resolve) => {
       stopped = resolve;
       timers.push(setTimeout(() => job.onActivity("Looking at your picture"), delay));
+      let saw = Promise.resolve("");
       timers.push(setTimeout(() => {
         job.onActivity("Editing client/world/products.ts");
         job.onChangedFile("client/world/products.ts");
+        const link = /Open this view: (\S+)/.exec(job.message)?.[1];
+        if (process.env.DRAWSPEAK_FAKE_LOOK && link) {
+          job.onActivity("Looking at the result");
+          saw = new Promise((seen) => {
+            execFile(process.execPath, [fileURLToPath(new URL("./look.mjs", import.meta.url)), link, join(job.folder, "after-1.png")], { env: { ...process.env, ...job.env }, windowsHide: true }, (_error, stdout) => seen(` ${stdout.trim().split("\n")[0]}`));
+          });
+        }
       }, delay * 2));
-      timers.push(setTimeout(() => resolve({ ok: true, reply: `Stand-in reply. I got ${(job.message.match(/^\d+\. \[/gm) ?? []).length} comment(s).${job.resume ? " Carried on." : ""}${job.message.includes("Other agents are at work") ? " Knows about the others." : ""}`, sessionId: "fake-session" }), delay * 3));
+      timers.push(setTimeout(() => {
+        void saw.then((looked) => resolve({ ok: true, reply: `Stand-in reply. I got ${(job.message.match(/^\d+\. \[/gm) ?? []).length} comment(s).${job.resume ? " Carried on." : ""}${job.message.includes("Other agents are at work") ? " Knows about the others." : ""}${looked}`, sessionId: "fake-session" }));
+      }, delay * 3));
     });
     return {
       done,

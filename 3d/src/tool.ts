@@ -5,11 +5,11 @@ import { displayNumbers, readiness } from "./core/package.ts";
 import { PressureDepthTracker, current } from "./core/selection.ts";
 import { isClosedLoop, isCurling, isTap, shapeFor } from "./core/stroke.ts";
 import type { InputKind, NRect, Note, NoteTarget, PathEnd, Pose, ProjectInfo, RecordingState, Shape, Snapshot, Vec2, Vec3, WorldMark, WorldPlace } from "./core/types.ts";
-import { HubClient, type HubProject } from "./hubClient.ts";
+import { HubClient, type HubProject, type LookRequest, type RunState } from "./hubClient.ts";
 import { Store } from "./store.ts";
 import { Host } from "./three/host.ts";
 import { Picker, boxOnScreen, inkPlane, isSurfaceLike, lineInWorld, lineLength, liftOnto, poseOf, ringOn, toScreen, type InkPlane, type LoopPick, type RayHit, type SceneAdapter } from "./three/world.ts";
-import { pinSpot, renderComposite, scaledCopy, toBlob } from "./ui/composite.ts";
+import { blobToDataUrl, pinSpot, renderComposite, scaledCopy, toBlob } from "./ui/composite.ts";
 import { domTargetFor } from "./ui/domTarget.ts";
 import { Overlay } from "./ui/overlay.ts";
 import { Bubble, Column, Palette, RunCards, Sheet, Toast, lightbox } from "./ui/panels.ts";
@@ -49,6 +49,16 @@ interface Stroke {
 /** What a mark is about, before it knows how it was made. */
 type MarkTarget = Omit<NoteTarget, "method" | "pressure">;
 
+/** While an agent is at work, what it saves waits for it to pause this long, or to finish, or to look. */
+const AGENT_PAUSE_MS = 6000;
+/** And no longer than this in all. */
+const AGENT_LONGEST_MS = 45_000;
+const LOOK_WIDTH = 1280;
+/** A mark's goodbye, when its agent has finished. */
+const LEAVE_MS = 1500;
+/** The last frame, shown through a reload: see vite-plugin.ts. */
+const COVER = "ds3d.cover";
+const COVER_WIDTH = 1600;
 const SPOT_PIN_LIFT = 24;
 const FRAME_MAX_WIDTH = 1920;
 const COMPOSITE_WIDTH = 1600;
@@ -137,6 +147,21 @@ export class Drawspeak3D {
   private swallowClickUntil = 0;
   /** What a recording had heard when the page went away (an agent's edit reloads it). */
   private heardBeforeReload?: { id: string; text: string };
+  /** What agents have asked to see. */
+  private looksDue: LookRequest[] = [];
+  private framesInSight = 0;
+  /** When code first changed and the page has not reloaded yet. */
+  private reloadSince = 0;
+  private reloadTimer?: ReturnType<typeof setTimeout>;
+  /** Runs seen at work on this page. */
+  private readonly runsHere = new Set<string>();
+  /** Marks whose agent has just finished, and since when. */
+  private readonly leaving = new Map<string, number>();
+  /** Enter twice, faster than the last words arrive. */
+  private sendWhenHeard?: string;
+  private covered = true;
+  private reloading = false;
+  private readonly pageErrors: string[] = [];
 
   constructor(options: AttachOptions) {
     if (!isThisComputer(location.hostname)) throw new Error("Drawspeak 3D only runs on pages served from this computer.");
@@ -179,7 +204,10 @@ export class Drawspeak3D {
     this.listen(window, "click", (e) => this.onClick(e));
     this.listen(window, "blur", () => this.onBlur());
     this.listen(window, "pagehide", () => this.saveForReload());
+    this.listen(window, "error", (e) => this.pageErrors.push(String((e as ErrorEvent).message)));
+    this.listen(window, "unhandledrejection", (e) => this.pageErrors.push(String((e as PromiseRejectionEvent).reason)));
     this.host.onFrame = () => this.frame();
+    this.watchForCodeChanges();
 
     this.applyViewFromLink();
     void this.loadStored();
@@ -236,10 +264,148 @@ export class Drawspeak3D {
     // The hub is looked for when it matters: no stream of failed requests while it is not running.
     if (this.hubProject && !this.listening) {
       this.listening = true;
-      this.cleanups.push(this.hub.listen((runs) => this.runCards.update(runs)));
+      this.cleanups.push(this.hub.listen({ runs: (runs) => this.onRuns(runs), look: (request) => this.onLook(request) }));
     }
     this.palette.render();
     return this.hubProject;
+  }
+
+  private onRuns(runs: RunState[]) {
+    const before = this.runCards.working;
+    this.runCards.update(runs);
+    for (const run of runs) {
+      if (run.status === "running") this.runsHere.add(run.id);
+      else if (this.runsHere.delete(run.id)) {
+        for (const id of run.noteIds ?? []) {
+          // Done: its mark says goodbye. Not done: its mark is still there to send again.
+          if (run.status === "done") this.leaving.set(id, performance.now());
+          else this.markUnsent(id);
+        }
+      }
+    }
+    // The last agent is done: what it saved can show now.
+    if (before > 0 && this.runCards.working === 0 && this.reloadSince > 0) this.reloadWhenFree();
+  }
+
+  private markUnsent(id: string) {
+    const note = this.noteById(id);
+    if (!note) return;
+    note.lastSentRevision = undefined;
+    this.saveNote(note);
+    this.changed();
+  }
+
+  /** Can this comment go to an agent right now, from where you stand? */
+  canSend(note: Note): boolean {
+    const hub = this.hubProject;
+    return readiness(note) === "ready" && hub !== undefined && hub.agent.available && hub.agent.problem === undefined && !this.sheet.sending;
+  }
+
+  /** Said and done: the open comment goes to the agent, and you keep walking. */
+  sendActive(): boolean {
+    const note = this.active;
+    if (!note || !this.canSend(note)) return false;
+    this.activate(undefined);
+    // Its pin says so at once; making the pictures takes a moment.
+    this.runCards.workingNotes.add(note.id);
+    void this.sheet.sendOne(note).then((sent) => {
+      if (!sent) this.runCards.workingNotes.delete(note.id);
+    });
+    return true;
+  }
+
+  /**
+   * Enter with no comment open: what is waiting goes. One comment goes as it is, several open the window
+   * to look them over. Not while the game itself has a use for the key.
+   */
+  private sendWaiting(): boolean {
+    const focus = document.activeElement;
+    if (this.active || this.readyCount === 0 || this.adapter.busy?.() || focus instanceof HTMLButtonElement || focus instanceof HTMLAnchorElement) return false;
+    const waiting = this.notes.filter((note) => readiness(note) === "ready");
+    if (waiting.length > 1) {
+      this.openFeedback();
+      return true;
+    }
+    this.activate(waiting[0].id);
+    if (this.sendActive()) return true;
+    this.activate(undefined);
+    return false;
+  }
+
+  /** The view a finished agent's first comment was made on. Any move of your own takes you back. */
+  seeRun(run: RunState) {
+    for (const id of run.noteIds ?? []) {
+      const note = this.noteById(id);
+      const snapshot = note && this.snapshotOf(note);
+      if (snapshot) {
+        this.host.setView(snapshot.pose);
+        return;
+      }
+    }
+  }
+
+  /** An agent wants to see a view. If what it saved is still waiting, that comes first. */
+  private onLook(request: LookRequest) {
+    this.looksDue.push(request);
+    if (this.reloadSince > 0) this.reloadWhenFree();
+    // A tab in the background draws no frames of its own.
+    else if (document.hidden) this.answerLooks();
+  }
+
+  private answerLooks() {
+    for (const request of this.looksDue.splice(0)) void this.answerLook(request);
+  }
+
+  private async answerLook({ id, view }: LookRequest) {
+    const pose = view ? parsePose(view) : undefined;
+    const frame = pose ? this.host.captureFrom(pose) : this.host.captureFrame();
+    // No answer: it finds another way to look (hub/look.mjs).
+    if (!frame) return;
+    const blob = await new Promise<Blob | null>((resolve) => scaledCopy(frame, LOOK_WIDTH).toBlob(resolve, "image/png"));
+    if (!blob) return;
+    await this.hub.answerLook(id, { image: await blobToDataUrl(blob), errors: [...this.pageErrors.slice(-8), ...(this.adapter.problems?.() ?? [])] }).catch(() => undefined);
+  }
+
+  /** With Vite and vite-plugin.ts: code changes come here instead of reloading the page at once. */
+  private watchForCodeChanges() {
+    const hot = import.meta.hot;
+    if (!hot) return;
+    const alive = () => hot.send("ds3d:alive");
+    alive();
+    const beat = setInterval(alive, 4000);
+    this.cleanups.push(() => clearInterval(beat));
+    hot.on("ds3d:change", () => this.codeChanged());
+  }
+
+  private codeChanged() {
+    this.reloadSince ||= Date.now();
+    clearTimeout(this.reloadTimer);
+    const waited = Date.now() - this.reloadSince;
+    const wait = this.agentsWorking === 0 ? 200 : waited > AGENT_LONGEST_MS ? 0 : AGENT_PAUSE_MS;
+    this.reloadTimer = setTimeout(() => this.reloadWhenFree(), wait);
+  }
+
+  /** Never under a stroke, words being spoken, or a preview being read. */
+  private reloadWhenFree() {
+    clearTimeout(this.reloadTimer);
+    if (this.stroke || this.recordingNote || this.sheet.open || this.sheet.sending || this.typing() || this.root.querySelector(".ds3d-picture") || this.adapter.busy?.()) {
+      this.reloadTimer = setTimeout(() => this.reloadWhenFree(), 400);
+      return;
+    }
+    if (this.reloading) return;
+    this.reloading = true;
+    // The world stops and the interface melts away behind the last frame; the new page takes it from there.
+    const cover = this.saveCover();
+    if (cover) {
+      const still = document.createElement("img");
+      still.src = cover.image;
+      still.alt = "";
+      const [left, top, width, height] = cover.rect;
+      still.style.cssText = `position:fixed;z-index:2147483000;pointer-events:none;object-fit:cover;opacity:0;transition:opacity .16s ease;left:${left}px;top:${top}px;width:${width}px;height:${height}px`;
+      document.documentElement.append(still);
+      requestAnimationFrame(() => requestAnimationFrame(() => (still.style.opacity = "1")));
+    }
+    setTimeout(() => location.reload(), cover ? 190 : 0);
   }
 
   /** Something about the notes changed: panels follow. */
@@ -255,6 +421,13 @@ export class Drawspeak3D {
 
   get visibleNotes(): Note[] {
     return this.notes.filter((n) => this.showSent || readiness(n) !== "sent");
+  }
+
+  /** What stands in the world: the comments still open, and those an agent is working on right now. */
+  private get worldNotes(): Note[] {
+    const working = this.runCards.workingNotes;
+    if (working.size === 0 && this.leaving.size === 0) return this.visibleNotes;
+    return this.notes.filter((n) => this.showSent || readiness(n) !== "sent" || working.has(n.id) || this.leaving.has(n.id));
   }
 
   get numbers(): Map<string, number> {
@@ -869,7 +1042,12 @@ export class Drawspeak3D {
     const text = [base, said || this.liveText].map((t) => t.trim()).filter(Boolean).join(" ");
     this.setRecording(note, undefined);
     if (text && this.noteById(note.id)) this.setText(note, text, "voice");
+    // The hub may have come up after the page did.
+    if (!this.hubProject) await this.refreshHub();
     this.bubble.render();
+    const sendNow = this.sendWhenHeard === note.id;
+    this.sendWhenHeard = undefined;
+    if (sendNow && this.sendActive()) return;
     if (note.text.trim()) this.bubble.closeSoon();
     else this.bubble.focusText();
   }
@@ -918,7 +1096,7 @@ export class Drawspeak3D {
   private onKeyDown(e: KeyboardEvent) {
     if (this.hidden) return;
     if (e.code === "Escape") {
-      const picture = this.root.querySelector(".ds3d-scrim");
+      const picture = this.root.querySelector(".ds3d-picture");
       if (picture) picture.remove();
       else if (this.sheet.open) this.sheet.close();
       else if (this.recordingNote) this.discard(this.recordingNote);
@@ -938,7 +1116,14 @@ export class Drawspeak3D {
       return;
     }
     if (this.typing()) return;
-    if (this.sheet.open) return;
+    if (this.sheet.open) {
+      if (e.code === "Enter" && !(document.activeElement instanceof HTMLButtonElement)) {
+        e.stopImmediatePropagation();
+        e.preventDefault();
+        this.sheet.sendChosen();
+      }
+      return;
+    }
     if (e.code === "KeyT" && !e.ctrlKey && !e.metaKey && !e.altKey) {
       e.stopImmediatePropagation();
       if (!e.repeat) this.talkAboutView();
@@ -956,7 +1141,16 @@ export class Drawspeak3D {
     }
     if (e.code === "Enter" && this.recordingNote) {
       e.stopImmediatePropagation();
-      void this.stopRecording();
+      e.preventDefault();
+      if (e.repeat) return;
+      // A second Enter while the last words are still coming sends them when they are in.
+      if (this.recordingNote.recording === "transcribing") this.sendWhenHeard = this.recordingNote.id;
+      else void this.stopRecording();
+      return;
+    }
+    if (e.code === "Enter" && !e.repeat && (this.sendActive() || this.sendWaiting())) {
+      e.stopImmediatePropagation();
+      e.preventDefault();
       return;
     }
     if ((e.code === "BracketLeft" || e.code === "BracketRight") && this.active?.target) {
@@ -1018,18 +1212,28 @@ export class Drawspeak3D {
       this.root.style.display = hidden ? "none" : "";
       if (hidden) this.setArmed(false);
     }
+    if (this.covered && (hidden ? this.frameCount > 45 : this.host.ready && this.framesInSight > 5)) this.showWorld();
     if (hidden || !this.host.ready) return;
+    // An agent's look, once the world has settled after a reload, and not in the middle of this frame.
+    this.framesInSight++;
+    if (this.framesInSight === 30) this.palette.greet();
+    if (this.looksDue.length > 0 && this.framesInSight > 8 && this.reloadSince === 0) setTimeout(() => this.answerLooks(), 0);
+    const now = performance.now();
+    for (const [id, since] of this.leaving) if (now - since > LEAVE_MS) this.leaving.delete(id);
     const stroke = this.stroke;
     const camera = stroke?.camera ?? this.host.shown;
     const rect = stroke?.rect ?? this.host.rect();
     const numbers = this.numbers;
     const active = this.active;
-    this.overlay.setVisible(stroke !== undefined || this.visibleNotes.length > 0 || active !== undefined);
+    const inWorld = this.worldNotes;
+    const working = this.runCards.workingNotes;
+    this.overlay.setVisible(stroke !== undefined || inWorld.length > 0 || active !== undefined);
     this.overlay.begin();
-    for (const note of this.visibleNotes) {
-      const alpha = this.occludedNotes.has(note.id) ? 0.26 : 1;
+    for (const note of inWorld) {
+      const since = this.leaving.get(note.id);
+      const alpha = since !== undefined ? 0.8 * (1 - (now - since) / LEAVE_MS) : this.occludedNotes.has(note.id) ? 0.26 : working.has(note.id) ? 0.6 : 1;
       if (note.world.screen) {
-        this.overlay.screenPath(note.world.ink.map(([x, y]): Vec2 => [x, y]), note.world.closed ?? true);
+        this.overlay.screenPath(note.world.ink.map(([x, y]): Vec2 => [x, y]), note.world.closed ?? true, alpha);
         continue;
       }
       this.overlay.worldInk(note.world.ink, note.world.closed ?? false, camera, rect, alpha, note.shape.kind === "arrow");
@@ -1070,7 +1274,8 @@ export class Drawspeak3D {
 
   private placePins(numbers: Map<string, number>, camera: THREE.Camera, rect: DOMRect) {
     const seen = new Set<string>();
-    for (const note of this.visibleNotes) {
+    const working = this.runCards.workingNotes;
+    for (const note of this.worldNotes) {
       seen.add(note.id);
       let pin = this.pins.get(note.id);
       if (!pin) {
@@ -1084,8 +1289,12 @@ export class Drawspeak3D {
         this.pinLayer.append(pin);
         this.pins.set(note.id, pin);
       }
-      const label = String(numbers.get(note.id) ?? note.ordinal);
+      const since = this.leaving.get(note.id);
+      const label = since !== undefined ? "✓" : String(numbers.get(note.id) ?? note.ordinal);
       if (pin.textContent !== label) pin.textContent = label;
+      pin.classList.toggle("is-done", since !== undefined);
+      if (since !== undefined) pin.style.opacity = String(Math.max(0, 1 - ((performance.now() - since) / LEAVE_MS) ** 3));
+      else if (pin.style.opacity) pin.style.opacity = "";
       let at: Vec2 | undefined;
       let edge = false;
       if (note.world.screen) {
@@ -1110,7 +1319,8 @@ export class Drawspeak3D {
       const state = readiness(note);
       pin.classList.toggle("is-edge", edge);
       pin.classList.toggle("is-dim", this.occludedNotes.has(note.id) && !edge);
-      pin.classList.toggle("is-sent", state === "sent");
+      pin.classList.toggle("is-working", working.has(note.id) && since === undefined);
+      pin.classList.toggle("is-sent", state === "sent" && !working.has(note.id) && since === undefined);
       pin.classList.toggle("is-empty", state === "markOnly");
       pin.classList.toggle("is-rec", state === "recording");
     }
@@ -1138,7 +1348,7 @@ export class Drawspeak3D {
     const now = performance.now();
     if (now - this.occlusionClock < 180) return;
     this.occlusionClock = now;
-    const notes = this.visibleNotes;
+    const notes = this.worldNotes;
     if (notes.length === 0) return;
     this.occlusionCursor = (this.occlusionCursor + 1) % notes.length;
     const note = notes[this.occlusionCursor];
@@ -1170,11 +1380,64 @@ export class Drawspeak3D {
     if (pose) this.host.setView(pose, 0);
   }
 
+  /**
+   * The last frame with its marks, for the moment the page is gone: vite-plugin.ts puts it up before the
+   * new page has anything to show, and it melts into the new world when that is ready.
+   */
+  private saveCover(): { image: string; rect: number[] } | undefined {
+    if (this.hidden || !this.host.ready) return undefined;
+    try {
+      const frame = this.host.captureFrame();
+      if (!frame) return undefined;
+      const rect = this.host.rect();
+      const scale = frame.width / rect.width;
+      const page = frame.getContext("2d")!;
+      const ink = this.overlay.canvas;
+      if (ink.width > 0 && ink.style.display !== "none") {
+        const inkScale = ink.width / innerWidth;
+        page.drawImage(ink, rect.left * inkScale, rect.top * inkScale, rect.width * inkScale, rect.height * inkScale, 0, 0, frame.width, frame.height);
+      }
+      for (const pin of this.pins.values()) {
+        if (pin.style.display === "none") continue;
+        const box = pin.getBoundingClientRect();
+        const x = (box.left + box.width / 2 - rect.left) * scale;
+        const y = (box.top + box.height / 2 - rect.top) * scale;
+        page.beginPath();
+        page.arc(x, y, (box.width / 2) * scale, 0, Math.PI * 2);
+        page.fillStyle = getComputedStyle(pin).backgroundColor;
+        page.fill();
+        page.lineWidth = 2 * scale;
+        page.strokeStyle = "#fff";
+        page.stroke();
+        page.fillStyle = "#fff";
+        page.font = `700 ${14 * scale}px system-ui, sans-serif`;
+        page.textAlign = "center";
+        page.textBaseline = "middle";
+        page.fillText(pin.textContent ?? "", x, y);
+      }
+      const cover = { image: scaledCopy(frame, COVER_WIDTH).toDataURL("image/jpeg", 0.82), rect: [rect.left, rect.top, rect.width, rect.height] };
+      sessionStorage.setItem(COVER, JSON.stringify({ at: Date.now(), ...cover }));
+      return cover;
+    } catch {
+      // too big or not allowed: the reload just shows
+      return undefined;
+    }
+  }
+
+  private showWorld() {
+    this.covered = false;
+    const cover = document.getElementById("ds3d-cover");
+    if (!cover) return;
+    cover.style.opacity = "0";
+    setTimeout(() => cover.remove(), 700);
+  }
+
   private saveForReload() {
+    if (!this.reloading) this.saveCover();
     try {
       const speaking = this.recordingNote;
       const heard = speaking && this.mergedText() ? { id: speaking.id, text: this.mergedText() } : undefined;
-      sessionStorage.setItem(`ds3d.resume.${this.project.id}`, JSON.stringify({ state: this.adapter.save?.(), at: Date.now(), column: this.column.open, heard }));
+      sessionStorage.setItem(`ds3d.resume.${this.project.id}`, JSON.stringify({ state: this.adapter.save?.(), pose: this.host.ready ? this.host.shownPose : undefined, at: Date.now(), column: this.column.open, heard, looks: this.looksDue }));
     } catch {
       // too big or not allowed: the reload just starts fresh
     }
@@ -1185,11 +1448,13 @@ export class Drawspeak3D {
       const raw = sessionStorage.getItem(`ds3d.resume.${this.project.id}`);
       if (!raw) return;
       sessionStorage.removeItem(`ds3d.resume.${this.project.id}`);
-      const saved = JSON.parse(raw) as { state?: unknown; at: number; column?: boolean; heard?: { id: string; text: string } };
+      const saved = JSON.parse(raw) as { state?: unknown; pose?: Pose; at: number; column?: boolean; heard?: { id: string; text: string }; looks?: LookRequest[] };
       // A reload a moment ago (an agent's edit), not a visit tomorrow.
       if (Date.now() - saved.at > 120_000) return;
       this.heardBeforeReload = saved.heard;
+      this.looksDue = saved.looks ?? [];
       if (saved.state !== undefined) this.adapter.restore?.(saved.state);
+      else if (saved.pose) this.host.startFrom(saved.pose);
       if (saved.column) this.column.toggle();
     } catch {
       // nothing to restore

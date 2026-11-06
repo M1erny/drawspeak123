@@ -22,6 +22,7 @@ export class Host {
   private view?: { pose: Pose; from?: Pose; start: number; duration: number; leaving: boolean };
   private seenFrame = false;
   private reportedError = false;
+  private startPose?: Pose;
 
   constructor(renderer: THREE.WebGLRenderer, options: { scene?: THREE.Scene; camera?: THREE.PerspectiveCamera } = {}) {
     this.renderer = renderer;
@@ -49,6 +50,11 @@ export class Host {
     }
     this.scene = scene;
     this.camera = camera;
+    if (this.startPose) {
+      setPose(camera, this.startPose);
+      camera.updateMatrixWorld();
+      this.startPose = undefined;
+    }
     // The app's own camera is lent for this frame, and comes back as it was.
     const saved = this.view ? { position: camera.position.clone(), quaternion: camera.quaternion.clone(), fov: camera.fov } : undefined;
     if (this.view) this.applyView(camera);
@@ -76,6 +82,16 @@ export class Host {
       }
       camera.updateMatrixWorld();
     }
+  }
+
+  /** The view on screen now, to come back to after a reload. */
+  get shownPose(): Pose {
+    return poseOf(this.shown);
+  }
+
+  /** Puts the page's own camera there once, on the next frame. A page that drives its camera just goes on. */
+  startFrom(pose: Pose) {
+    this.startPose = pose;
   }
 
   /** Looks from a saved view, gliding there. Null lets go of it, gliding back. */
@@ -118,6 +134,33 @@ export class Host {
     canvas.width = gl.width;
     canvas.height = gl.height;
     canvas.getContext("2d")!.drawImage(gl, 0, 0);
+    return canvas;
+  }
+
+  /**
+   * Draws a frame from another view and copies it, unseen: the usual frame is drawn again before the
+   * page is painted, and nobody's camera moves.
+   */
+  captureFrom(pose: Pose): HTMLCanvasElement | undefined {
+    const { scene, camera } = this;
+    if (!scene || !camera) return undefined;
+    const saved = { position: camera.position.clone(), quaternion: camera.quaternion.clone(), fov: camera.fov };
+    setPose(camera, pose);
+    camera.updateMatrixWorld();
+    this.realRender.call(this.renderer, scene, camera);
+    const gl = this.renderer.domElement;
+    const canvas = document.createElement("canvas");
+    canvas.width = gl.width;
+    canvas.height = gl.height;
+    canvas.getContext("2d")!.drawImage(gl, 0, 0);
+    camera.position.copy(saved.position);
+    camera.quaternion.copy(saved.quaternion);
+    if (camera.fov !== saved.fov) {
+      camera.fov = saved.fov;
+      camera.updateProjectionMatrix();
+    }
+    camera.updateMatrixWorld();
+    this.render(scene, camera);
     return canvas;
   }
 

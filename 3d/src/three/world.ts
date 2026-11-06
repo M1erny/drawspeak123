@@ -42,6 +42,10 @@ export interface SceneAdapter {
   /** A pen tap that was not a mark: what a click does there. */
   tap?(x: number, y: number): void;
   /** Keep the player's state across a reload, and put it back. */
+  /** Something is going on that a reload would break (a window of the game is open): it waits. */
+  busy?(): boolean;
+  /** What is wrong in the app right now, for an agent looking at its work. */
+  problems?(): string[];
   save?(): unknown;
   restore?(state: unknown): void;
   /** A link that opens a view, when the app can. Default: this page with ds3d_view. */

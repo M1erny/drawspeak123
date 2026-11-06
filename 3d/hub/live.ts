@@ -99,6 +99,7 @@ export class LiveMarks {
   private readonly root: string;
   private readonly capture: CaptureFn;
   private readonly state = new Map<string, { notes: LiveNote[]; snapshots: Snapshot[] }>();
+  private api?: HubApi;
 
   constructor(dataDir: string, capture: CaptureFn = captureWindow) {
     this.root = dataDir;
@@ -148,7 +149,8 @@ export class LiveMarks {
 
   private view(projectId: string, note: LiveNote) {
     const numbers = displayNumbers(this.of(projectId).notes);
-    return { ...note, number: numbers.get(note.id) ?? note.ordinal, readiness: readiness(note), text: note.recording ? (note.live ?? note.text) : note.text };
+    const working = this.api?.runsOf(projectId).some((run) => run.status === "running" && run.noteIds?.includes(note.id)) ?? false;
+    return { ...note, number: numbers.get(note.id) ?? note.ordinal, readiness: readiness(note), working, text: note.recording ? (note.live ?? note.text) : note.text };
   }
 
   /** The last desk closed: nothing is listening any more. What it had heard stays, and the notes can go on. */
@@ -169,6 +171,7 @@ export class LiveMarks {
   /** Handles a request about marks. True when it was one. */
   async route(request: HubRequest, api: HubApi): Promise<boolean> {
     const { req, parts, project, json, readJson, res } = request;
+    this.api = api;
     if (parts[0] === "v1" && parts[1] === "roblox" && req.method === "GET") {
       // Which project a Roblox plugin belongs to, so it needs no settings. A plugin is here: marks will follow.
       if (this.capture === captureWindow) warmCapture();

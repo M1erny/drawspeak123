@@ -33,6 +33,13 @@ export interface RunState {
   shared?: string[];
 }
 
+/** An agent wants to see a view. */
+export interface LookRequest {
+  id: string;
+  /** The view, as in a comment's link (ds3d_view). */
+  view?: string;
+}
+
 export class HubClient {
   readonly url: string;
   readonly projectId: string;
@@ -81,14 +88,20 @@ export class HubClient {
     return this.post<{ stopped: boolean }>("/stop", { runId });
   }
 
-  /** The runs, as they change; keeps trying. Returns the way to stop listening. */
-  listen(onRuns: (runs: RunState[]) => void): () => void {
+  /** Answers an agent that asked to see a view. */
+  answerLook(id: string, answer: { image: string; errors: string[] }) {
+    return this.post<{ ok: boolean }>(`/look/${encodeURIComponent(id)}`, answer);
+  }
+
+  /** The runs as they change, and what agents ask to see; keeps trying. Returns the way to stop listening. */
+  listen(on: { runs(runs: RunState[]): void; look(request: LookRequest): void }): () => void {
     let source: EventSource | undefined;
     let closed = false;
     const connect = () => {
       if (closed) return;
-      source = new EventSource(this.path("/events"));
-      source.addEventListener("runs", (e) => onRuns(JSON.parse((e as MessageEvent).data) as RunState[]));
+      source = new EventSource(`${this.path("/events")}?page=1`);
+      source.addEventListener("runs", (e) => on.runs(JSON.parse((e as MessageEvent).data) as RunState[]));
+      source.addEventListener("look", (e) => on.look(JSON.parse((e as MessageEvent).data) as LookRequest));
       source.onerror = () => {
         source?.close();
         setTimeout(connect, 5000);

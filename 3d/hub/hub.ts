@@ -96,11 +96,17 @@ export interface HubRequest {
 }
 
 const BODY_LIMIT = 96 * 1024 * 1024;
+/** How long a page may take to answer. It may have to reload first. */
+const LOOK_WAIT_MS = 14_000;
+/** A page that is reloading is back in a moment. */
+const PAGE_BACK_MS = 3000;
 
 export interface Hub {
   server: Server;
   port: number;
   inbox: Inbox;
+  /** What an agent shows to get a picture from the page that is open. */
+  lookToken: string;
   close(): Promise<void>;
 }
 
@@ -111,6 +117,10 @@ export async function startHub(options: HubOptions): Promise<Hub> {
   const desks = new Map<string, Set<ServerResponse>>();
   const live = new LiveMarks(options.dataDir, options.capture);
   const key = Buffer.from(options.key ?? hubKey(options.dataDir));
+  const lookToken = randomUUID();
+  const looks = new Map<string, (answer: unknown) => void>();
+  /** The pages with the tool on them, as against desks. */
+  const pages = new Map<string, Set<ServerResponse>>();
   let actualPort = options.port ?? 0;
 
   const emit = (projectId: string, event: string, data: unknown) => {
@@ -278,6 +288,11 @@ export async function startHub(options: HubOptions): Promise<Hub> {
         const set = listeners.get(project.id) ?? new Set();
         listeners.set(project.id, set);
         set.add(res);
+        const page = url.searchParams.has("page") ? (pages.get(project.id) ?? new Set<ServerResponse>()) : undefined;
+        if (page) {
+          pages.set(project.id, page);
+          page.add(res);
+        }
         const desk = url.searchParams.has("desk") ? (desks.get(project.id) ?? new Set<ServerResponse>()) : undefined;
         if (desk) {
           desks.set(project.id, desk);
@@ -287,6 +302,7 @@ export async function startHub(options: HubOptions): Promise<Hub> {
         req.on("close", () => {
           clearInterval(beat);
           set.delete(res);
+          page?.delete(res);
           if (desk?.delete(res) && desk.size === 0) live.desksGone(project.id);
         });
         return;
@@ -308,6 +324,42 @@ export async function startHub(options: HubOptions): Promise<Hub> {
       if (req.method === "POST" && what === "batches" && batchId && action === "send") {
         const body = await readJson<{ noteIds?: string[]; newThread?: boolean }>(1024 * 1024);
         json(200, api.startSend(project, batchId, body));
+        return;
+      }
+      // An agent asks for a picture of a view; a page that is open draws it on the real graphics card.
+      if (req.method === "GET" && what === "look") {
+        const shown = Buffer.from(String(req.headers["x-drawspeak-look"] ?? ""));
+        const token = Buffer.from(lookToken);
+        if (shown.length !== token.length || !timingSafeEqual(shown, token)) {
+          json(403, { error: "Only an agent of this hub can ask for that." });
+          return;
+        }
+        for (const until = Date.now() + PAGE_BACK_MS; !pages.get(project.id)?.size && Date.now() < until; ) await new Promise((wait) => setTimeout(wait, 150));
+        if (!pages.get(project.id)?.size) {
+          json(404, { error: "No page is open." });
+          return;
+        }
+        const id = randomUUID();
+        const answer = await new Promise<unknown>((resolve) => {
+          const timer = setTimeout(() => {
+            looks.delete(id);
+            resolve(undefined);
+          }, LOOK_WAIT_MS);
+          looks.set(id, (given) => {
+            clearTimeout(timer);
+            looks.delete(id);
+            resolve(given);
+          });
+          emit(project.id, "look", { id, view: url.searchParams.get("view") ?? undefined });
+        });
+        if (answer) json(200, answer);
+        else json(504, { error: "The open page did not answer." });
+        return;
+      }
+      if (req.method === "POST" && what === "look" && batchId) {
+        const answer = await readJson<{ image?: string; errors?: string[] }>();
+        looks.get(batchId)?.(answer);
+        json(200, { ok: true });
         return;
       }
       if (req.method === "POST" && what === "stop") {
@@ -348,6 +400,7 @@ export async function startHub(options: HubOptions): Promise<Hub> {
         message: `${message}\n\nThe batch is in ${folder} (manifest.json and these pictures: ${inbox.pictures(project.id, batchId).filter((f) => !f.includes("-clean")).join(", ")}).${nearby.length > 0 ? `\n\nOther agents are at work in this folder right now, on these comments, so leave those to them: ${nearby.map((comment) => `"${comment}"`).join("; ")}.` : ""}`,
         mode,
         resume: resumeFrom,
+        env: { DRAWSPEAK_HUB: `http://127.0.0.1:${actualPort}`, DRAWSPEAK_PROJECT: project.id, DRAWSPEAK_LOOK_TOKEN: lookToken },
         onActivity: (line) => {
           state.activity.push(line);
           if (state.activity.length > 40) state.activity.shift();
@@ -401,6 +454,7 @@ export async function startHub(options: HubOptions): Promise<Hub> {
     server,
     port: actualPort,
     inbox,
+    lookToken,
     close: () =>
       new Promise((resolve) => {
         for (const set of listeners.values()) for (const res of set) res.end();

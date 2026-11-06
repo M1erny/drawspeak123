@@ -5,9 +5,10 @@
  *
  *   node hub/look.mjs "<view link>" <picture.png>
  *
- * The link is a comment's "Open this view" link. Pages on this computer only. The browser is headless
- * and silent: nothing reaches the screen, the speakers or the microphone. It prints the page's errors,
- * so a change that broke the world says so.
+ * The link is a comment's "Open this view" link. Pages on this computer only. Started by the hub, it
+ * first asks the page the reviewer has open, which draws that view on the real graphics card in a moment,
+ * unseen. With no such page it opens a headless, silent browser: nothing reaches the screen, the speakers
+ * or the microphone. Either way it prints the page's errors, so a change that broke the world says so.
  */
 import { spawn } from "node:child_process";
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
@@ -57,6 +58,28 @@ const WIDTH = 1280;
 const HEIGHT = 800;
 
 const sleep = (ms) => new Promise((done) => setTimeout(done, ms));
+
+/** The page the reviewer has open, by way of the hub. Nothing is lost when there is none. */
+async function fromOpenPage() {
+  const { DRAWSPEAK_HUB: hub, DRAWSPEAK_PROJECT: project, DRAWSPEAK_LOOK_TOKEN: token } = process.env;
+  if (!hub || !project || !token) return false;
+  try {
+    const view = encodeURIComponent(page.searchParams.get("ds3d_view") ?? "");
+    const response = await fetch(`${hub}/v1/projects/${encodeURIComponent(project)}/look?view=${view}`, { headers: { "x-drawspeak-look": token }, signal: AbortSignal.timeout(16_000) });
+    if (!response.ok) return false;
+    const { image, errors } = await response.json();
+    if (typeof image !== "string" || !image.startsWith("data:image/png;base64,")) return false;
+    const target = resolve(out);
+    mkdirSync(dirname(target), { recursive: true });
+    writeFileSync(target, Buffer.from(image.slice(image.indexOf(",") + 1), "base64"));
+    console.log(`Saved ${target}, from the page the reviewer has open: the 3D world, without the game's own interface.`);
+    console.log(errors?.length > 0 ? `Errors on the page:\n${[...new Set(errors)].slice(0, 8).map((e) => `  ${String(e).slice(0, 300)}`).join("\n")}` : "No errors on the page.");
+    return true;
+  } catch {
+    return false;
+  }
+}
+if (await fromOpenPage()) process.exit(0);
 
 // Several agents can be at work at once, and each browser here renders in software, which is heavy on
 // a computer someone is playing on. So one at a time; a lock left behind by a crash goes stale.
