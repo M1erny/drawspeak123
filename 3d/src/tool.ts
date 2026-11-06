@@ -8,11 +8,12 @@ import type { InputKind, NRect, Note, NoteTarget, PathEnd, Pose, ProjectInfo, Re
 import { HubClient, type HubProject, type LookRequest, type RunState } from "./hubClient.ts";
 import { Store } from "./store.ts";
 import { Host } from "./three/host.ts";
-import { Picker, boxOnScreen, inkPlane, isSurfaceLike, lineInWorld, lineLength, liftOnto, poseOf, ringOn, toScreen, type InkPlane, type LoopPick, type RayHit, type SceneAdapter } from "./three/world.ts";
-import { blobToDataUrl, pinSpot, renderComposite, scaledCopy, toBlob } from "./ui/composite.ts";
+import { Picker, worldPerPixel, boxOnScreen, inkPlane, isSurfaceLike, lineInWorld, lineLength, liftOnto, poseOf, ringOn, toScreen, type InkPlane, type LoopPick, type RayHit, type SceneAdapter } from "./three/world.ts";
+import { leave } from "./ui/dom.ts";
+import { blobToDataUrl, pinSpot, renderComposite, scaledCopy, toBlobAway } from "./ui/composite.ts";
 import { domTargetFor } from "./ui/domTarget.ts";
 import { Overlay } from "./ui/overlay.ts";
-import { Bubble, Column, Palette, RunCards, Sheet, Toast, lightbox } from "./ui/panels.ts";
+import { Bubble, Column, Palette, RunCards, Sheet, Toast, lightbox, sendFlight } from "./ui/panels.ts";
 import { CSS } from "./ui/styles.ts";
 import { FAILURE_TEXT, Voice } from "./voice/speech.ts";
 
@@ -160,12 +161,22 @@ export class Drawspeak3D {
   private lastFrameAt = 0;
   private frameTime = 16;
   private plain = false;
+  /** Names over what has just been built. */
+  private readonly announced: Array<{ el: HTMLElement; position: Vec3; until: number }> = [];
   /** Marks whose agent has just finished, and since when. */
   private readonly leaving = new Map<string, number>();
   /** Enter twice, faster than the last words arrive. */
   private sendWhenHeard?: string;
   private covered = true;
   private reloading = false;
+  private warmedAt = -Infinity;
+  /** Goes up whenever a note changes. */
+  private revision = 0;
+  private numbersKey = "";
+  private numbersNow = new Map<string, number>();
+  /** What the ink was last drawn from: with nothing changed, it stays as it is, and costs nothing. */
+  private readonly inkCamera = new Float64Array(16);
+  private inkKey = "";
   private readonly pageErrors: string[] = [];
 
   constructor(options: AttachOptions) {
@@ -272,7 +283,16 @@ export class Drawspeak3D {
       this.cleanups.push(this.hub.listen({ open: () => void this.refreshHub(), runs: (runs) => this.onRuns(runs), look: (request) => this.onLook(request) }));
     }
     this.palette.render();
+    this.warmAgent();
     return this.hubProject;
+  }
+
+  /** Someone is here and marking: an agent gets ready, so that the next Enter is answered sooner. */
+  private warmAgent() {
+    const hub = this.hubProject;
+    if (!hub?.agent.available || hub.agent.problem || performance.now() - this.warmedAt < 60_000) return;
+    this.warmedAt = performance.now();
+    void this.hub.warm(this.model).catch(() => undefined);
   }
 
   private onRuns(runs: RunState[]) {
@@ -286,6 +306,7 @@ export class Drawspeak3D {
           if (run.status === "done") this.leaving.set(id, performance.now());
           else this.markUnsent(id);
         }
+        if (run.status === "done") this.adapter.sound?.("done");
       }
     }
     // The hub came back without it: it restarted, and its agents went with it.
@@ -309,6 +330,42 @@ export class Drawspeak3D {
     this.changed();
   }
 
+  /** A name over something that has just been built in front of you. */
+  announce(name: string, position: Vec3) {
+    const el = document.createElement("div");
+    el.className = "ds3d-arrived";
+    el.textContent = name;
+    this.root.append(el);
+    this.announced.push({ el, position, until: performance.now() + 2800 });
+  }
+
+  private placeAnnounced(camera: THREE.Camera, rect: DOMRect) {
+    const now = performance.now();
+    for (let i = this.announced.length - 1; i >= 0; i--) {
+      const { el, position, until } = this.announced[i];
+      if (now > until) {
+        leave(el);
+        this.announced.splice(i, 1);
+        continue;
+      }
+      const at = toScreen(position, camera, rect);
+      el.style.display = at ? "" : "none";
+      // Its top may be out of sight: the name stays on the screen.
+      if (at) el.style.transform = `translate(calc(${Math.max(rect.left + 90, Math.min(rect.right - 90, at[0])).toFixed(1)}px - 50%), ${Math.max(rect.top + 84, Math.min(rect.bottom - 110, at[1] - 34)).toFixed(1)}px)`;
+    }
+  }
+
+  /** Takes a finished agent's change back. Its marks come back too, ready for another try. */
+  async undoRun(run: RunState) {
+    try {
+      const answer = await this.hub.undo(run.id);
+      for (const id of run.noteIds ?? []) this.markUnsent(id);
+      if (answer.left.length > 0) this.toast(`Taken back, except what has changed since: ${answer.left.join(", ")}`, true);
+    } catch (error) {
+      this.toast(error instanceof Error ? error.message : String(error), true);
+    }
+  }
+
   /** The model the agent will run on: the reviewer's choice, if it can still be had. */
   get model(): string | undefined {
     const models = this.hubProject?.models ?? [];
@@ -328,6 +385,8 @@ export class Drawspeak3D {
     } catch {
       // storage off: nothing to keep it in
     }
+    this.warmedAt = -Infinity;
+    this.warmAgent();
     this.palette.render();
   }
 
@@ -344,6 +403,10 @@ export class Drawspeak3D {
     this.activate(undefined);
     // Its pin says so at once; making the pictures takes a moment.
     this.runCards.workingNotes.add(note.id);
+    const pin = this.pins.get(note.id);
+    if (pin) sendFlight(this.root, pin.getBoundingClientRect());
+    this.adapter.sound?.("send");
+    this.warmedAt = -Infinity;
     void this.sheet.sendOne(note).then((sent) => {
       if (!sent) this.runCards.workingNotes.delete(note.id);
     });
@@ -453,6 +516,7 @@ export class Drawspeak3D {
 
   /** Something about the notes changed: panels follow. */
   changed() {
+    this.revision++;
     this.palette.render();
     this.column.render();
     // An open preview stays as it is: what is shown is what gets sent.
@@ -474,7 +538,12 @@ export class Drawspeak3D {
   }
 
   get numbers(): Map<string, number> {
-    return displayNumbers(this.notes, this.showSent);
+    const key = `${this.revision}|${this.notes.length}|${this.showSent}`;
+    if (this.numbersKey !== key) {
+      this.numbersKey = key;
+      this.numbersNow = displayNumbers(this.notes, this.showSent);
+    }
+    return this.numbersNow;
   }
 
   /** Agents at work right now. */
@@ -590,6 +659,7 @@ export class Drawspeak3D {
       movedAway: false,
     };
     this.overlay.showFreeze(frame, this.host.renderer.domElement);
+    this.host.resting = true;
     this.adapter.freeze?.(true);
     this.frame();
   }
@@ -631,6 +701,7 @@ export class Drawspeak3D {
     e.stopImmediatePropagation();
     e.preventDefault();
     this.stroke = undefined;
+    this.host.resting = false;
     this.swallowClickUntil = performance.now() + 500;
     try {
       this.finishStroke(stroke, e);
@@ -646,6 +717,7 @@ export class Drawspeak3D {
     const stroke = this.stroke;
     if (!stroke || e.pointerId !== stroke.pointerId) return;
     this.stroke = undefined;
+    this.host.resting = false;
     this.overlay.hideFreeze(true);
     this.adapter.freeze?.(false);
     this.afterStroke(stroke);
@@ -763,7 +835,7 @@ export class Drawspeak3D {
     const center = surface[0]?.point ?? plane.point;
     // As wide in the world as a small ring on the screen, at that distance.
     const reach = camera.getWorldPosition(new THREE.Vector3()).distanceTo(new THREE.Vector3(...center));
-    const radius = ((2 * Math.tan((camera.fov * Math.PI) / 360) * reach) / rect.height) * 14;
+    const radius = worldPerPixel(reach, camera, rect.height) * 14;
     const world: WorldMark = { anchor: center, normal: plane.normal, ink: ringOn(plane, center, radius), closed: true, place: this.placeOf([center], plane, target) };
     const shape: Shape = { kind: "point", at: [(at[0] - rect.left) / rect.width, (at[1] - rect.top) / rect.height] };
     this.addNote(shape, this.snapshotFor(poseOf(camera), frame), world, target, stroke);
@@ -876,6 +948,8 @@ export class Drawspeak3D {
   }
 
   private addNote(shape: Shape, snapshot: Snapshot, world: WorldMark, target: MarkTarget | undefined, input: { kind: InputKind; pressure: number }) {
+    this.warmAgent();
+    this.adapter.sound?.("mark");
     const now = new Date().toISOString();
     const note: Note = {
       id: newId(),
@@ -920,7 +994,7 @@ export class Drawspeak3D {
     this.freshSnapshots.add(snapshot.id);
     // After the frame that the pen's last move is waiting for.
     const save = () =>
-      void toBlob(stored, 0.92)
+      void toBlobAway(stored, 0.92)
         .then((blob) => this.store.saveSnapshot(snapshot, blob))
         .catch((error) => console.warn("[drawspeak3d] could not save a picture", error));
     if (typeof requestIdleCallback === "function") requestIdleCallback(save, { timeout: 250 });
@@ -1242,6 +1316,7 @@ export class Drawspeak3D {
       this.overlay.hideFreeze(true);
       this.adapter.freeze?.(false);
       this.stroke = undefined;
+    this.host.resting = false;
     }
     if (this.keyDownAt > 0) {
       this.setArmed(this.wasArmed);
@@ -1276,6 +1351,7 @@ export class Drawspeak3D {
     if (this.looksDue.length > 0 && this.framesInSight > 8 && this.reloadSince === 0) setTimeout(() => this.answerLooks(), 0);
     const now = performance.now();
     for (const [id, since] of this.leaving) if (now - since > LEAVE_MS) this.leaving.delete(id);
+    if (this.announced.length > 0) this.placeAnnounced(this.host.shown, this.host.rect());
     const stroke = this.stroke;
     const camera = stroke?.camera ?? this.host.shown;
     const rect = stroke?.rect ?? this.host.rect();
@@ -1284,7 +1360,15 @@ export class Drawspeak3D {
     const inWorld = this.worldNotes;
     const working = this.runCards.workingNotes;
     this.overlay.setVisible(stroke !== undefined || inWorld.length > 0 || active !== undefined);
+    if (!this.inkChanged(camera, rect, stroke !== undefined || working.size > 0 || this.leaving.size > 0)) {
+      this.placeBubble(camera, rect);
+      this.bubble.tick();
+      this.runCards.tick();
+      this.checkOcclusion(camera);
+      return;
+    }
     this.overlay.begin();
+    for (const note of inWorld) if (working.has(note.id) || this.leaving.has(note.id)) this.drawBeacon(note, camera, rect, now);
     for (const note of inWorld) {
       const since = this.leaving.get(note.id);
       const alpha = since !== undefined ? 0.8 * (1 - (now - since) / LEAVE_MS) : this.occludedNotes.has(note.id) ? 0.26 : working.has(note.id) ? 0.6 : 1;
@@ -1311,6 +1395,47 @@ export class Drawspeak3D {
     this.bubble.tick();
     this.runCards.tick();
     this.checkOcclusion(camera);
+  }
+
+  private inkChanged(camera: THREE.Camera, rect: DOMRect, moving: boolean): boolean {
+    const key = `${this.revision}|${this.activeId}|${[...this.occludedNotes].join()}|${rect.width}x${rect.height}|${this.showSent}|${this.worldNotes.length}|${this.runCards.workingNotes.size}|${this.leaving.size}`;
+    const now = camera.matrixWorld.elements;
+    const before = this.inkCamera;
+    let same = !moving && key === this.inkKey;
+    for (let i = 0; i < 16; i++) {
+      if (before[i] !== now[i]) {
+        same = false;
+        before[i] = now[i];
+      }
+    }
+    this.inkKey = key;
+    return !same;
+  }
+
+  /** Light over what an agent is working on, and a last flash of it when it's done. */
+  private drawBeacon(note: Note, camera: THREE.Camera, rect: DOMRect, now: number) {
+    if (note.world.screen || note.shape.kind === "view") return;
+    const since = this.leaving.get(note.id);
+    const fade = since === undefined ? 1 : Math.max(0, 1 - (now - since) / LEAVE_MS);
+    const seconds = now / 1000;
+    if (note.shape.kind === "arrow") {
+      this.overlay.flow(note.world.ink, camera, rect, seconds, fade);
+      return;
+    }
+    const bounds = note.target && !note.target.partial ? current(note.target)?.bounds : undefined;
+    const anchor = note.world.anchor;
+    const small = worldPerPixel(camera.getWorldPosition(new THREE.Vector3()).distanceTo(new THREE.Vector3(anchor[0], anchor[1], anchor[2])), camera, rect.height);
+    if (bounds && !isSurfaceLike(current(note.target!), camera, rect)) {
+      const radius = Math.max(bounds.max[0] - bounds.min[0], bounds.max[2] - bounds.min[2]) * 0.62;
+      const height = Math.max((bounds.max[1] - bounds.min[1]) * 1.25, small * 90);
+      this.overlay.beacon([(bounds.min[0] + bounds.max[0]) / 2, bounds.min[1], (bounds.min[2] + bounds.max[2]) / 2], [0, 1, 0], Math.max(radius, small * 18), height, camera, rect, seconds, fade);
+      return;
+    }
+    const place = note.world.place;
+    const across = place?.size ? Math.max(...place.size) / 2 : 0;
+    const radius = Math.max(across, small * 26);
+    const normal: Vec3 = note.world.normal[1] > 0.5 ? [0, 1, 0] : note.world.normal;
+    this.overlay.beacon(place?.center ?? note.world.anchor, normal, radius, Math.max(radius * 2.6, small * 120), camera, rect, seconds, fade);
   }
 
   private drawLive(stroke: Stroke, camera: THREE.Camera, rect: DOMRect) {
@@ -1594,4 +1719,3 @@ export function parsePose(raw: string): Pose | undefined {
   if (v.length !== 8 || v.some((n) => !Number.isFinite(n))) return undefined;
   return { position: [v[0], v[1], v[2]], quaternion: [v[3], v[4], v[5], v[6]], fov: v[7], aspect: innerWidth / innerHeight, near: 0.1, far: 1000 };
 }
-

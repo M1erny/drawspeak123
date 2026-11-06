@@ -77,15 +77,22 @@ export function commonChain(chains: SceneEntity[][]): SceneEntity[] {
 export function groupChain(members: SceneEntity[], chains: SceneEntity[][], label?: string): SceneEntity[] {
   const shared = commonChain(chains);
   const kinds = new Set(members.map((m) => m.kind));
-  const name = label ?? `${members.length} × ${kinds.size === 1 ? plural(members[0].kind) : "things"}`;
+  const name = label ?? `${members.length} × ${sharedWord(members) ?? (kinds.size === 1 ? plural(members[0].kind) : "things")}`;
   const group: SceneEntity = {
     key: `group:${members.map((m) => m.key).sort().join(",")}`,
-    label: shared.length > 0 ? `${name} in ${shared[0].label}` : name,
+    label: shared.length > 0 && !name.endsWith(` ${shared[0].label}`) ? `${name} in ${shared[0].label}` : name,
     kind: "group",
     locator: { strategy: "adapter", value: members.map((m) => m.locator.value).join(", ") },
     data: { members: members.map((m) => m.label) },
   };
   return [group, ...shared];
+}
+
+/** "Building 12" and "Building 40" are buildings, whatever their kind says. */
+function sharedWord(members: SceneEntity[]): string | undefined {
+  const stems = new Set(members.map((member) => member.label.replace(/[\s_#-]*\d+$/, "").trim()));
+  const [stem] = stems;
+  return stems.size === 1 && stem && !/^(box|mesh|group|object)\b/i.test(stem) ? stem : undefined;
 }
 
 function plural(kind: string): string {

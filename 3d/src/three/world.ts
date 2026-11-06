@@ -47,6 +47,8 @@ export interface SceneAdapter {
   busy?(): boolean;
   /** What is wrong in the app right now, for an agent looking at its work. */
   problems?(): string[];
+  /** A sound for a moment that deserves one, in the app's own voice. */
+  sound?(cue: "mark" | "send" | "done"): void;
   save?(): unknown;
   restore?(state: unknown): void;
   /** A link that opens a view, when the app can. Default: this page with ds3d_view. */
@@ -66,8 +68,8 @@ export function poseOf(camera: THREE.PerspectiveCamera): Pose {
   return {
     position: [camera.position.x, camera.position.y, camera.position.z],
     quaternion: [camera.quaternion.x, camera.quaternion.y, camera.quaternion.z, camera.quaternion.w],
-    fov: camera.fov,
-    aspect: camera.aspect,
+    fov: camera.fov ?? 0,
+    aspect: camera.aspect ?? 1,
     near: camera.near,
     far: camera.far,
   };
@@ -132,8 +134,30 @@ function visibleMeshes(root: THREE.Object3D, skip: SceneAdapter["skip"], out: TH
   return out;
 }
 
+/** Within one pick, what a thing's box is and what it's called are worked out once: a city's group holds thousands. */
+let pickStamp = 0;
+const boxMemo = new WeakMap<THREE.Object3D, { stamp: number; box: THREE.Box3 }>();
+const chainMemo = new Map<string, SceneEntity[]>();
+
+function worldBox(object: THREE.Object3D): THREE.Box3 {
+  const known = boxMemo.get(object);
+  if (known?.stamp === pickStamp) return known.box;
+  const found = new THREE.Box3().setFromObject(object);
+  boxMemo.set(object, { stamp: pickStamp, box: found });
+  return found;
+}
+
 /** A thing named from the scene graph: the hit object, then its named parents. */
 export function chainFromGraph(hit: THREE.Intersection): SceneEntity[] {
+  const memoKey = `${hit.object.uuid}#${hit.instanceId ?? ""}`;
+  const known = chainMemo.get(memoKey);
+  if (known) return known.map((entity) => ({ ...entity }));
+  const chain = chainOfHit(hit);
+  chainMemo.set(memoKey, chain);
+  return chain.map((entity) => ({ ...entity }));
+}
+
+function chainOfHit(hit: THREE.Intersection): SceneEntity[] {
   const chain: SceneEntity[] = [];
   const instanced = (hit.object as THREE.InstancedMesh).isInstancedMesh ? hit.instanceId : undefined;
   const names: string[] = [];
@@ -143,9 +167,11 @@ export function chainFromGraph(hit: THREE.Intersection): SceneEntity[] {
     const about = o.userData?.drawspeak as Partial<SceneEntity> | undefined;
     const isHit = o === hit.object;
     if (!isHit && !o.name && !about) continue;
+    // A part with no name of its own, of something that has one, is that something.
+    if (isHit && instanced === undefined && !o.name && !about && hasNamedParent(o)) continue;
     if ((o as THREE.Scene).isScene && !about) continue; // every chain would end in it
     const path = names.slice(0, index + 1).join("/");
-    const bounds = isHit && instanced !== undefined ? instanceBox(hit.object as THREE.InstancedMesh, instanced) : new THREE.Box3().setFromObject(o);
+    const bounds = isHit && instanced !== undefined ? instanceBox(hit.object as THREE.InstancedMesh, instanced) : worldBox(o);
     const suffix = isHit && instanced !== undefined ? `#${instanced}` : "";
     const name = about?.label ?? (o.name ? o.name + suffix : describeUnnamed(o) + suffix);
     chain.push({
@@ -158,7 +184,7 @@ export function chainFromGraph(hit: THREE.Intersection): SceneEntity[] {
       data: about?.data ?? materialData(o),
     });
     if (isHit && instanced !== undefined) {
-      const whole = new THREE.Box3().setFromObject(o);
+      const whole = worldBox(o);
       chain.push({
         key: o.uuid,
         label: o.name || describeUnnamed(o),
@@ -170,6 +196,11 @@ export function chainFromGraph(hit: THREE.Intersection): SceneEntity[] {
     }
   }
   return chain;
+}
+
+function hasNamedParent(object: THREE.Object3D): boolean {
+  for (let o = object.parent; o; o = o.parent) if (!(o as THREE.Scene).isScene && (o.name || o.userData?.drawspeak)) return true;
+  return false;
 }
 
 function describeUnnamed(object: THREE.Object3D): string {
@@ -224,6 +255,35 @@ const MAX_HITS_PER_RAY = 6;
 /** A mesh with this many triangles gets a tree to search, instead of trying them all on every ray. */
 const TREE_FROM = 200;
 
+/** The four sides of the part of the view around a loop, as planes facing in. */
+function sidesAround(polygon: Vec2[], camera: THREE.Camera, rect: DOMRect): THREE.Plane[] {
+  let minX = Infinity;
+  let minY = Infinity;
+  let maxX = -Infinity;
+  let maxY = -Infinity;
+  for (const [x, y] of polygon) {
+    minX = Math.min(minX, x);
+    minY = Math.min(minY, y);
+    maxX = Math.max(maxX, x);
+    maxY = Math.max(maxY, y);
+  }
+  const ndc = (x: number, y: number, z: number) => new THREE.Vector3(((x - rect.left) / rect.width) * 2 - 1, -((y - rect.top) / rect.height) * 2 + 1, z).unproject(camera);
+  const pad = 3;
+  const corners = [
+    [minX - pad, minY - pad],
+    [maxX + pad, minY - pad],
+    [maxX + pad, maxY + pad],
+    [minX - pad, maxY + pad],
+  ];
+  const middle = ndc((minX + maxX) / 2, (minY + maxY) / 2, 0.5);
+  return corners.map(([x, y], i) => {
+    const [nx, ny] = corners[(i + 1) % 4];
+    const plane = new THREE.Plane().setFromCoplanarPoints(ndc(x, y, -0.5), ndc(x, y, 0.5), ndc(nx, ny, -0.5));
+    if (plane.distanceToPoint(middle) < 0) plane.negate();
+    return plane;
+  });
+}
+
 const treesTried = new WeakSet<THREE.BufferGeometry>();
 
 function treeFor(g: THREE.BufferGeometry | undefined): void {
@@ -269,6 +329,48 @@ class FastRays {
   /** A new pick: the world may have changed since the last one. */
   begin() {
     this.pick++;
+    this.within.clear();
+    pickStamp++;
+    chainMemo.clear();
+  }
+
+  /** The instances each mesh could show under the loop: its rays then try only those. */
+  private readonly within = new Map<THREE.InstancedMesh, Int32Array>();
+
+  /**
+   * Only what the part of the view under a loop can reach. A loop covers little of a big world, so a hundred
+   * rays go through dozens of things instead of thousands.
+   */
+  narrow(meshes: THREE.Object3D[], planes: THREE.Plane[]): THREE.Object3D[] {
+    const center = new THREE.Vector3();
+    const inside = (x: number, y: number, z: number, r: number) => {
+      for (const plane of planes) if (plane.normal.x * x + plane.normal.y * y + plane.normal.z * z + plane.constant < -r) return false;
+      return true;
+    };
+    const out: THREE.Object3D[] = [];
+    for (const object of meshes) {
+      const mesh = object as THREE.InstancedMesh;
+      if (mesh.isInstancedMesh && mesh.raycast === Object.getPrototypeOf(mesh).raycast) {
+        const { spheres } = this.indexOf(mesh);
+        const picked: number[] = [];
+        for (let i = 0, at = 0; i < mesh.count; i++, at += 4) if (inside(spheres[at], spheres[at + 1], spheres[at + 2], spheres[at + 3])) picked.push(i);
+        if (picked.length > 0) {
+          this.within.set(mesh, Int32Array.from(picked));
+          out.push(object);
+        }
+        continue;
+      }
+      const geometry = (object as THREE.Mesh).geometry as THREE.BufferGeometry | undefined;
+      if (!(object as THREE.Mesh).isMesh || !geometry || (object as THREE.SkinnedMesh).isSkinnedMesh) {
+        out.push(object);
+        continue;
+      }
+      if (!geometry.boundingSphere) geometry.computeBoundingSphere();
+      const sphere = geometry.boundingSphere!;
+      center.copy(sphere.center).applyMatrix4(object.matrixWorld);
+      if (inside(center.x, center.y, center.z, sphere.radius * object.matrixWorld.getMaxScaleOnAxis())) out.push(object);
+    }
+    return out;
   }
 
   private indexOf(mesh: THREE.InstancedMesh): InstanceSpheres {
@@ -309,7 +411,11 @@ class FastRays {
     const { origin, direction } = raycaster.ray;
     const probe = this.probe;
     let ready = false;
-    for (let i = 0, at = 0; i < mesh.count; i++, at += 4) {
+    const within = this.within.get(mesh);
+    const count = within ? within.length : mesh.count;
+    for (let n = 0; n < count; n++) {
+      const i = within ? within[n] : n;
+      const at = i * 4;
       const vx = spheres[at] - origin.x;
       const vy = spheres[at + 1] - origin.y;
       const vz = spheres[at + 2] - origin.z;
@@ -339,12 +445,22 @@ class FastRays {
     for (const object of meshes) {
       const mesh = object as THREE.InstancedMesh & { isSkinnedMesh?: boolean };
       // What has a way of its own (a shadow that never catches a click, a mesh that bends) keeps it.
-      if (mesh.isInstancedMesh && mesh.raycast === THREE.InstancedMesh.prototype.raycast) this.rayInstanced(mesh, raycaster, out);
-      else if (mesh.isMesh && !mesh.isSkinnedMesh && !mesh.morphTargetInfluences && mesh.raycast === THREE.Mesh.prototype.raycast) acceleratedRaycast.call(mesh, raycaster, out);
+      const own = mesh.raycast !== Object.getPrototypeOf(mesh).raycast;
+      if (mesh.isInstancedMesh && !own) this.rayInstanced(mesh, raycaster, out);
+      else if (mesh.isMesh && !mesh.isSkinnedMesh && !mesh.morphTargetInfluences && !own && (mesh.geometry as THREE.BufferGeometry).boundsTree) acceleratedRaycast.call(mesh, raycaster, out);
       else object.raycast(raycaster, out);
     }
     return out.sort((a, b) => a.distance - b.distance);
   }
+}
+
+/** By the projection, not the class: a copy of a camera says what it sees, whatever it was made as. */
+export const isOrtho = (camera: THREE.Camera): boolean => camera.projectionMatrix.elements[15] === 1;
+
+/** How much of the world one pixel covers at this distance, for sizes that look the same at any scale. */
+export function worldPerPixel(reach: number, camera: THREE.Camera, height: number): number {
+  const scale = camera.projectionMatrix.elements[5];
+  return (2 * (isOrtho(camera) ? 1 : reach)) / (scale * height);
 }
 
 export class Picker {
@@ -355,6 +471,8 @@ export class Picker {
   far = 400;
   private readonly getScene: () => THREE.Object3D | undefined;
   private readonly adapter: SceneAdapter;
+  private occluders?: THREE.Object3D[];
+  private occludersAt = 0;
 
   constructor(getScene: () => THREE.Object3D | undefined, adapter: SceneAdapter) {
     this.getScene = getScene;
@@ -362,11 +480,24 @@ export class Picker {
     this.raycaster.layers.enableAll();
   }
 
+  /** The ray through a screen point, for a camera of either kind and a world of any size. */
+  private aim(x: number, y: number, camera: THREE.Camera, rect: DOMRect) {
+    this.ndc.set(((x - rect.left) / rect.width) * 2 - 1, -((y - rect.top) / rect.height) * 2 + 1);
+    const { ray } = this.raycaster;
+    if (isOrtho(camera)) {
+      ray.origin.set(this.ndc.x, this.ndc.y, -1).unproject(camera);
+      ray.direction.set(0, 0, -1).transformDirection(camera.matrixWorld);
+    } else {
+      ray.origin.setFromMatrixPosition(camera.matrixWorld);
+      ray.direction.set(this.ndc.x, this.ndc.y, 0.5).unproject(camera).sub(ray.origin).normalize();
+    }
+    this.raycaster.camera = camera;
+    this.raycaster.far = Math.max(this.far, (camera as THREE.PerspectiveCamera).far ?? 0);
+  }
+
   /** Everything along the ray through a screen point, nearest first, each thing once. */
   private along(x: number, y: number, camera: THREE.Camera, rect: DOMRect, meshes: THREE.Object3D[]): RayHit[] {
-    this.ndc.set(((x - rect.left) / rect.width) * 2 - 1, -((y - rect.top) / rect.height) * 2 + 1);
-    this.raycaster.setFromCamera(this.ndc, camera);
-    this.raycaster.far = this.far;
+    this.aim(x, y, camera, rect);
     return this.hitsOnRay(meshes);
   }
 
@@ -420,7 +551,7 @@ export class Picker {
     const meshes = visibleMeshes(scene, this.adapter.skip);
     const center = new THREE.Box3().setFromObject(scene).getCenter(new THREE.Vector3());
     this.rays.begin();
-    this.raycaster.far = this.far;
+    this.raycaster.far = Number.POSITIVE_INFINITY;
     for (let i = 0; i < 12; i++) {
       const angle = (i / 12) * Math.PI * 2;
       this.raycaster.set(center, new THREE.Vector3(Math.cos(angle), -0.3, Math.sin(angle)).normalize());
@@ -445,7 +576,7 @@ export class Picker {
   /** What a loop on the screen holds. */
   pickLoop(polygon: Vec2[], camera: THREE.Camera, rect: DOMRect): LoopPick {
     const scene = this.getScene();
-    const meshes = scene ? visibleMeshes(scene, this.adapter.skip) : [];
+    const allMeshes = scene ? visibleMeshes(scene, this.adapter.skip) : [];
     interface Seen {
       hit: RayHit;
       hits: number;
@@ -456,8 +587,9 @@ export class Picker {
       /** The parts that were hit, each with its own box and how many rays found it. */
       parts: Map<string, { bounds: Box; hits: number }>;
     }
-    for (const object of meshes) treeFor((object as THREE.Mesh).geometry);
+    for (const object of allMeshes) treeFor((object as THREE.Mesh).geometry);
     this.rays.begin();
+    const meshes = this.rays.narrow(allMeshes, sidesAround(polygon, camera, rect));
     const stats = new Map<string, Seen>();
     const samples = samplePolygon(polygon, RAYS);
     const start = performance.now();
@@ -603,13 +735,22 @@ export class Picker {
     const origin = new THREE.Vector3().setFromMatrixPosition(camera.matrixWorld);
     const to = fromVec3(point);
     const length = origin.distanceTo(to);
-    if (length < 0.5) return false;
+    const margin = length * 0.035;
+    if (length <= 0) return false;
     this.raycaster.set(origin, to.sub(origin).normalize());
     this.raycaster.camera = camera;
-    this.raycaster.far = Math.max(0, length - 0.35);
+    this.raycaster.far = Math.max(0, length - margin);
     this.rays.begin();
-    const hit = this.hitsOnRay(visibleMeshes(scene, this.adapter.skip))[0];
-    return hit !== undefined && hit.distance < length - 0.35;
+    if (this.occluders === undefined || performance.now() - this.occludersAt > 1000) {
+      this.occluders = visibleMeshes(scene, this.adapter.skip);
+      this.occludersAt = performance.now();
+    }
+    for (const hit of this.rays.intersect(this.occluders, this.raycaster)) {
+      if (this.adapter.describe?.(hit) === null) continue;
+      return hit.distance < length - margin;
+    }
+    const along = this.adapter.along?.(this.raycaster.ray, this.raycaster.far)[0];
+    return along !== undefined && along.distance < length - margin;
   }
 }
 

@@ -29,6 +29,8 @@ export interface RunState {
   reply?: string;
   changed?: string[];
   error?: string;
+  /** It has been taken back. */
+  undone?: boolean;
   /** The notes this run was sent for. */
   noteIds?: string[];
   /** What it was asked, in a few words. */
@@ -90,6 +92,16 @@ export class HubClient {
   /** Stops one agent. */
   stop(runId: string) {
     return this.post<{ stopped: boolean }>("/stop", { runId });
+  }
+
+  /** Someone is about: have an agent ready. */
+  warm(model: string | undefined) {
+    return this.post<{ ok: boolean }>("/warm", { model });
+  }
+
+  /** Takes a finished agent's change back. */
+  undo(runId: string) {
+    return this.post<{ undone: string[]; left: string[] }>(`/undo/${encodeURIComponent(runId)}`, {});
   }
 
   /** Answers an agent that asked to see a view. */

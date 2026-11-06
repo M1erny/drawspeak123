@@ -71,6 +71,9 @@ vite-error-overlay { display: none !important; }
 .ds3d-pin.is-empty { background: #fff; color: ${INK}; border-color: ${INK}; }
 .ds3d-pin.is-edge { left: -11px; top: -11px; width: 22px; height: 22px; font-size: 11px; opacity: 0.86; }
 .ds3d-pin.is-rec::after { content: ""; position: absolute; inset: -7px; border-radius: 50%; border: 2px solid ${INK}; animation: ds3d-ping 1.15s ease-out infinite; }
+.ds3d-pin.is-rec::before { content: ""; position: absolute; inset: -4px; border-radius: 50%; background: rgba(189, 48, 72, 0.3); scale: calc(1 + var(--level, 0) * 1.1); transition: scale 0.08s linear; pointer-events: none; z-index: -1; }
+.ds3d-arrived { position: absolute; left: 0; top: 0; padding: 5px 12px; border-radius: 12px; background: rgba(255, 255, 255, 0.94); color: #1c2430; font-weight: 700; font-size: 13.5px; white-space: nowrap; box-shadow: 0 6px 20px rgba(8, 12, 24, 0.28); pointer-events: none; animation: ds3d-arrive 0.42s ${SPRING}; will-change: transform; }
+.ds3d-flight { position: absolute; left: -9px; top: -9px; width: 18px; height: 18px; border-radius: 50%; background: radial-gradient(circle, #fff 0%, #9fd6ff 45%, rgba(120, 190, 255, 0) 72%); pointer-events: none; transition: transform 0.55s ${EASE}, opacity 0.55s ease-in, scale 0.55s ease-in; }
 .ds3d-chip-label { position: absolute; left: 0; top: 0; padding: 4px 9px; border-radius: 10px; font-weight: 600; white-space: nowrap; will-change: transform; }
 
 .ds3d-bubble { position: absolute; left: 0; top: 0; z-index: 3; width: 316px; max-width: calc(100vw - 24px); padding: 10px 11px 10px 13px; border-radius: 20px; display: flex; flex-direction: column; gap: 5px; contain: layout style; will-change: transform; animation: ds3d-fade 0.18s ${EASE}; }
@@ -170,6 +173,11 @@ vite-error-overlay { display: none !important; }
 .ds3d-run-files { align-self: flex-start; margin: 1px 0 0 29px; padding: 0; border: 0; background: transparent; font-size: 11.5px; color: rgba(255, 255, 255, 0.5); text-align: left; overflow-wrap: anywhere; cursor: pointer; transition: color 0.12s; }
 .ds3d-run-files:hover { color: rgba(255, 255, 255, 0.8); }
 .ds3d-run-shared { padding-left: 29px; font-size: 12px; color: #ffd28a; }
+.ds3d-run.is-folded { padding-top: 5px; padding-bottom: 5px; }
+.ds3d-run.is-folded > .ds3d-run-head { cursor: pointer; }
+.ds3d-run.is-folded > :not(.ds3d-run-head) { display: none; }
+.ds3d-runs.is-many .ds3d-run.is-working .ds3d-run-line { display: none; }
+.ds3d-runs.is-many .ds3d-run.is-working { padding-top: 5px; padding-bottom: 5px; }
 .ds3d-run-model { flex: none; font-size: 11.5px; font-weight: 500; color: rgba(255, 255, 255, 0.55); }
 .ds3d-run-going { position: absolute; left: 0; bottom: 0; width: 40%; height: 2px; background: linear-gradient(90deg, transparent, rgba(120, 170, 255, 0.95), transparent); animation: ds3d-going 1.5s ${EASE} infinite; }
 .ds3d-model { padding: 0 6px 0 10px; font-size: 12.5px; font-weight: 500; color: rgba(255, 255, 255, 0.74); }
@@ -194,6 +202,7 @@ vite-error-overlay { display: none !important; }
 @keyframes ds3d-pop { from { scale: 0.3; } to { scale: 1; } }
 @keyframes ds3d-ping { 0% { opacity: 0.7; scale: 0.8; } 100% { opacity: 0; scale: 1.5; } }
 @keyframes ds3d-blink { 50% { opacity: 0.4; } }
+@keyframes ds3d-arrive { from { opacity: 0; translate: 0 10px; scale: 0.7; } to { opacity: 1; translate: 0 0; scale: 1; } }
 @keyframes ds3d-ring { from { opacity: 0.85; scale: 1; } to { opacity: 0; scale: 1.7; } }
 @keyframes ds3d-turn { to { rotate: 360deg; } }
 @keyframes ds3d-going { from { translate: -100% 0; } to { translate: 250% 0; } }

@@ -23,6 +23,9 @@ export class Host {
   private seenFrame = false;
   private reportedError = false;
   private startPose?: Pose;
+  /** A copy of the last frame covers the canvas, so the world needn't be drawn: all the time goes to the pen. */
+  resting = false;
+  private rendering = false;
 
   constructor(renderer: THREE.WebGLRenderer, options: { scene?: THREE.Scene; camera?: THREE.PerspectiveCamera } = {}) {
     this.renderer = renderer;
@@ -43,9 +46,23 @@ export class Host {
   }
 
   private render(scene: THREE.Scene, camera: THREE.PerspectiveCamera) {
-    const isMain = this.fixedCamera ? camera === this.fixedCamera : camera.isPerspectiveCamera === true;
+    // The world's own camera, of either kind: not a mirror's pass inside this one, nor a post-processing quad.
+    const isMain = !this.rendering && (this.fixedCamera ? camera === this.fixedCamera : scene.isScene === true && (camera.isPerspectiveCamera === true || (camera as unknown as THREE.OrthographicCamera).isOrthographicCamera === true));
     if (!isMain) {
       this.realRender.call(this.renderer, scene, camera);
+      return;
+    }
+    this.rendering = true;
+    try {
+      this.renderMain(scene, camera);
+    } finally {
+      this.rendering = false;
+    }
+  }
+
+  private renderMain(scene: THREE.Scene, camera: THREE.PerspectiveCamera) {
+    if (this.resting) {
+      this.onFrame();
       return;
     }
     this.scene = scene;
@@ -193,7 +210,7 @@ export function setPose(camera: THREE.PerspectiveCamera, pose: Pose) {
     parent.matrixWorld.decompose(parentPosition, parentTurn, parentScale);
     camera.quaternion.premultiply(parentTurn.invert());
   }
-  if (camera.fov !== pose.fov) {
+  if (camera.isPerspectiveCamera && camera.fov !== pose.fov && pose.fov > 0) {
     camera.fov = pose.fov;
     camera.updateProjectionMatrix();
   }

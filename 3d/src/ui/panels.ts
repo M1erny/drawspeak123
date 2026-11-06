@@ -914,6 +914,8 @@ interface RunCard {
   /** How long a finished card stays, counted only while the world is being looked at. */
   staysFor?: number;
   held?: boolean;
+  /** Opened by hand, among several. */
+  opened?: boolean;
 }
 
 /** A card for each agent at work and each that just finished, over the world. Good news leaves by itself. */
@@ -983,15 +985,19 @@ export class RunCards {
     const shown = [...atWork, ...finished].slice(0, MOST_CARDS);
     for (const id of this.cards.keys()) if (!shown.some((run) => run.id === id)) this.cards.delete(id);
     const wanted = shown.map((run) => this.card(run));
+    const newest = shown.find((run) => run.status !== "running");
+    for (const run of shown) if (run.status !== "running") this.cards.get(run.id)?.el.classList.toggle("is-folded", run !== newest && this.cards.get(run.id)?.opened !== true);
     const current = [...this.el.children];
     if (wanted.length !== current.length || wanted.some((card, i) => card !== current[i])) this.el.replaceChildren(...wanted);
     this.el.style.display = shown.length > 0 ? "" : "none";
+    // Several at work take less of the view: one line each.
+    this.el.classList.toggle("is-many", atWork.length > 1);
   }
 
   private card(run: RunState): HTMLElement {
     const known = this.cards.get(run.id);
     // A finished agent's card can still learn that a later one changed the same file.
-    if (known?.status === run.status && known.run.shared?.length === run.shared?.length) {
+    if (known?.status === run.status && known.run.shared?.length === run.shared?.length && known.run.undone === run.undone) {
       known.run = run;
       if (known.line && known.line.textContent !== lastLine(run)) known.line.textContent = lastLine(run);
       return known.el;
@@ -1001,7 +1007,7 @@ export class RunCards {
     this.cards.set(run.id, card);
     if (run.status === "done" && !run.shared?.length) {
       // Time to read it, and a pointer resting on it keeps it.
-      card.staysFor = Math.min(30_000, 10_000 + (run.reply?.length ?? 0) * 45);
+      card.staysFor = run.undone ? 3500 : Math.min(30_000, 10_000 + (run.reply?.length ?? 0) * 45);
       made.el.addEventListener("pointerenter", () => (card.held = true));
       made.el.addEventListener("pointerleave", () => (card.held = false));
     }
@@ -1032,7 +1038,7 @@ export class RunCards {
   private finishedCard(run: RunState) {
     const ok = run.status === "done";
     const files = run.changed ?? [];
-    const title = ok ? (run.about ?? "Done") : run.status === "stopped" ? "Stopped" : "The agent could not finish";
+    const title = run.undone ? `Taken back: ${run.about ?? "the change"}` : ok ? (run.about ?? "Done") : run.status === "stopped" ? "Stopped" : "The agent could not finish";
     const close = () => this.fadeAway(run, el);
     const parts: HTMLElement[] = [
       h(
@@ -1040,7 +1046,8 @@ export class RunCards {
         { class: "ds3d-run-head" },
         iconSpan(ok ? ICON.check : ICON.close, ok ? "ds3d-run-ok" : "ds3d-run-bad"),
         h("span", { class: "ds3d-run-title", title }, title),
-        ok && (run.noteIds?.length ?? 0) > 0 ? button(ICON.eye, "See it", () => this.tool.seeRun(run), { class: "ds3d-small ds3d-quiet", title: "Look from where you marked it (any move of yours brings you back)" }) : null,
+        ok && !run.undone && (run.noteIds?.length ?? 0) > 0 ? button(ICON.eye, "See it", () => this.tool.seeRun(run), { class: "ds3d-small ds3d-quiet", title: "Look from where you marked it (any move of yours brings you back)" }) : null,
+        ok && !run.undone && files.length > 0 && !run.shared?.length ? button(ICON.undo, "Undo", () => void this.tool.undoRun(run), { class: "ds3d-small ds3d-quiet", title: "Take this change back" }) : null,
         button(ICON.close, undefined, close, { class: "ds3d-small ds3d-quiet", title: "Close" }),
       ),
     ];
@@ -1054,6 +1061,14 @@ export class RunCards {
     }
     if (run.shared?.length) parts.push(h("div", { class: "ds3d-run-shared" }, `Another agent changed this too, worth a look: ${run.shared.join(", ")}`));
     const el = h("div", { class: "ds3d-run ds3d-glass" }, ...parts);
+    // Folded among several, its title opens it.
+    parts[0].addEventListener("click", (e) => {
+      if ((e.target as Element).closest("button")) return;
+      const card = this.cards.get(run.id);
+      if (!card || !el.classList.contains("is-folded")) return;
+      card.opened = true;
+      el.classList.remove("is-folded");
+    });
     return { el };
   }
 
@@ -1094,6 +1109,23 @@ export class Toast {
     this.el = el;
     this.timer = setTimeout(() => leave(el), warn ? 7000 : 3200);
   }
+}
+
+/** A dot of light from the mark to where the agent's card comes up: it's on its way. */
+export function sendFlight(root: HTMLElement, from: DOMRect) {
+  const dot = h("div", { class: "ds3d-flight" });
+  const x = from.left + from.width / 2;
+  const y = from.top + from.height / 2;
+  dot.style.transform = `translate(${x}px, ${y}px)`;
+  root.append(dot);
+  requestAnimationFrame(() =>
+    requestAnimationFrame(() => {
+      dot.style.transform = `translate(${innerWidth / 2}px, 86px)`;
+      dot.style.opacity = "0";
+      dot.style.scale = "0.45";
+    }),
+  );
+  setTimeout(() => dot.remove(), 620);
 }
 
 export function lightbox(root: HTMLElement, url: string) {

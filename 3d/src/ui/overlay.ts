@@ -1,7 +1,7 @@
 import * as THREE from "three";
 import { convexHull } from "../core/geometry.ts";
 import type { Box, Vec2, Vec3 } from "../core/types.ts";
-import { boxOnScreen } from "../three/world.ts";
+import { boxOnScreen, toScreen } from "../three/world.ts";
 import { HALO, INK, LINE_WIDTH, OUTLINE } from "./styles.ts";
 
 /**
@@ -230,6 +230,106 @@ export class Overlay {
       else tracePath(ctx, whole ? part.slice(0, -1) : part, whole);
       inkStroke(ctx, LINE_WIDTH, alpha);
     });
+  }
+
+  /**
+   * Light rising from a place where an agent is at work, so that it shows from across the room that something
+   * is happening there: a column, rings going up it, and sparks. `fade` goes from 1 to 0 when the work is done.
+   */
+  beacon(base: Vec3, up: Vec3, radius: number, height: number, camera: THREE.Camera, rect: { left: number; top: number; width: number; height: number }, seconds: number, fade = 1) {
+    const ctx = this.ctx;
+    const axis = new THREE.Vector3(up[0], up[1], up[2]).normalize();
+    const side = new THREE.Vector3(Math.abs(axis.y) > 0.9 ? 1 : 0, Math.abs(axis.y) > 0.9 ? 0 : 1, 0).cross(axis).normalize();
+    const other = axis.clone().cross(side);
+    const at = (along: number, out: number, angle: number): Vec2 | undefined => {
+      const x = base[0] + axis.x * along + (side.x * Math.cos(angle) + other.x * Math.sin(angle)) * out;
+      const y = base[1] + axis.y * along + (side.y * Math.cos(angle) + other.y * Math.sin(angle)) * out;
+      const z = base[2] + axis.z * along + (side.z * Math.cos(angle) + other.z * Math.sin(angle)) * out;
+      return toScreen([x, y, z], camera, rect);
+    };
+    const ring = (along: number, out: number): Vec2[] | undefined => {
+      const points: Vec2[] = [];
+      for (let i = 0; i < 28; i++) {
+        const point = at(along, out, (i / 28) * Math.PI * 2);
+        if (!point) return undefined;
+        points.push(point);
+      }
+      return points;
+    };
+    const bottom = ring(0, radius);
+    const top = ring(height, radius * 0.86);
+    if (!bottom || !top) return;
+    const middleOf = (points: Vec2[]): Vec2 => [points.reduce((sum, p) => sum + p[0], 0) / points.length, points.reduce((sum, p) => sum + p[1], 0) / points.length];
+    const from = middleOf(bottom);
+    const to = middleOf(top);
+    // The column.
+    const hull = convexHull([...bottom, ...top]);
+    if (hull.length >= 3) {
+      const light = ctx.createLinearGradient(from[0], from[1], to[0], to[1]);
+      // Strong enough to read on a bright floor.
+      light.addColorStop(0, `rgba(30, 140, 255, ${0.62 * fade})`);
+      light.addColorStop(0.5, `rgba(70, 175, 255, ${0.26 * fade})`);
+      light.addColorStop(1, "rgba(120, 205, 255, 0)");
+      ctx.fillStyle = light;
+      ctx.beginPath();
+      ctx.moveTo(hull[0][0], hull[0][1]);
+      for (let i = 1; i < hull.length; i++) ctx.lineTo(hull[i][0], hull[i][1]);
+      ctx.closePath();
+      ctx.fill();
+    }
+    // Rings going up it, and one on the ground that opens out as the work ends.
+    ctx.lineJoin = "round";
+    const stroke = (points: Vec2[], alpha: number, width: number) => {
+      tracePath(ctx, points, true);
+      // A dark line under a light one reads on anything, as the ink does.
+      ctx.strokeStyle = `rgba(0, 92, 214, ${alpha * 0.85})`;
+      ctx.lineWidth = width + 2.2;
+      ctx.stroke();
+      ctx.strokeStyle = `rgba(214, 240, 255, ${alpha})`;
+      ctx.lineWidth = width;
+      ctx.stroke();
+    };
+    const opened = ring(0, radius * (1 + (1 - fade) * 1.1));
+    if (opened) stroke(opened, fade, 2.2);
+    for (let k = 0; k < 3; k++) {
+      const u = (seconds * 0.55 + k / 3) % 1;
+      const rising = ring(u * height, radius * (1 - 0.14 * u));
+      if (rising) stroke(rising, Math.min(1, u * 8) * (1 - u) ** 1.2 * fade, 1.6);
+    }
+    // Sparks.
+    ctx.fillStyle = "#ffffff";
+    for (let i = 0; i < 12; i++) {
+      const u = (seconds * (0.3 + (i % 4) * 0.06) + i * 0.17) % 1;
+      const out = radius * (0.25 + ((i * 0.37) % 1) * 0.65);
+      const spark = at(u * height, out, i * 2.399 + seconds * 0.5);
+      if (!spark) continue;
+      ctx.globalAlpha = (1 - u) * 0.9 * fade;
+      ctx.beginPath();
+      ctx.arc(spark[0], spark[1], 1.6 + (1 - u) * 2, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    ctx.globalAlpha = 1;
+  }
+
+  /** Light running along a line an agent is working on. */
+  flow(ink: Vec3[], camera: THREE.Camera, rect: { left: number; top: number; width: number; height: number }, seconds: number, fade = 1) {
+    if (ink.length < 2) return;
+    const ctx = this.ctx;
+    const { runs } = projectInk(ink, false, camera, rect);
+    ctx.save();
+    ctx.lineCap = "round";
+    ctx.setLineDash([2, 24]);
+    ctx.lineDashOffset = -seconds * 80;
+    for (const run of runs) {
+      tracePath(ctx, run, false);
+      ctx.strokeStyle = `rgba(0, 110, 235, ${fade})`;
+      ctx.lineWidth = 10;
+      ctx.stroke();
+      ctx.strokeStyle = `rgba(255, 255, 255, ${fade})`;
+      ctx.lineWidth = 5;
+      ctx.stroke();
+    }
+    ctx.restore();
   }
 
   /** The outline of a thing, in the blue of a chosen component. */

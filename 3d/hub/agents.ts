@@ -1,7 +1,7 @@
 import { execFile, execFileSync, spawn, type ChildProcess } from "node:child_process";
-import { existsSync, readdirSync, statSync } from "node:fs";
+import { existsSync, readdirSync, statSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
-import { isAbsolute, join, relative } from "node:path";
+import { basename, dirname, isAbsolute, join, relative } from "node:path";
 import { fileURLToPath } from "node:url";
 import type { Project } from "./data.ts";
 
@@ -46,11 +46,23 @@ export interface AgentModel {
   hint: string;
 }
 
+/** For an agent to start up ahead of time, and be there the moment it's needed. */
+export interface WarmJob {
+  project: Project;
+  /** The folder the batches are in. */
+  batches: string;
+  model?: string;
+  env?: Record<string, string>;
+}
+
 export interface Agent {
   id: string;
   label: string;
   /** What can be chosen, if anything. */
   models?: AgentModel[];
+  /** Gets one ready, if that saves time. */
+  warmUp?(job: WarmJob): void;
+  coolDown?(): void;
   available(): boolean;
   /** Why it cannot run right now, in words a person can act on. Answers at once from what it last learned. */
   problem(): string | undefined;
@@ -81,13 +93,14 @@ export function defaultModel(project: Project): string {
   return process.env.DRAWSPEAK_MODEL ?? project.model ?? DEFAULT_MODEL;
 }
 
-export function claudeArgs(job: Pick<AgentJob, "project" | "folder" | "mode" | "resume" | "model">): string[] {
+export function claudeArgs(job: Pick<AgentJob, "project" | "folder" | "mode" | "resume" | "model"> & { waits?: boolean }): string[] {
   const editing = job.mode !== "replyOnly";
   // Roblox has no page to open: its project's note says how to see a result there.
   const looks = editing && !job.project.roblox;
   const bash = editing ? [...job.project.allowedBash, ...(looks ? [`node ${LOOK}`] : [])] : [];
   const tools = [...READ_TOOLS, ...(editing ? EDIT_TOOLS : []), ...bash.map((command) => `Bash(${command}:*)`)];
-  const after = `${job.folder.replace(/\\/g, "/")}/after-1.png`;
+  // Started ahead of time it doesn't know its batch yet: the message says where that is.
+  const after = job.waits ? "<the batch's folder>/after-1.png" : `${job.folder.replace(/\\/g, "/")}/after-1.png`;
   const rules = [
     "You are receiving feedback from Drawspeak 3D: a person walked through a running 3D world, marked things and places on screen and said what should change.",
     "Look at the pictures in the batch folder with the Read tool before changing anything. Someone is standing in this world waiting to see the change, so read what you need together, in one step, then make it.",
@@ -100,6 +113,7 @@ export function claudeArgs(job: Pick<AgentJob, "project" | "folder" | "mode" | "
   ].filter(Boolean).join("\n");
   const args = [
     "-p",
+    ...(job.waits ? ["--input-format", "stream-json"] : []),
     "--output-format", "stream-json",
     "--verbose",
     "--permission-mode", job.mode === "replyOnly" ? "default" : "acceptEdits",
@@ -157,12 +171,12 @@ export function describeToolUse(name: string, input: Record<string, unknown>, cw
   switch (name) {
     case "Read":
       if (/after-\d+\.png$/.test(short ?? "")) return { line: "Looking at the result" };
-      return { line: short?.startsWith("..") ? "Looking at your picture" : `Reading ${short}` };
+      return { line: short?.startsWith("..") ? "Looking at your picture" : `Reading ${short ? basename(short) : "a file"}` };
     case "Edit":
     case "MultiEdit":
-      return { line: `Editing ${short}`, file: short };
+      return { line: `Editing ${short ? basename(short) : "a file"}`, file: short };
     case "Write":
-      return { line: `Writing ${short}`, file: short };
+      return { line: `Writing ${short ? basename(short) : "a file"}`, file: short };
     case "Grep":
       return { line: `Searching for ${String(input.pattern ?? "").slice(0, 40)}` };
     case "Glob":
@@ -261,10 +275,60 @@ function askSignedIn() {
   });
 }
 
+/**
+ * One agent started ahead of time and waiting for its message: most of the seconds before an agent's first
+ * thought are the command line starting up. It goes away by itself if nobody asks for a while.
+ */
+interface WaitingAgent {
+  child: ChildProcess;
+  key: string;
+}
+let waiting: WaitingAgent | undefined;
+let waitFailedAt = 0;
+let coolTimer: ReturnType<typeof setTimeout> | undefined;
+const WAITS_MS = 10 * 60_000;
+
+const waitKey = (project: Project, model: string, batches: string) => `${project.id}|${model}|${batches}`;
+
+function coolDownNow() {
+  clearTimeout(coolTimer);
+  const going = waiting;
+  waiting = undefined;
+  if (going) killTree(going.child);
+}
+
 export const claudeAgent: Agent = {
   id: "claude",
   label: "Claude Code",
   models: MODELS,
+  warmUp(job) {
+    const exe = findClaude();
+    if (!exe || signedIn === false || Date.now() - waitFailedAt < 30_000) return;
+    const model = job.model ?? defaultModel(job.project);
+    const key = waitKey(job.project, model, job.batches);
+    clearTimeout(coolTimer);
+    coolTimer = setTimeout(coolDownNow, WAITS_MS);
+    coolTimer.unref?.();
+    if (waiting?.key === key && waiting.child.exitCode === null) return;
+    coolDownNow();
+    coolTimer = setTimeout(coolDownNow, WAITS_MS);
+    coolTimer.unref?.();
+    const start = startOptions(exe, claudeArgs({ project: job.project, folder: job.batches, mode: "apply", model, waits: true }));
+    const env = { ...childEnvironment(process.env), DRAWSPEAK_LOOK_ORIGINS: job.project.origins.join(","), ...job.env };
+    const child = spawn(start.command, start.args, { cwd: job.project.cwd, env, stdio: ["pipe", "pipe", "pipe"], windowsHide: true, shell: start.shell });
+    const entry: WaitingAgent = { child, key };
+    waiting = entry;
+    const gone = () => {
+      if (waiting !== entry) return;
+      waiting = undefined;
+      waitFailedAt = Date.now();
+    };
+    child.once("error", gone);
+    child.once("exit", gone);
+    // Nothing should be said before its message; whatever is, is kept for the run.
+    child.stdin!.on("error", () => {});
+  },
+  coolDown: coolDownNow,
   available: () => findClaude() !== undefined,
   problem() {
     askSignedIn();
@@ -273,11 +337,19 @@ export const claudeAgent: Agent = {
   start(job) {
     const exe = findClaude();
     if (!exe) return { done: Promise.resolve({ ok: false, error: "Claude Code was not found." }), stop() {} };
-    const start = startOptions(exe, claudeArgs(job));
-    // look.mjs opens only this project's own pages.
-    const env = { ...childEnvironment(process.env), DRAWSPEAK_LOOK_ORIGINS: job.project.origins.join(","), ...job.env };
-    const child = spawn(start.command, start.args, { cwd: job.project.cwd, env, stdio: ["pipe", "pipe", "pipe"], windowsHide: true, shell: start.shell });
-    child.stdin!.end(job.message);
+    const ready = !job.resume && job.mode !== "replyOnly" && waiting?.key === waitKey(job.project, job.model ?? defaultModel(job.project), dirname(job.folder)) && waiting.child.exitCode === null ? waiting : undefined;
+    let child: ChildProcess;
+    if (ready) {
+      waiting = undefined;
+      child = ready.child;
+      child.stdin!.end(`${JSON.stringify({ type: "user", message: { role: "user", content: [{ type: "text", text: job.message }] } })}\n`);
+    } else {
+      const start = startOptions(exe, claudeArgs(job));
+      // look.mjs opens only this project's own pages.
+      const env = { ...childEnvironment(process.env), DRAWSPEAK_LOOK_ORIGINS: job.project.origins.join(","), ...job.env };
+      child = spawn(start.command, start.args, { cwd: job.project.cwd, env, stdio: ["pipe", "pipe", "pipe"], windowsHide: true, shell: start.shell });
+      child.stdin!.end(job.message);
+    }
     let buffer = "";
     let stderr = "";
     const stream = new ClaudeStream(job);
@@ -327,6 +399,12 @@ export const fakeAgent: Agent = {
       timers.push(setTimeout(() => {
         job.onActivity("Editing client/world/products.ts");
         job.onChangedFile("client/world/products.ts");
+        // Asked for in so many words, it really makes something, so that a play test can see it and take it back.
+        if (job.message.includes("Testowa rzecz") && existsSync(join(job.project.cwd, "client/world/live"))) {
+          const file = `client/world/live/fake-${basename(job.folder)}.ts`;
+          writeFileSync(join(job.project.cwd, file), `export default ({ box, group }) => ({ name: "Testowa rzecz", object: group([2, 0, 6], 0, box([1, 1, 1], "#b9814a"), box([0.6, 0.6, 0.6], "#2b3550", [0, 1.3, 0])) });\n`);
+          job.onChangedFile(file);
+        }
         const link = /Open this view: (\S+)/.exec(job.message)?.[1];
         if (process.env.DRAWSPEAK_FAKE_LOOK && link) {
           job.onActivity("Looking at the result");

@@ -122,6 +122,55 @@ export function toBlob(canvas: HTMLCanvasElement, quality = 0.9): Promise<Blob> 
 }
 
 /** A frame scaled down to what is worth keeping. */
+let encoder: Worker | null | undefined;
+const waiting = new Map<number, (blob: Blob | undefined) => void>();
+let nextPicture = 0;
+
+function theEncoder(): Worker | null {
+  if (encoder !== undefined) return encoder;
+  try {
+    const source = `self.onmessage = async (e) => {
+      const { id, bitmap, quality } = e.data;
+      try {
+        const canvas = new OffscreenCanvas(bitmap.width, bitmap.height);
+        canvas.getContext("2d").drawImage(bitmap, 0, 0);
+        bitmap.close();
+        self.postMessage({ id, blob: await canvas.convertToBlob({ type: "image/jpeg", quality }) });
+      } catch {
+        self.postMessage({ id });
+      }
+    };`;
+    encoder = new Worker(URL.createObjectURL(new Blob([source], { type: "text/javascript" })));
+    encoder.onmessage = (e: MessageEvent<{ id: number; blob?: Blob }>) => {
+      waiting.get(e.data.id)?.(e.data.blob);
+      waiting.delete(e.data.id);
+    };
+    encoder.onerror = () => {
+      encoder = null;
+      for (const done of waiting.values()) done(undefined);
+      waiting.clear();
+    };
+  } catch {
+    encoder = null;
+  }
+  return encoder;
+}
+
+/** A picture as a file, made away from the page's thread: in a big world, reading a frame back can stop the game for a moment. */
+export async function toBlobAway(canvas: HTMLCanvasElement, quality: number): Promise<Blob> {
+  const worker = theEncoder();
+  if (worker && typeof OffscreenCanvas !== "undefined") {
+    const bitmap = await createImageBitmap(canvas);
+    const id = nextPicture++;
+    const blob = await new Promise<Blob | undefined>((done) => {
+      waiting.set(id, done);
+      worker.postMessage({ id, bitmap, quality }, [bitmap]);
+    });
+    if (blob) return blob;
+  }
+  return toBlob(canvas, quality);
+}
+
 export function scaledCopy(frame: HTMLCanvasElement, maxWidth: number): HTMLCanvasElement {
   if (frame.width <= maxWidth) return frame;
   const canvas = document.createElement("canvas");

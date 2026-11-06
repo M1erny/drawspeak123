@@ -1,10 +1,11 @@
 import { randomUUID, timingSafeEqual } from "node:crypto";
 import { createReadStream, existsSync } from "node:fs";
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from "node:http";
-import { basename, extname, join } from "node:path";
+import { basename, extname, join, dirname } from "node:path";
 import { stripTypeScriptTypes } from "node:module";
 import { readFileSync } from "node:fs";
 import { LOOK, agentFor, defaultModel, type RunningAgent } from "./agents.ts";
+import { fingerprint, keepBefore, undoFiles } from "./undo.ts";
 import { Inbox, gitChanged, gitRevision, here, hubKey, type Project } from "./data.ts";
 import { LiveMarks, stopCapture, type CaptureFn } from "./live.ts";
 
@@ -26,6 +27,8 @@ export interface RunState {
   agent: string;
   /** Which model it runs on, in words. */
   model?: string;
+  /** It has been taken back. */
+  undone?: boolean;
   startedAt: string;
   endedAt?: string;
   activity: string[];
@@ -48,6 +51,9 @@ interface RunEntry {
   /** Another agent worked at the same time, so the folder's changes are not all its own. */
   alongside: boolean;
   modelId?: string;
+  /** For taking it back: what was changed in the folder before it began, and how its own files ended up. */
+  dirtyBefore?: Set<string>;
+  after?: Record<string, string>;
   comments: string[];
 }
 
@@ -382,6 +388,35 @@ export async function startHub(options: HubOptions): Promise<Hub> {
         json(200, { ok: true });
         return;
       }
+      // The page says someone is about: have an agent ready for them.
+      if (req.method === "POST" && what === "warm") {
+        const body = await readJson<{ model?: string }>(1024);
+        warmUp(project, agentFor(project).models?.some((model) => model.id === body.model) ? body.model : undefined);
+        json(200, { ok: true });
+        return;
+      }
+      if (req.method === "POST" && what === "undo" && batchId) {
+        const entry = runsOf(project.id).length >= 0 ? runs.get(project.id)?.find((run) => run.state.id === batchId) : undefined;
+        if (!entry || entry.state.status !== "done" || !entry.state.changed?.length) {
+          json(404, { error: "That change can't be taken back." });
+          return;
+        }
+        if (entry.state.undone) {
+          json(200, { undone: [], left: [] });
+          return;
+        }
+        if (entry.state.shared?.length) {
+          json(409, { error: `Another agent changed this too, so it can't be taken back on its own: ${entry.state.shared.join(", ")}` });
+          return;
+        }
+        const answer = undoFiles(project.cwd, inbox.folderOf(project.id, entry.state.batchId), entry.state.changed, entry.dirtyBefore ?? [], entry.after ?? {});
+        if (answer.undone.length > 0) {
+          entry.state.undone = true;
+          broadcast(project.id);
+        }
+        json(200, answer);
+        return;
+      }
       if (req.method === "POST" && what === "stop") {
         // One agent, by its run's id; with no id, all of them.
         const { runId } = await readJson<{ runId?: string }>(1024);
@@ -407,10 +442,21 @@ export async function startHub(options: HubOptions): Promise<Hub> {
     }
   }
 
+  /** What an agent's commands need, to find the page that is open. */
+  function agentEnv(project: Project): Record<string, string> {
+    return { DRAWSPEAK_HUB: `http://127.0.0.1:${actualPort}`, DRAWSPEAK_PROJECT: project.id, DRAWSPEAK_LOOK_TOKEN: lookToken };
+  }
+
+  function warmUp(project: Project, model?: string) {
+    agentFor(project).warmUp?.({ project, batches: dirname(inbox.folderOf(project.id, "x")), model, env: agentEnv(project) });
+  }
+
   function startRun(project: Project, batchId: string, message: string, mode: string, resume: string | undefined, entry: RunEntry, nearby: string[]) {
     const { state, files } = entry;
     const before = gitChanged(project.cwd);
     const folder = inbox.folderOf(project.id, batchId);
+    entry.dirtyBefore = before;
+    keepBefore(project.cwd, folder, before);
     const agent = agentFor(project);
     let stopped = false;
     let wentQuiet: string | undefined;
@@ -433,7 +479,7 @@ export async function startHub(options: HubOptions): Promise<Hub> {
         mode,
         resume: resumeFrom,
         model: entry.modelId,
-        env: { DRAWSPEAK_HUB: `http://127.0.0.1:${actualPort}`, DRAWSPEAK_PROJECT: project.id, DRAWSPEAK_LOOK_TOKEN: lookToken },
+        env: agentEnv(project),
         onActivity: (line) => {
           heardAt = Date.now();
           state.activity.push(line);
@@ -446,6 +492,8 @@ export async function startHub(options: HubOptions): Promise<Hub> {
         },
       });
     const running = start(resume);
+    // The next one is ready before it's asked for.
+    setTimeout(() => warmUp(project, entry.modelId), 300);
     entry.agent = {
       done: running.done,
       stop: () => {
@@ -471,6 +519,7 @@ export async function startHub(options: HubOptions): Promise<Hub> {
       state.reply = result.reply;
       state.error = wentQuiet ?? (stopped ? undefined : result.error);
       state.changed = [...files].filter((f) => extname(f) !== "" || f.includes("/")).sort();
+      entry.after = Object.fromEntries(state.changed.map((file) => [file, fingerprint(project.cwd, file)]));
       // Only a conversation that went somewhere is worth carrying on.
       if (result.ok && result.sessionId) inbox.setThread(project.id, result.sessionId);
       inbox.saveRun(project.id, batchId, state);
@@ -492,6 +541,7 @@ export async function startHub(options: HubOptions): Promise<Hub> {
     lookToken,
     stopAgents: () => {
       for (const list of runs.values()) for (const run of list) if (run.state.status === "running") run.agent?.stop();
+      for (const project of options.projects.values()) agentFor(project).coolDown?.();
     },
     close: () =>
       new Promise((resolve) => {

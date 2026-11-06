@@ -14,6 +14,7 @@
     "hub": "node hub/server.ts",
     "demo": "vite --port 5190 --strictPort",
     "hub:dev": "node --watch hub/server.ts",
+    "add-game": "node hub/add-project.mjs",
     "hub:fake": "node --env-file=hub/fake.env hub/server.ts",
     "login": "node hub/login.ts",
     "test": "vitest run",

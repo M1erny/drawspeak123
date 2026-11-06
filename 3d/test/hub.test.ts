@@ -289,6 +289,10 @@ describe("the agent", () => {
     expect(edit[edit.indexOf("--model") + 1]).toBe(DEFAULT_MODEL);
     expect(claudeArgs({ project: { ...project, model: "opus" }, folder: "C:/batch", mode: "apply" }).join(" ")).toContain("--model opus");
     expect(claudeArgs({ project: { ...project, model: "opus" }, folder: "C:/batch", mode: "apply", model: "fable" }).join(" ")).toContain("--model fable");
+    // Started ahead of time, it takes its message as a line of JSON, and learns from it where the batch is.
+    const ahead = claudeArgs({ project, folder: "C:/batches", mode: "apply", waits: true });
+    expect(ahead.join(" ")).toContain("--input-format stream-json");
+    expect(ahead[ahead.indexOf("--append-system-prompt") + 1]).toContain("<the batch's folder>/after-1.png");
     expect(edit).not.toContain("--resume");
     // It can look at what it did, and is told to.
     expect(tools).toMatch(/Bash\(node \S*\/hub\/look\.mjs:\*\)/);
@@ -339,7 +343,7 @@ describe("the agent", () => {
     expect(plain.CLAUDE_CODE_OAUTH_TOKEN).toBe("t");
   });
   it("its tools read as plain words", () => {
-    expect(describeToolUse("Edit", { file_path: `${process.cwd()}/client/a.ts` }, process.cwd())).toEqual({ line: "Editing client/a.ts", file: "client/a.ts" });
+    expect(describeToolUse("Edit", { file_path: `${process.cwd()}/client/a.ts` }, process.cwd())).toEqual({ line: "Editing a.ts", file: "client/a.ts" });
     expect(describeToolUse("Read", { file_path: "C:/elsewhere/01.jpg" }, process.cwd()).line).toBe("Looking at your picture");
     expect(describeToolUse("Read", { file_path: "C:/elsewhere/after-1.png" }, process.cwd()).line).toBe("Looking at the result");
   });
