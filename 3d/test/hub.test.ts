@@ -198,6 +198,37 @@ describe("the agent", () => {
     expect(again.reply).toContain("Carried on");
     expect(again.reply).not.toContain("Knows what came before");
   });
+  it("runs on the model that was chosen, and refuses one it doesn't know", async () => {
+    expect((await (await fetch(`${base}/v1/projects/shop`)).json()).models.map((m: { id: string }) => m.id)).toContain("fable");
+    await post("/v1/projects/shop/batches", batch("m1"));
+    const chosen = await (await post("/v1/projects/shop/batches/m1/send", { model: "opus" })).json();
+    expect(chosen.model).toBe("Opus");
+    expect((await runDone("shop")).reply).toContain("On opus.");
+    await post("/v1/projects/shop/batches", batch("m2"));
+    expect((await post("/v1/projects/shop/batches/m2/send", { model: "gpt" })).status).toBe(400);
+    await post("/v1/projects/shop/batches/m2/send", {});
+    expect((await runDone("shop")).model).toBeUndefined();
+  });
+  it("an agent that goes quiet is stopped, and says so", async () => {
+    process.env.DRAWSPEAK_FAKE_MS = "60000";
+    process.env.DRAWSPEAK_QUIET_MS = "150";
+    await post("/v1/projects/shop/batches", batch("q1"));
+    await post("/v1/projects/shop/batches/q1/send", {});
+    const done = await runDone("shop");
+    process.env.DRAWSPEAK_FAKE_MS = "20";
+    delete process.env.DRAWSPEAK_QUIET_MS;
+    expect(done.status).toBe("failed");
+    expect(done.error).toContain("went quiet");
+  });
+  it("stops every agent when the hub goes away", async () => {
+    process.env.DRAWSPEAK_FAKE_MS = "60000";
+    await post("/v1/projects/shop/batches", batch("x1"));
+    await post("/v1/projects/shop/batches/x1/send", {});
+    hub.stopAgents();
+    const done = await runDone("shop");
+    process.env.DRAWSPEAK_FAKE_MS = "20";
+    expect(done.status).toBe("stopped");
+  });
   it("can be stopped", async () => {
     await post("/v1/projects/shop/batches", batch("r3"));
     await post("/v1/projects/shop/batches/r3/send", {});
@@ -257,6 +288,7 @@ describe("the agent", () => {
     expect(edit[edit.indexOf("--append-system-prompt") + 1]).toContain("npm test");
     expect(edit[edit.indexOf("--model") + 1]).toBe(DEFAULT_MODEL);
     expect(claudeArgs({ project: { ...project, model: "opus" }, folder: "C:/batch", mode: "apply" }).join(" ")).toContain("--model opus");
+    expect(claudeArgs({ project: { ...project, model: "opus" }, folder: "C:/batch", mode: "apply", model: "fable" }).join(" ")).toContain("--model fable");
     expect(edit).not.toContain("--resume");
     // It can look at what it did, and is told to.
     expect(tools).toMatch(/Bash\(node \S*\/hub\/look\.mjs:\*\)/);

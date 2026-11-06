@@ -4,7 +4,7 @@ import { createServer, type IncomingMessage, type Server, type ServerResponse } 
 import { basename, extname, join } from "node:path";
 import { stripTypeScriptTypes } from "node:module";
 import { readFileSync } from "node:fs";
-import { LOOK, agentFor, type RunningAgent } from "./agents.ts";
+import { LOOK, agentFor, defaultModel, type RunningAgent } from "./agents.ts";
 import { Inbox, gitChanged, gitRevision, here, hubKey, type Project } from "./data.ts";
 import { LiveMarks, stopCapture, type CaptureFn } from "./live.ts";
 
@@ -24,6 +24,8 @@ export interface RunState {
   batchId: string;
   status: "running" | "done" | "failed" | "stopped";
   agent: string;
+  /** Which model it runs on, in words. */
+  model?: string;
   startedAt: string;
   endedAt?: string;
   activity: string[];
@@ -45,6 +47,7 @@ interface RunEntry {
   files: Set<string>;
   /** Another agent worked at the same time, so the folder's changes are not all its own. */
   alongside: boolean;
+  modelId?: string;
   comments: string[];
 }
 
@@ -77,7 +80,7 @@ export interface HubApi {
   /** A project's runs, oldest first: those at work, and the last few that finished. */
   runsOf(projectId: string): RunState[];
   /** Starts an agent on a saved batch, alongside any already at work. */
-  startSend(project: Project, batchId: string, body: { noteIds?: string[]; newThread?: boolean }): RunState;
+  startSend(project: Project, batchId: string, body: { noteIds?: string[]; newThread?: boolean; model?: string }): RunState;
   /** An event for the pages listening on a project. */
   emit(projectId: string, event: string, data: unknown): void;
   /** How many desk pages are open for a project: they hold the microphone. */
@@ -100,6 +103,9 @@ const BODY_LIMIT = 96 * 1024 * 1024;
 const LOOK_WAIT_MS = 14_000;
 /** A page that is reloading is back in a moment. */
 const PAGE_BACK_MS = 3000;
+/** An agent this long without a sign of life has stopped working, whatever its process says. */
+const QUIET_MS = 5 * 60_000;
+const LONGEST_MS = 30 * 60_000;
 /** What a new conversation is told about the last few that finished. */
 const EARLIER_RUNS = 3;
 const EARLIER_MS = 30 * 60_000;
@@ -108,6 +114,8 @@ export interface Hub {
   server: Server;
   port: number;
   inbox: Inbox;
+  /** Every agent at work stops: the hub is going away. */
+  stopAgents(): void;
   /** What an agent shows to get a picture from the page that is open. */
   lookToken: string;
   close(): Promise<void>;
@@ -139,6 +147,8 @@ export async function startHub(options: HubOptions): Promise<Hub> {
     inbox,
     runsOf,
     startSend: (project, batchId, body) => {
+      const chosen = body.model ? agentFor(project).models?.find((model) => model.id === body.model) : undefined;
+      if (body.model && !chosen) throw Object.assign(new Error(`There is no model called ${body.model} here.`), { status: 400 });
       const others = atWork(project.id);
       if (others.some((entry) => entry.state.batchId === batchId)) throw Object.assign(new Error("An agent is already working on these comments."), { status: 409 });
       if (others.length >= MAX_AGENTS) throw Object.assign(new Error(`${MAX_AGENTS} agents are already working here. Wait for one to finish, or stop one.`), { status: 409 });
@@ -146,8 +156,8 @@ export async function startHub(options: HubOptions): Promise<Hub> {
       const manifest = inbox.manifest(project.id, batchId);
       const comments = commentsOf(manifest);
       const about = comments[0] ? `${shortly(comments[0], 60)}${comments.length > 1 ? ` +${comments.length - 1}` : ""}` : undefined;
-      const state: RunState = { id: randomUUID(), batchId, status: "running", agent: agentFor(project).label, startedAt: new Date().toISOString(), activity: [], noteIds: body.noteIds, about };
-      const entry: RunEntry = { state, files: new Set(), alongside: others.length > 0, comments };
+      const state: RunState = { id: randomUUID(), batchId, status: "running", agent: agentFor(project).label, model: chosen?.label, startedAt: new Date().toISOString(), activity: [], noteIds: body.noteIds, about };
+      const entry: RunEntry = { state, files: new Set(), alongside: others.length > 0, comments, modelId: chosen?.id };
       for (const other of others) other.alongside = true;
       const list = runs.get(project.id) ?? [];
       runs.set(project.id, list);
@@ -289,7 +299,7 @@ export async function startHub(options: HubOptions): Promise<Hub> {
 
       if (req.method === "GET" && what === undefined) {
         const agent = agentFor(project);
-        json(200, { id: project.id, title: project.title, folder: basename(project.cwd), revision: gitRevision(project.cwd), agent: { id: agent.id, label: agent.label, available: agent.available(), problem: agent.problem() } });
+        json(200, { id: project.id, title: project.title, folder: basename(project.cwd), revision: gitRevision(project.cwd), agent: { id: agent.id, label: agent.label, available: agent.available(), problem: agent.problem() }, models: agent.models ?? [], model: defaultModel(project) });
         return;
       }
       if (req.method === "GET" && what === "events") {
@@ -332,7 +342,7 @@ export async function startHub(options: HubOptions): Promise<Hub> {
         return;
       }
       if (req.method === "POST" && what === "batches" && batchId && action === "send") {
-        const body = await readJson<{ noteIds?: string[]; newThread?: boolean }>(1024 * 1024);
+        const body = await readJson<{ noteIds?: string[]; newThread?: boolean; model?: string }>(1024 * 1024);
         json(200, api.startSend(project, batchId, body));
         return;
       }
@@ -403,6 +413,18 @@ export async function startHub(options: HubOptions): Promise<Hub> {
     const folder = inbox.folderOf(project.id, batchId);
     const agent = agentFor(project);
     let stopped = false;
+    let wentQuiet: string | undefined;
+    let heardAt = Date.now();
+    const begunAt = heardAt;
+    const quietMs = Number(process.env.DRAWSPEAK_QUIET_MS ?? QUIET_MS);
+    // An agent that hangs would hold its place for ever, and its marks with it.
+    const watch = setInterval(() => {
+      if (Date.now() - heardAt < quietMs && Date.now() - begunAt < LONGEST_MS) return;
+      clearInterval(watch);
+      wentQuiet = Date.now() - heardAt < quietMs ? "The agent worked for half an hour without finishing, so it was stopped." : `The agent went quiet for ${Math.round(quietMs / 60_000) || 1} minutes, so it was stopped.`;
+      entry.agent?.stop();
+    }, Math.min(quietMs / 4, 15_000));
+    watch.unref?.();
     const start = (resumeFrom: string | undefined) =>
       agent.start({
         project,
@@ -410,8 +432,10 @@ export async function startHub(options: HubOptions): Promise<Hub> {
         message: `${message}\n\nThe batch is in ${folder} (manifest.json and these pictures: ${inbox.pictures(project.id, batchId).filter((f) => !f.includes("-clean")).join(", ")}).${nearby.length > 0 ? `\n\nOther agents are at work in this folder right now, on these comments, so leave those to them: ${nearby.map((comment) => `"${comment}"`).join("; ")}.` : ""}`,
         mode,
         resume: resumeFrom,
+        model: entry.modelId,
         env: { DRAWSPEAK_HUB: `http://127.0.0.1:${actualPort}`, DRAWSPEAK_PROJECT: project.id, DRAWSPEAK_LOOK_TOKEN: lookToken },
         onActivity: (line) => {
+          heardAt = Date.now();
           state.activity.push(line);
           if (state.activity.length > 40) state.activity.shift();
           broadcast(project.id);
@@ -439,12 +463,13 @@ export async function startHub(options: HubOptions): Promise<Hub> {
         entry.agent = { done: again.done, stop: () => ((stopped = true), again.stop()) };
         result = await again.done;
       }
+      clearInterval(watch);
       // What else changed in the folder is its doing only if it worked alone.
       if (!entry.alongside) for (const file of gitChanged(project.cwd)) if (!before.has(file)) files.add(file);
-      state.status = stopped ? "stopped" : result.ok ? "done" : "failed";
+      state.status = wentQuiet ? "failed" : stopped ? "stopped" : result.ok ? "done" : "failed";
       state.endedAt = new Date().toISOString();
       state.reply = result.reply;
-      state.error = stopped ? undefined : result.error;
+      state.error = wentQuiet ?? (stopped ? undefined : result.error);
       state.changed = [...files].filter((f) => extname(f) !== "" || f.includes("/")).sort();
       // Only a conversation that went somewhere is worth carrying on.
       if (result.ok && result.sessionId) inbox.setThread(project.id, result.sessionId);
@@ -465,6 +490,9 @@ export async function startHub(options: HubOptions): Promise<Hub> {
     port: actualPort,
     inbox,
     lookToken,
+    stopAgents: () => {
+      for (const list of runs.values()) for (const run of list) if (run.state.status === "running") run.agent?.stop();
+    },
     close: () =>
       new Promise((resolve) => {
         for (const set of listeners.values()) for (const res of set) res.end();

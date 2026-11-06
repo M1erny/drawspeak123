@@ -11,6 +11,9 @@ export interface HubProject {
   revision?: RevisionInfo;
   /** `problem`: why it cannot run right now, in words a person can act on. */
   agent: { id: string; label: string; available: boolean; problem?: string };
+  /** What the reviewer can choose to run it on, and what it runs on otherwise. */
+  models?: Array<{ id: string; label: string; hint: string }>;
+  model?: string;
 }
 
 export interface RunState {
@@ -18,6 +21,7 @@ export interface RunState {
   batchId: string;
   status: "running" | "done" | "failed" | "stopped";
   agent: string;
+  model?: string;
   startedAt: string;
   endedAt?: string;
   /** What it is doing, latest last. */
@@ -79,7 +83,7 @@ export class HubClient {
     return this.post<{ batchId: string; folder: string; messageFile: string; look: string }>("/batches", batch);
   }
 
-  send(batchId: string, options: { noteIds: string[]; newThread?: boolean }) {
+  send(batchId: string, options: { noteIds: string[]; newThread?: boolean; model?: string }) {
     return this.post<RunState>(`/batches/${encodeURIComponent(batchId)}/send`, options);
   }
 
@@ -94,17 +98,18 @@ export class HubClient {
   }
 
   /** The runs as they change, and what agents ask to see; keeps trying. Returns the way to stop listening. */
-  listen(on: { runs(runs: RunState[]): void; look(request: LookRequest): void }): () => void {
+  listen(on: { open(): void; runs(runs: RunState[]): void; look(request: LookRequest): void }): () => void {
     let source: EventSource | undefined;
     let closed = false;
     const connect = () => {
       if (closed) return;
       source = new EventSource(`${this.path("/events")}?page=1`);
+      source.onopen = () => on.open();
       source.addEventListener("runs", (e) => on.runs(JSON.parse((e as MessageEvent).data) as RunState[]));
       source.addEventListener("look", (e) => on.look(JSON.parse((e as MessageEvent).data) as LookRequest));
       source.onerror = () => {
         source?.close();
-        setTimeout(connect, 5000);
+        setTimeout(connect, 2000);
       };
     };
     connect();

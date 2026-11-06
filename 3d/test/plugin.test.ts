@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { type ModuleLink, updatesInPlace } from "../vite-plugin.ts";
+import { type ModuleLink, onThePage, updatesInPlace } from "../vite-plugin.ts";
 
 const link = (name: string, self = false) => ({ name, isSelfAccepting: self, importers: new Set<ModuleLink>(), acceptedHmrDeps: new Set<ModuleLink>() });
 const imports = (importer: ModuleLink, mod: ModuleLink) => mod.importers.add(importer);
@@ -34,6 +34,14 @@ describe("which changes update in place", () => {
     imports(entry, kit);
     mount.acceptedHmrDeps.add(kit);
     expect(updatesInPlace(kit)).toBe(false);
+  });
+  it("a file the page has not asked for yet is not on the page: saving it again is no reason to reload", () => {
+    expect(onThePage(link("new.ts"))).toBe(false);
+    const entry = link("main.ts");
+    const store = link("store.ts");
+    imports(entry, store);
+    expect(onThePage(store)).toBe(true);
+    expect(onThePage({ ...entry, importedModules: new Set([store]) })).toBe(true);
   });
   it("a module that accepts itself does, and circles end", () => {
     expect(updatesInPlace(link("styles.css", true))).toBe(true);

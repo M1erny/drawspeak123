@@ -153,8 +153,13 @@ export class Drawspeak3D {
   /** When code first changed and the page has not reloaded yet. */
   private reloadSince = 0;
   private reloadTimer?: ReturnType<typeof setTimeout>;
-  /** Runs seen at work on this page. */
-  private readonly runsHere = new Set<string>();
+  /** Runs seen at work on this page, and the comments they were sent for. */
+  private readonly runsHere = new Map<string, string[]>();
+  /** A mistake in the code as it was last saved, as Vite reported it. */
+  private codeError?: string;
+  private lastFrameAt = 0;
+  private frameTime = 16;
+  private plain = false;
   /** Marks whose agent has just finished, and since when. */
   private readonly leaving = new Map<string, number>();
   /** Enter twice, faster than the last words arrive. */
@@ -264,7 +269,7 @@ export class Drawspeak3D {
     // The hub is looked for when it matters: no stream of failed requests while it is not running.
     if (this.hubProject && !this.listening) {
       this.listening = true;
-      this.cleanups.push(this.hub.listen({ runs: (runs) => this.onRuns(runs), look: (request) => this.onLook(request) }));
+      this.cleanups.push(this.hub.listen({ open: () => void this.refreshHub(), runs: (runs) => this.onRuns(runs), look: (request) => this.onLook(request) }));
     }
     this.palette.render();
     return this.hubProject;
@@ -274,7 +279,7 @@ export class Drawspeak3D {
     const before = this.runCards.working;
     this.runCards.update(runs);
     for (const run of runs) {
-      if (run.status === "running") this.runsHere.add(run.id);
+      if (run.status === "running") this.runsHere.set(run.id, run.noteIds ?? []);
       else if (this.runsHere.delete(run.id)) {
         for (const id of run.noteIds ?? []) {
           // Done: its mark says goodbye. Not done: its mark is still there to send again.
@@ -283,6 +288,15 @@ export class Drawspeak3D {
         }
       }
     }
+    // The hub came back without it: it restarted, and its agents went with it.
+    let lost = false;
+    for (const [id, noteIds] of this.runsHere) {
+      if (runs.some((run) => run.id === id)) continue;
+      this.runsHere.delete(id);
+      lost = true;
+      for (const noteId of noteIds) this.markUnsent(noteId);
+    }
+    if (lost) this.toast("The hub restarted and its agents stopped. Your marks are still here, ready to send again.", true);
     // The last agent is done: what it saved can show now.
     if (before > 0 && this.runCards.working === 0 && this.reloadSince > 0) this.reloadWhenFree();
   }
@@ -293,6 +307,28 @@ export class Drawspeak3D {
     note.lastSentRevision = undefined;
     this.saveNote(note);
     this.changed();
+  }
+
+  /** The model the agent will run on: the reviewer's choice, if it can still be had. */
+  get model(): string | undefined {
+    const models = this.hubProject?.models ?? [];
+    if (models.length === 0) return undefined;
+    try {
+      const chosen = localStorage.getItem(`ds3d.model.${this.project.id}`);
+      if (chosen && models.some((model) => model.id === chosen)) return chosen;
+    } catch {
+      // storage off: the default
+    }
+    return this.hubProject?.model;
+  }
+
+  setModel(id: string) {
+    try {
+      localStorage.setItem(`ds3d.model.${this.project.id}`, id);
+    } catch {
+      // storage off: nothing to keep it in
+    }
+    this.palette.render();
   }
 
   /** Can this comment go to an agent right now, from where you stand? */
@@ -359,11 +395,12 @@ export class Drawspeak3D {
   private async answerLook({ id, view }: LookRequest) {
     const pose = view ? parsePose(view) : undefined;
     const frame = pose ? this.host.captureFrom(pose) : this.host.captureFrame();
+    const problems = [...this.pageErrors.slice(-8), ...(this.adapter.problems?.() ?? []), ...(this.codeError ? [this.codeError] : [])];
     // No answer: it finds another way to look (hub/look.mjs).
     if (!frame) return;
     const blob = await new Promise<Blob | null>((resolve) => scaledCopy(frame, LOOK_WIDTH).toBlob(resolve, "image/png"));
     if (!blob) return;
-    await this.hub.answerLook(id, { image: await blobToDataUrl(blob), errors: [...this.pageErrors.slice(-8), ...(this.adapter.problems?.() ?? [])] }).catch(() => undefined);
+    await this.hub.answerLook(id, { image: await blobToDataUrl(blob), errors: problems }).catch(() => undefined);
   }
 
   /** With Vite and vite-plugin.ts: code changes come here instead of reloading the page at once. */
@@ -375,6 +412,12 @@ export class Drawspeak3D {
     const beat = setInterval(alive, 4000);
     this.cleanups.push(() => clearInterval(beat));
     hot.on("ds3d:change", () => this.codeChanged());
+    // A mistake in a save is said here, not over the whole game (styles.ts hides Vite's overlay while the tool is up).
+    hot.on("vite:error", (payload: { err?: { message?: string; id?: string } }) => {
+      this.codeError = `${payload.err?.id ?? "The last save"}: ${payload.err?.message ?? "does not compile"}`.slice(0, 400);
+      if (this.agentsWorking === 0) this.toast(`The last save has a mistake: ${payload.err?.message?.split("\n")[0] ?? ""}`.slice(0, 200), true);
+    });
+    hot.on("vite:afterUpdate", () => (this.codeError = undefined));
   }
 
   private codeChanged() {
@@ -875,9 +918,13 @@ export class Drawspeak3D {
     };
     this.snapshots.push(snapshot);
     this.freshSnapshots.add(snapshot.id);
-    void toBlob(stored, 0.92)
-      .then((blob) => this.store.saveSnapshot(snapshot, blob))
-      .catch((error) => console.warn("[drawspeak3d] could not save a picture", error));
+    // After the frame that the pen's last move is waiting for.
+    const save = () =>
+      void toBlob(stored, 0.92)
+        .then((blob) => this.store.saveSnapshot(snapshot, blob))
+        .catch((error) => console.warn("[drawspeak3d] could not save a picture", error));
+    if (typeof requestIdleCallback === "function") requestIdleCallback(save, { timeout: 250 });
+    else setTimeout(save, 30);
     return snapshot;
   }
 
@@ -1216,7 +1263,16 @@ export class Drawspeak3D {
     if (hidden || !this.host.ready) return;
     // An agent's look, once the world has settled after a reload, and not in the middle of this frame.
     this.framesInSight++;
+    if (this.framesInSight === 20) this.picker.warm();
     if (this.framesInSight === 30) this.palette.greet();
+    // A graphics card that struggles gets plain panels: blurring the world behind them is the costliest thing here.
+    const frameAt = performance.now();
+    if (this.lastFrameAt > 0) this.frameTime += (Math.min(frameAt - this.lastFrameAt, 100) - this.frameTime) * 0.02;
+    this.lastFrameAt = frameAt;
+    if (!this.plain && this.framesInSight > 180 && this.frameTime > 24) {
+      this.plain = true;
+      this.root.classList.add("is-plain");
+    }
     if (this.looksDue.length > 0 && this.framesInSight > 8 && this.reloadSince === 0) setTimeout(() => this.answerLooks(), 0);
     const now = performance.now();
     for (const [id, since] of this.leaving) if (now - since > LEAVE_MS) this.leaving.delete(id);

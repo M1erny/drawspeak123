@@ -1,4 +1,5 @@
 import * as THREE from "three";
+import { CENTER, MeshBVH, acceleratedRaycast } from "three-mesh-bvh";
 import { boundsOf, enclosure, samplePolygon, type Rect } from "../core/geometry.ts";
 import { groupChain, rank, type Candidate } from "../core/selection.ts";
 import type { Box, NearThing, NoteTarget, Pose, SceneEntity, Vec2, Vec3, Viewer } from "../core/types.ts";
@@ -216,12 +217,139 @@ export interface LoopPick {
 
 /** Rays per loop, and the time they may take. Early rays cover the whole loop, so stopping short is safe. */
 const RAYS = 96;
-const BUDGET_MS = 140;
+const BUDGET_MS = 30;
 const MAX_LAYERS = 6;
 const MAX_HITS_PER_RAY = 6;
 
+/** A mesh with this many triangles gets a tree to search, instead of trying them all on every ray. */
+const TREE_FROM = 200;
+
+const treesTried = new WeakSet<THREE.BufferGeometry>();
+
+function treeFor(g: THREE.BufferGeometry | undefined): void {
+  if (!g || treesTried.has(g)) return;
+  treesTried.add(g);
+  const position = g.attributes.position;
+  const triangles = position ? (g.index ? g.index.count : position.count) / 3 : 0;
+  if (triangles < TREE_FROM) return;
+  try {
+    // indirect: the geometry itself stays as it is, nothing goes to the graphics card again.
+    g.boundsTree = new MeshBVH(g, { indirect: true, strategy: CENTER, targetLeafSize: 8, verbose: false });
+  } catch {
+    // an ordinary ray works too
+  }
+}
+
+interface InstanceSpheres {
+  /** The pick it was last checked for: once per pick is enough, not once per ray. */
+  checked: number;
+  version: number;
+  count: number;
+  matrix: number[];
+  /** x, y, z and radius of each instance, in the world. */
+  spheres: Float32Array;
+}
+
+/**
+ * Rays through a whole store, fast enough for a hundred at once between two frames. Big meshes search a
+ * tree. Instances are first tried as spheres in one flat array, which takes nanoseconds each, and only the
+ * few that a ray touches are looked at properly.
+ */
+class FastRays {
+  private readonly probe = new THREE.Mesh();
+  private readonly indexes = new WeakMap<THREE.InstancedMesh, InstanceSpheres>();
+  private readonly local = new THREE.Matrix4();
+  private readonly hits: THREE.Intersection[] = [];
+  private pick = 0;
+
+  constructor() {
+    this.probe.raycast = acceleratedRaycast;
+  }
+
+  /** A new pick: the world may have changed since the last one. */
+  begin() {
+    this.pick++;
+  }
+
+  private indexOf(mesh: THREE.InstancedMesh): InstanceSpheres {
+    const known = this.indexes.get(mesh);
+    if (known?.checked === this.pick) return known;
+    const matrix = mesh.matrixWorld.elements;
+    if (known && known.version === mesh.instanceMatrix.version && known.count === mesh.count && known.matrix.every((n, i) => n === matrix[i])) {
+      known.checked = this.pick;
+      return known;
+    }
+    if (!mesh.geometry.boundingSphere) mesh.geometry.computeBoundingSphere();
+    const { center, radius } = mesh.geometry.boundingSphere!;
+    const spheres = new Float32Array(mesh.count * 4);
+    const instances = mesh.instanceMatrix.array;
+    const world = mesh.matrixWorld.elements;
+    for (let i = 0; i < mesh.count; i++) {
+      const at = i * 16;
+      // The instance's matrix applied to the sphere's centre, then the mesh's; and the largest scale of the two.
+      const lx = instances[at] * center.x + instances[at + 4] * center.y + instances[at + 8] * center.z + instances[at + 12];
+      const ly = instances[at + 1] * center.x + instances[at + 5] * center.y + instances[at + 9] * center.z + instances[at + 13];
+      const lz = instances[at + 2] * center.x + instances[at + 6] * center.y + instances[at + 10] * center.z + instances[at + 14];
+      const sx = instances[at] * instances[at] + instances[at + 1] * instances[at + 1] + instances[at + 2] * instances[at + 2];
+      const sy = instances[at + 4] * instances[at + 4] + instances[at + 5] * instances[at + 5] + instances[at + 6] * instances[at + 6];
+      const sz = instances[at + 8] * instances[at + 8] + instances[at + 9] * instances[at + 9] + instances[at + 10] * instances[at + 10];
+      const to = i * 4;
+      spheres[to] = world[0] * lx + world[4] * ly + world[8] * lz + world[12];
+      spheres[to + 1] = world[1] * lx + world[5] * ly + world[9] * lz + world[13];
+      spheres[to + 2] = world[2] * lx + world[6] * ly + world[10] * lz + world[14];
+      spheres[to + 3] = radius * Math.sqrt(Math.max(sx, sy, sz)) * mesh.matrixWorld.getMaxScaleOnAxis();
+    }
+    const index = { checked: this.pick, version: mesh.instanceMatrix.version, count: mesh.count, matrix: [...matrix], spheres };
+    this.indexes.set(mesh, index);
+    return index;
+  }
+
+  private rayInstanced(mesh: THREE.InstancedMesh, raycaster: THREE.Raycaster, out: THREE.Intersection[]) {
+    const { spheres } = this.indexOf(mesh);
+    const { origin, direction } = raycaster.ray;
+    const probe = this.probe;
+    let ready = false;
+    for (let i = 0, at = 0; i < mesh.count; i++, at += 4) {
+      const vx = spheres[at] - origin.x;
+      const vy = spheres[at + 1] - origin.y;
+      const vz = spheres[at + 2] - origin.z;
+      const along = vx * direction.x + vy * direction.y + vz * direction.z;
+      const r = spheres[at + 3];
+      if (along < -r || vx * vx + vy * vy + vz * vz - along * along > r * r) continue;
+      if (!ready) {
+        probe.geometry = mesh.geometry;
+        probe.material = mesh.material;
+        ready = true;
+      }
+      mesh.getMatrixAt(i, this.local);
+      probe.matrixWorld.multiplyMatrices(mesh.matrixWorld, this.local);
+      probe.raycast(raycaster, this.hits);
+      for (const hit of this.hits) {
+        hit.instanceId = i;
+        hit.object = mesh;
+        out.push(hit);
+      }
+      this.hits.length = 0;
+    }
+  }
+
+  /** The same answer as raycaster.intersectObjects(meshes, false). */
+  intersect(meshes: THREE.Object3D[], raycaster: THREE.Raycaster): THREE.Intersection[] {
+    const out: THREE.Intersection[] = [];
+    for (const object of meshes) {
+      const mesh = object as THREE.InstancedMesh & { isSkinnedMesh?: boolean };
+      // What has a way of its own (a shadow that never catches a click, a mesh that bends) keeps it.
+      if (mesh.isInstancedMesh && mesh.raycast === THREE.InstancedMesh.prototype.raycast) this.rayInstanced(mesh, raycaster, out);
+      else if (mesh.isMesh && !mesh.isSkinnedMesh && !mesh.morphTargetInfluences && mesh.raycast === THREE.Mesh.prototype.raycast) acceleratedRaycast.call(mesh, raycaster, out);
+      else object.raycast(raycaster, out);
+    }
+    return out.sort((a, b) => a.distance - b.distance);
+  }
+}
+
 export class Picker {
   private readonly raycaster = new THREE.Raycaster();
+  private readonly rays = new FastRays();
   private readonly ndc = new THREE.Vector2();
   /** Picking far beyond what can be seen helps nobody. */
   far = 400;
@@ -247,7 +375,7 @@ export class Picker {
     const ray = this.raycaster.ray;
     // Nearest first. Naming a thing costs far more than finding it, and a store has dozens of things
     // along one ray: only the nearest few can matter.
-    for (const hit of this.raycaster.intersectObjects(meshes, false)) {
+    for (const hit of this.rays.intersect(meshes, this.raycaster)) {
       if (out.length >= MAX_HITS_PER_RAY) break;
       const described = this.adapter.describe?.(hit);
       if (described === null) continue;
@@ -266,10 +394,45 @@ export class Picker {
     });
   }
 
+  /** Makes the trees ahead of time, a little at a time, when nothing else needs doing. */
+  warm() {
+    const scene = this.getScene();
+    if (!scene) return;
+    const waiting = new Set<THREE.BufferGeometry>();
+    for (const object of visibleMeshes(scene, this.adapter.skip)) {
+      const geometry = (object as THREE.Mesh).geometry as THREE.BufferGeometry | undefined;
+      if (geometry && !treesTried.has(geometry)) waiting.add(geometry);
+    }
+    const queue = [...waiting];
+    const idle = (work: (deadline: { timeRemaining(): number }) => void) => (typeof requestIdleCallback === "function" ? requestIdleCallback(work, { timeout: 1500 }) : setTimeout(() => work({ timeRemaining: () => 5 }), 50));
+    const step = (deadline: { timeRemaining(): number }) => {
+      do treeFor(queue.pop());
+      while (queue.length > 0 && deadline.timeRemaining() > 3);
+      if (queue.length > 0) idle(step);
+      else idle(() => this.rehearse(scene));
+    };
+    if (queue.length > 0) idle(step);
+    else idle(() => this.rehearse(scene));
+  }
+
+  /** A few rays nobody asked for: the first real pick then finds everything ready, and its code warmed up. */
+  private rehearse(scene: THREE.Object3D) {
+    const meshes = visibleMeshes(scene, this.adapter.skip);
+    const center = new THREE.Box3().setFromObject(scene).getCenter(new THREE.Vector3());
+    this.rays.begin();
+    this.raycaster.far = this.far;
+    for (let i = 0; i < 12; i++) {
+      const angle = (i / 12) * Math.PI * 2;
+      this.raycaster.set(center, new THREE.Vector3(Math.cos(angle), -0.3, Math.sin(angle)).normalize());
+      this.rays.intersect(meshes, this.raycaster);
+    }
+  }
+
   /** What is on screen under a point: each thing along the ray, as a chain. */
   pickPoint(x: number, y: number, camera: THREE.Camera, rect: DOMRect): LoopPick {
     const scene = this.getScene();
     const meshes = scene ? visibleMeshes(scene, this.adapter.skip) : [];
+    this.rays.begin();
     const hits = this.along(x, y, camera, rect, meshes);
     if (hits.length === 0) return { surface: [], rays: 1 };
     return {
@@ -293,6 +456,8 @@ export class Picker {
       /** The parts that were hit, each with its own box and how many rays found it. */
       parts: Map<string, { bounds: Box; hits: number }>;
     }
+    for (const object of meshes) treeFor((object as THREE.Mesh).geometry);
+    this.rays.begin();
     const stats = new Map<string, Seen>();
     const samples = samplePolygon(polygon, RAYS);
     const start = performance.now();
@@ -371,6 +536,7 @@ export class Picker {
 
   /** What is first under a line on the screen, at up to `count` points along it, its two ends always among them. */
   alongLine(points: Vec2[], camera: THREE.Camera, rect: DOMRect, count = 24): LineSample[] {
+    this.rays.begin();
     const scene = this.getScene();
     const meshes = scene ? visibleMeshes(scene, this.adapter.skip) : [];
     const n = Math.max(2, Math.min(count, points.length));
@@ -441,6 +607,7 @@ export class Picker {
     this.raycaster.set(origin, to.sub(origin).normalize());
     this.raycaster.camera = camera;
     this.raycaster.far = Math.max(0, length - 0.35);
+    this.rays.begin();
     const hit = this.hitsOnRay(visibleMeshes(scene, this.adapter.skip))[0];
     return hit !== undefined && hit.distance < length - 0.35;
   }

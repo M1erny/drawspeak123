@@ -66,6 +66,8 @@ export class Palette {
   private readonly list: HTMLElement;
   private readonly send: HTMLButtonElement;
   private readonly sendKey = h("kbd", {}, "Enter");
+  private readonly modelButton: HTMLElement;
+  private menu?: HTMLElement;
   private voiceOn?: boolean;
   private firstHint = false;
   private knowsHow = false;
@@ -79,6 +81,9 @@ export class Palette {
     this.more = h("div", { class: "ds3d-more" }, h("div", {}, h("span", { class: "ds3d-sep" }), this.undoButton, this.voice));
     this.list = button(ICON.list, undefined, () => tool.toggleColumn(), { title: "Comments" });
     this.send = button(ICON.send, "Send", () => tool.openFeedback(), { title: "Feedback: review and send to the agent" });
+    this.modelButton = button(undefined, "Model", () => this.toggleMenu(), { class: "ds3d-model", title: "Which model the agent runs on" });
+    this.modelButton.append(iconSpan(ICON.chevron));
+    this.modelButton.style.display = "none";
     this.el = h(
       "div",
       { class: "ds3d-palette ds3d-glass", role: "toolbar", "aria-label": "Drawspeak" },
@@ -88,6 +93,7 @@ export class Palette {
       h("span", { class: "ds3d-sep" }),
       this.list,
       this.send,
+      this.modelButton,
     );
     this.hint = h("div", { class: "ds3d-hint ds3d-glass" });
     this.chip = h("div", { class: "ds3d-chip-label ds3d-glass" });
@@ -125,10 +131,71 @@ export class Palette {
       else this.sendKey.remove();
     }
     this.send.disabled = ready === 0 && t.notes.length === 0;
+    const models = t.hubProject?.models ?? [];
+    this.modelButton.style.display = models.length > 0 ? "" : "none";
+    const chosen = models.find((model) => model.id === t.model);
+    if (chosen) setLabel(this.modelButton, chosen.label);
     const hint = t.armed ? DRAW_HINT : this.firstHint ? FIRST_HINT : undefined;
     if (hint && this.hint.innerHTML !== hint) this.hint.innerHTML = hint;
     this.hint.classList.toggle("is-on", hint !== undefined);
   }
+
+  private toggleMenu() {
+    if (this.menu) {
+      this.closeMenu();
+      return;
+    }
+    const t = this.tool;
+    const box = this.modelButton.getBoundingClientRect();
+    const menu = h(
+      "div",
+      { class: "ds3d-menu ds3d-glass", role: "menu", "aria-label": "Model" },
+      ...(t.hubProject?.models ?? []).map((model) =>
+        h(
+          "button",
+          {
+            class: `ds3d-menu-item ${model.id === t.model ? "is-on" : ""}`,
+            role: "menuitemradio",
+            "aria-checked": String(model.id === t.model),
+            "data-model": model.id,
+            onclick: () => {
+              t.setModel(model.id);
+              this.closeMenu();
+            },
+          },
+          h("span", { class: "ds3d-menu-name" }, model.label),
+          h("span", { class: "ds3d-menu-hint" }, model.hint),
+        ),
+      ),
+    );
+    menu.style.right = `${Math.max(8, innerWidth - box.right)}px`;
+    menu.style.bottom = `${innerHeight - box.top + 12}px`;
+    t.root.append(menu);
+    this.menu = menu;
+    this.modelButton.classList.add("is-open");
+    addEventListener("pointerdown", this.outsideMenu, { capture: true });
+    addEventListener("keydown", this.menuKey, { capture: true });
+  }
+
+  private closeMenu() {
+    if (!this.menu) return;
+    leave(this.menu);
+    this.menu = undefined;
+    this.modelButton.classList.remove("is-open");
+    removeEventListener("pointerdown", this.outsideMenu, { capture: true });
+    removeEventListener("keydown", this.menuKey, { capture: true });
+  }
+
+  private readonly outsideMenu = (e: Event) => {
+    const target = e.target as Node;
+    if (!this.menu?.contains(target) && !this.modelButton.contains(target)) this.closeMenu();
+  };
+
+  private readonly menuKey = (e: Event) => {
+    if ((e as KeyboardEvent).key !== "Escape") return;
+    e.stopImmediatePropagation();
+    this.closeMenu();
+  };
 
   /** Once, the first time the store is in sight: what this little bar is for. */
   greet() {
@@ -181,6 +248,10 @@ export class Bubble {
   private closeAt = 0;
   private x = -1;
   private y = -1;
+  private width = 316;
+  private height = 170;
+  private levels: number[] = [];
+  private fitted = "";
   private noteId?: string;
   /** The thing's parents and what is behind it are one click away. */
   private choosing = false;
@@ -217,6 +288,11 @@ export class Bubble {
     this.el.style.display = "none";
     // Hovering keeps it from closing by itself.
     this.el.addEventListener("pointerenter", () => (this.closeAt = 0));
+    // Its size is told, not asked for on every frame: asking makes the browser lay out the page there and then.
+    new ResizeObserver(([entry]) => {
+      this.width = entry.borderBoxSize?.[0]?.inlineSize ?? this.width;
+      this.height = entry.borderBoxSize?.[0]?.blockSize ?? this.height;
+    }).observe(this.el);
     tool.root.append(this.el);
   }
 
@@ -253,6 +329,7 @@ export class Bubble {
     if (recording) {
       this.time = h("span", { class: "ds3d-time" }, "0:00");
       for (let i = 0; i < 16; i++) this.bars.push(h("i", {}));
+      this.levels = this.bars.map(() => 0);
       this.head.replaceChildren(
         h("span", { class: "ds3d-rec" }),
         this.time,
@@ -349,6 +426,8 @@ export class Bubble {
   }
 
   private fit() {
+    if (this.text.value === this.fitted) return;
+    this.fitted = this.text.value;
     this.text.style.height = "auto";
     this.text.style.height = `${Math.min(148, Math.max(46, this.text.scrollHeight + 2))}px`;
   }
@@ -362,8 +441,9 @@ export class Bubble {
   level(level: number) {
     if (this.bars.length === 0) return;
     // The newest level on the right, older ones moving left.
-    for (let i = 0; i < this.bars.length - 1; i++) this.bars[i].style.height = this.bars[i + 1].style.height;
-    this.bars[this.bars.length - 1].style.height = `${3 + level * 13}px`;
+    this.levels.shift();
+    this.levels.push(level);
+    this.bars.forEach((bar, i) => (bar.style.transform = `scaleY(${(0.19 + this.levels[i] * 0.81).toFixed(3)})`));
   }
 
   problem(text: string) {
@@ -400,8 +480,8 @@ export class Bubble {
 
   /** Beside the pin, inside the screen (the iPad's RecordingBubblePlacement). Off screen: docked low on the left. */
   place(pin: Vec2 | undefined) {
-    const width = this.el.offsetWidth;
-    const height = this.el.offsetHeight;
+    const width = this.width;
+    const height = this.height;
     const margin = 10;
     let x: number;
     let y: number;
@@ -673,7 +753,7 @@ export class Sheet {
     }
     const trouble = hub && (hub.agent.problem ?? (hub.agent.available ? undefined : `${hub.agent.label} was not found.`));
     const to = hub
-      ? h("div", { class: "ds3d-to" }, h("span", { class: `ds3d-dot ${trouble ? "off" : ""}` }), trouble ? `${trouble} Save Draft and Copy prompt still work.` : `To: ${hub.agent.label} in ${hub.folder}${this.tool.agentsWorking > 0 ? ` · ${this.tool.agentsWorking} already at work, this one joins ${this.tool.agentsWorking === 1 ? "it" : "them"}` : ""}`)
+      ? h("div", { class: "ds3d-to" }, h("span", { class: `ds3d-dot ${trouble ? "off" : ""}` }), trouble ? `${trouble} Save Draft and Copy prompt still work.` : `To: ${hub.agent.label}${t.model ? ` (${hub.models?.find((model) => model.id === t.model)?.label ?? t.model})` : ""} in ${hub.folder}${this.tool.agentsWorking > 0 ? ` · ${this.tool.agentsWorking} already at work, this one joins ${this.tool.agentsWorking === 1 ? "it" : "them"}` : ""}`)
       : h("div", { class: "ds3d-to" }, h("span", { class: "ds3d-dot off" }), "The hub is not running: start it with npm run hub (in drawspeak123/3d)");
     this.scrim.replaceChildren(
       h(
@@ -793,7 +873,7 @@ export class Sheet {
       }
       const saved = await t.hub.saveBatch({ batchId, message, manifest: manifestOf(pkg), files });
       if (how === "send") {
-        await t.hub.send(batchId, { noteIds: [...ids], newThread: this.newThread });
+        await t.hub.send(batchId, { noteIds: [...ids], newThread: this.newThread, model: t.model });
         t.markSent(ids);
         this.newThread = false;
       } else if (how === "draft") {
@@ -939,6 +1019,7 @@ export class RunCards {
         { class: "ds3d-run-head" },
         h("span", { class: "ds3d-spin" }),
         h("span", { class: "ds3d-run-title", title: run.about ?? "" }, run.about ?? `${run.agent} is working`),
+        run.model ? h("span", { class: "ds3d-run-model" }, run.model) : null,
         clock,
         button(ICON.stop, undefined, () => void this.tool.hub.stop(run.id), { class: "ds3d-small ds3d-quiet ds3d-danger", title: "Stop this agent" }),
       ),
@@ -966,7 +1047,7 @@ export class RunCards {
     if (!ok && run.about) parts.push(h("div", { class: "ds3d-run-line" }, `${run.about}${run.noteIds?.length ? " · still marked, ready to send again" : ""}`));
     if (run.reply || run.error) parts.push(h("div", { class: "ds3d-run-reply" }, run.reply ?? run.error ?? ""));
     if (files.length > 0) {
-      const count = `${files.length} file${files.length === 1 ? "" : "s"} changed`;
+      const count = `${run.model ? `${run.model} · ` : ""}${files.length} file${files.length === 1 ? "" : "s"} changed`;
       const list = files.join(" · ");
       const line: HTMLElement = h("button", { class: "ds3d-run-files", title: list, onclick: () => (line.textContent = line.textContent === count ? list : count) }, count);
       parts.push(line);

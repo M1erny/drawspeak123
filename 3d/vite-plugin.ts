@@ -5,7 +5,15 @@ export interface ModuleLink {
   isSelfAccepting?: boolean;
   importers: Set<ModuleLink>;
   acceptedHmrDeps: Set<ModuleLink>;
+  importedModules?: Set<ModuleLink>;
 }
+
+/**
+ * A file that has just appeared, with nothing importing it yet, changes nothing on the page. (The page's entry
+ * has no importers either, but it imports things. A save has already forgotten what a module was compiled to
+ * by the time a plugin hears of it, so that can't tell them apart.)
+ */
+export const onThePage = (mod: ModuleLink): boolean => mod.importers.size > 0 || (mod.importedModules?.size ?? 0) > 0;
 
 /** Does a change to this module update in place: does something accept it, on every way up to the page? */
 export function updatesInPlace(mod: ModuleLink, seen = new Set<ModuleLink>()): boolean {
@@ -64,7 +72,10 @@ export function calmReloads(): Plugin {
     },
     hotUpdate({ file, modules, timestamp }) {
       if (this.environment.name !== "client" || Date.now() - aliveAt > ALIVE_MS) return;
-      if (modules.length === 0 || modules.every((mod) => updatesInPlace(mod as unknown as ModuleLink))) return;
+      if (modules.length === 0) return;
+      const links = modules as unknown as ModuleLink[];
+      if (!links.some(onThePage)) return [];
+      if (links.every((mod) => updatesInPlace(mod))) return;
       const invalidated = new Set<(typeof modules)[number]>();
       for (const mod of modules) this.environment.moduleGraph.invalidateModule(mod, invalidated, timestamp, true);
       this.environment.hot.send({ type: "custom", event: "ds3d:change", data: { file } });

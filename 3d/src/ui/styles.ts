@@ -16,7 +16,7 @@ const SPRING = "cubic-bezier(0.2, 1.5, 0.4, 1)";
 const PEN = `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24'%3E%3Ccircle cx='12' cy='12' r='4.5' fill='%23BD3048' stroke='white' stroke-width='2'/%3E%3C/svg%3E") 12 12, crosshair`;
 
 export const CSS = `
-.ds3d-root { position: fixed; inset: 0; z-index: 9000; pointer-events: none; font: 13px/1.4 -apple-system, BlinkMacSystemFont, "Segoe UI Variable Text", "Segoe UI", system-ui, sans-serif; color: #f2f3f5; -webkit-font-smoothing: antialiased; user-select: none; -webkit-user-select: none; }
+.ds3d-root { position: fixed; inset: 0; z-index: 9000; contain: layout style; pointer-events: none; font: 13px/1.4 -apple-system, BlinkMacSystemFont, "Segoe UI Variable Text", "Segoe UI", system-ui, sans-serif; color: #f2f3f5; -webkit-font-smoothing: antialiased; user-select: none; -webkit-user-select: none; }
 .ds3d-root * { box-sizing: border-box; }
 :where(.ds3d-root) :where(button, textarea, input) { font: inherit; color: inherit; margin: 0; letter-spacing: normal; text-transform: none; box-shadow: none; filter: none; min-height: 0; }
 .ds3d-ink { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }
@@ -26,6 +26,9 @@ body.ds3d-armed canvas { cursor: ${PEN} !important; }
 
 .ds3d-glass { background: rgba(19, 21, 26, 0.8); -webkit-backdrop-filter: blur(24px) saturate(135%); backdrop-filter: blur(24px) saturate(135%); border: 1px solid rgba(255, 255, 255, 0.12); box-shadow: 0 14px 40px rgba(8, 12, 24, 0.32), 0 2px 8px rgba(8, 12, 24, 0.2), inset 0 1px 0 rgba(255, 255, 255, 0.08); pointer-events: auto; }
 @media (prefers-reduced-transparency: reduce) { .ds3d-glass { background: #24272b; -webkit-backdrop-filter: none; backdrop-filter: none; } }
+/* Big panels are solid: blurring the moving world behind them costs a weak graphics card more than the world does. */
+.ds3d-column.ds3d-glass, .ds3d-sheet.ds3d-glass, .ds3d-root.is-plain .ds3d-glass { -webkit-backdrop-filter: none; backdrop-filter: none; background: rgba(24, 26, 31, 0.95); }
+vite-error-overlay { display: none !important; }
 
 .ds3d-ic { display: inline-grid; place-items: center; flex: none; }
 .ds3d-ic svg { display: block; }
@@ -63,20 +66,20 @@ body.ds3d-armed canvas { cursor: ${PEN} !important; }
 .ds3d-pin:focus-visible { outline: 2px solid #95baff; outline-offset: 2px; }
 .ds3d-pin.is-dim { opacity: 0.5; }
 .ds3d-pin.is-sent { background: #47505c; }
-.ds3d-pin.is-working { animation: ds3d-working 1.3s ease-in-out infinite; }
+.ds3d-pin.is-working::before { content: ""; position: absolute; inset: -2px; border-radius: 50%; border: 2px solid rgba(189, 48, 72, 0.85); pointer-events: none; animation: ds3d-ring 1.3s ease-out infinite; }
 .ds3d-pin.is-done { background: ${DONE}; pointer-events: none; }
 .ds3d-pin.is-empty { background: #fff; color: ${INK}; border-color: ${INK}; }
 .ds3d-pin.is-edge { left: -11px; top: -11px; width: 22px; height: 22px; font-size: 11px; opacity: 0.86; }
 .ds3d-pin.is-rec::after { content: ""; position: absolute; inset: -7px; border-radius: 50%; border: 2px solid ${INK}; animation: ds3d-ping 1.15s ease-out infinite; }
 .ds3d-chip-label { position: absolute; left: 0; top: 0; padding: 4px 9px; border-radius: 10px; font-weight: 600; white-space: nowrap; will-change: transform; }
 
-.ds3d-bubble { position: absolute; left: 0; top: 0; z-index: 3; width: 316px; max-width: calc(100vw - 24px); padding: 10px 11px 10px 13px; border-radius: 20px; display: flex; flex-direction: column; gap: 5px; will-change: transform; animation: ds3d-fade 0.18s ${EASE}; }
+.ds3d-bubble { position: absolute; left: 0; top: 0; z-index: 3; width: 316px; max-width: calc(100vw - 24px); padding: 10px 11px 10px 13px; border-radius: 20px; display: flex; flex-direction: column; gap: 5px; contain: layout style; will-change: transform; animation: ds3d-fade 0.18s ${EASE}; }
 .ds3d-bubble-head { display: flex; align-items: center; gap: 8px; min-height: 26px; font-weight: 600; }
 .ds3d-bubble-title { font-size: 12.5px; color: rgba(255, 255, 255, 0.66); }
 .ds3d-rec { width: 9px; height: 9px; border-radius: 50%; background: #ff4d67; box-shadow: 0 0 0 3px rgba(255, 77, 103, 0.22); animation: ds3d-blink 1.3s ease-in-out infinite; flex: none; }
 .ds3d-time { font-variant-numeric: tabular-nums; font-size: 12.5px; color: rgba(255, 255, 255, 0.78); }
 .ds3d-level { display: flex; align-items: center; gap: 2px; height: 16px; flex: 1; }
-.ds3d-level i { width: 3px; border-radius: 2px; background: rgba(255, 255, 255, 0.72); height: 3px; transition: height 0.08s linear; }
+.ds3d-level i { width: 3px; height: 16px; border-radius: 2px; background: rgba(255, 255, 255, 0.72); transform: scaleY(0.19); transition: transform 0.08s linear; }
 .ds3d-lang { height: 22px; padding: 0 7px; border: 1px solid rgba(255, 255, 255, 0.18); border-radius: 8px; background: transparent; font-size: 10.5px; font-weight: 700; color: rgba(255, 255, 255, 0.8); cursor: pointer; transition: background 0.14s; }
 .ds3d-lang:hover { background: rgba(255, 255, 255, 0.1); }
 .ds3d-text { width: 100%; min-height: 46px; max-height: 148px; resize: none; padding: 3px 0 4px; border: 0; border-radius: 0; background: transparent; font-size: 15px; line-height: 1.36; font-weight: 500; outline: none; user-select: text; -webkit-user-select: text; scrollbar-width: thin; scrollbar-color: rgba(255, 255, 255, 0.24) transparent; }
@@ -122,7 +125,7 @@ body.ds3d-armed canvas { cursor: ${PEN} !important; }
 .ds3d-card-buttons .ds3d-btn { height: 28px; min-width: 28px; padding: 0 5px; border-radius: 9px; }
 .ds3d-card-buttons svg { width: 16px; height: 16px; }
 
-.ds3d-scrim { position: fixed; inset: 0; z-index: 5; background: rgba(8, 12, 24, 0.38); -webkit-backdrop-filter: blur(3px); backdrop-filter: blur(3px); pointer-events: auto; animation: ds3d-fade 0.16s ease-out; display: grid; place-items: center; padding: 18px; }
+.ds3d-scrim { position: fixed; inset: 0; z-index: 5; background: rgba(8, 12, 24, 0.46); pointer-events: auto; animation: ds3d-fade 0.16s ease-out; display: grid; place-items: center; padding: 18px; }
 .ds3d-sheet { width: min(860px, 100%); max-height: min(92vh, 100%); display: flex; flex-direction: column; border-radius: 24px; overflow: hidden; background: rgba(26, 29, 34, 0.94); animation: ds3d-sheet 0.24s ${EASE}; }
 .ds3d-sheet-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 16px 12px 10px 22px; }
 .ds3d-sheet-head h2 { margin: 0; font-size: 18px; font-weight: 680; }
@@ -154,7 +157,7 @@ body.ds3d-armed canvas { cursor: ${PEN} !important; }
 .ds3d-foot-buttons { display: flex; gap: 6px; }
 
 .ds3d-runs { position: fixed; left: 50%; top: calc(12px + var(--ds3d-top, 0px)); transform: translateX(-50%); z-index: 2; width: min(440px, calc(100vw - 24px)); max-height: calc(100vh - 150px - var(--ds3d-top, 0px)); overflow-y: auto; scrollbar-width: none; display: flex; flex-direction: column; gap: 6px; pointer-events: none; }
-.ds3d-run { position: relative; flex: none; overflow: hidden; pointer-events: auto; padding: 8px 8px 9px 14px; border-radius: 18px; display: flex; flex-direction: column; gap: 3px; animation: ds3d-drop 0.26s ${EASE}; }
+.ds3d-run { position: relative; flex: none; overflow: hidden; contain: layout style; pointer-events: auto; padding: 8px 8px 9px 14px; border-radius: 18px; display: flex; flex-direction: column; gap: 3px; animation: ds3d-drop 0.26s ${EASE}; }
 .ds3d-run-head { display: flex; align-items: center; gap: 9px; min-height: 32px; font-weight: 600; }
 .ds3d-run-title { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .ds3d-run-clock { flex: none; }
@@ -167,7 +170,18 @@ body.ds3d-armed canvas { cursor: ${PEN} !important; }
 .ds3d-run-files { align-self: flex-start; margin: 1px 0 0 29px; padding: 0; border: 0; background: transparent; font-size: 11.5px; color: rgba(255, 255, 255, 0.5); text-align: left; overflow-wrap: anywhere; cursor: pointer; transition: color 0.12s; }
 .ds3d-run-files:hover { color: rgba(255, 255, 255, 0.8); }
 .ds3d-run-shared { padding-left: 29px; font-size: 12px; color: #ffd28a; }
-.ds3d-run-going { position: absolute; left: 0; right: 0; bottom: 0; height: 2px; background: linear-gradient(90deg, transparent, rgba(120, 170, 255, 0.95), transparent); background-size: 40% 100%; background-repeat: no-repeat; animation: ds3d-going 1.5s ${EASE} infinite; }
+.ds3d-run-model { flex: none; font-size: 11.5px; font-weight: 500; color: rgba(255, 255, 255, 0.55); }
+.ds3d-run-going { position: absolute; left: 0; bottom: 0; width: 40%; height: 2px; background: linear-gradient(90deg, transparent, rgba(120, 170, 255, 0.95), transparent); animation: ds3d-going 1.5s ${EASE} infinite; }
+.ds3d-model { padding: 0 6px 0 10px; font-size: 12.5px; font-weight: 500; color: rgba(255, 255, 255, 0.74); }
+.ds3d-model:hover { color: #fff; }
+.ds3d-model .ds3d-ic svg { width: 14px; height: 14px; rotate: -90deg; transition: rotate 0.16s ${EASE}; }
+.ds3d-model.is-open .ds3d-ic svg { rotate: 90deg; }
+.ds3d-menu { position: fixed; display: flex; flex-direction: column; width: 244px; padding: 5px; border-radius: 16px; animation: ds3d-rise 0.16s ${EASE}; }
+.ds3d-menu-item { display: flex; flex-direction: column; align-items: flex-start; gap: 1px; padding: 7px 10px; border: 0; border-radius: 11px; background: transparent; text-align: left; cursor: pointer; transition: background 0.12s; }
+.ds3d-menu-item:hover { background: rgba(255, 255, 255, 0.1); }
+.ds3d-menu-item.is-on { background: rgba(77, 141, 255, 0.24); }
+.ds3d-menu-name { font-weight: 600; }
+.ds3d-menu-hint { font-size: 11.5px; color: rgba(255, 255, 255, 0.6); }
 
 .ds3d-lightbox { max-width: 94vw; max-height: 90vh; border-radius: 14px; box-shadow: 0 18px 60px rgba(0, 0, 0, 0.5); animation: ds3d-sheet 0.22s ${EASE}; }
 
@@ -180,9 +194,9 @@ body.ds3d-armed canvas { cursor: ${PEN} !important; }
 @keyframes ds3d-pop { from { scale: 0.3; } to { scale: 1; } }
 @keyframes ds3d-ping { 0% { opacity: 0.7; scale: 0.8; } 100% { opacity: 0; scale: 1.5; } }
 @keyframes ds3d-blink { 50% { opacity: 0.4; } }
-@keyframes ds3d-working { 0%, 100% { box-shadow: 0 2px 9px rgba(8, 12, 24, 0.42), 0 0 0 0 rgba(189, 48, 72, 0.5); } 60% { box-shadow: 0 2px 9px rgba(8, 12, 24, 0.42), 0 0 0 9px rgba(189, 48, 72, 0); } }
+@keyframes ds3d-ring { from { opacity: 0.85; scale: 1; } to { opacity: 0; scale: 1.7; } }
 @keyframes ds3d-turn { to { rotate: 360deg; } }
-@keyframes ds3d-going { from { background-position: -70% 0; } to { background-position: 170% 0; } }
+@keyframes ds3d-going { from { translate: -100% 0; } to { translate: 250% 0; } }
 @media (prefers-reduced-motion: reduce) { .ds3d-root *, .ds3d-root *::after { animation-duration: 0.001s !important; animation-iteration-count: 1 !important; transition: none !important; } }
 @media (max-width: 720px) {
   .ds3d-btn .ds3d-label { display: none; }

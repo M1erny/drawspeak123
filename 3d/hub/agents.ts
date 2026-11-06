@@ -19,6 +19,8 @@ export interface AgentJob {
   mode: string;
   /** Carry on this conversation. */
   resume?: string;
+  /** Which model, if the reviewer chose one. */
+  model?: string;
   /** For the commands it runs (how look.mjs finds the page that is open). */
   env?: Record<string, string>;
   onActivity(line: string): void;
@@ -37,9 +39,18 @@ export interface RunningAgent {
   stop(): void;
 }
 
+/** A model to choose from, in the tool. */
+export interface AgentModel {
+  id: string;
+  label: string;
+  hint: string;
+}
+
 export interface Agent {
   id: string;
   label: string;
+  /** What can be chosen, if anything. */
+  models?: AgentModel[];
   available(): boolean;
   /** Why it cannot run right now, in words a person can act on. Answers at once from what it last learned. */
   problem(): string | undefined;
@@ -52,13 +63,25 @@ export interface Agent {
  */
 export const DEFAULT_MODEL = "sonnet";
 
+export const MODELS: AgentModel[] = [
+  { id: "sonnet", label: "Sonnet", hint: "Quick, and good at this" },
+  { id: "opus", label: "Opus", hint: "Slower, and more careful" },
+  { id: "fable", label: "Fable", hint: "The most capable" },
+  { id: "haiku", label: "Haiku", hint: "The lightest, in more small steps" },
+];
+
 /** The agent's eyes: how a world on a web page looks now, from a view. */
 export const LOOK = fileURLToPath(new URL("./look.mjs", import.meta.url)).replace(/\\/g, "/");
 const READ_TOOLS = ["Read", "Glob", "Grep"];
 const EDIT_TOOLS = ["Edit", "MultiEdit", "Write", "TodoWrite"];
 
 /** The Claude Code command line for a job. */
-export function claudeArgs(job: Pick<AgentJob, "project" | "folder" | "mode" | "resume">): string[] {
+/** Unless the reviewer chooses otherwise. */
+export function defaultModel(project: Project): string {
+  return process.env.DRAWSPEAK_MODEL ?? project.model ?? DEFAULT_MODEL;
+}
+
+export function claudeArgs(job: Pick<AgentJob, "project" | "folder" | "mode" | "resume" | "model">): string[] {
   const editing = job.mode !== "replyOnly";
   // Roblox has no page to open: its project's note says how to see a result there.
   const looks = editing && !job.project.roblox;
@@ -84,7 +107,7 @@ export function claudeArgs(job: Pick<AgentJob, "project" | "folder" | "mode" | "
     "--allowedTools", tools.join(","),
     "--append-system-prompt", rules,
   ];
-  args.push("--model", process.env.DRAWSPEAK_MODEL ?? job.project.model ?? DEFAULT_MODEL);
+  args.push("--model", job.model ?? defaultModel(job.project));
   if (job.resume) args.push("--resume", job.resume);
   return args;
 }
@@ -241,6 +264,7 @@ function askSignedIn() {
 export const claudeAgent: Agent = {
   id: "claude",
   label: "Claude Code",
+  models: MODELS,
   available: () => findClaude() !== undefined,
   problem() {
     askSignedIn();
@@ -289,6 +313,7 @@ export const claudeAgent: Agent = {
 export const fakeAgent: Agent = {
   id: "fake",
   label: "Fake agent",
+  models: MODELS,
   available: () => true,
   problem: () => undefined,
   start(job) {
@@ -311,7 +336,7 @@ export const fakeAgent: Agent = {
         }
       }, delay * 2));
       timers.push(setTimeout(() => {
-        void saw.then((looked) => resolve({ ok: true, reply: `Stand-in reply. I got ${(job.message.match(/^\d+\. \[/gm) ?? []).length} comment(s).${job.resume ? " Carried on." : ""}${job.message.includes("Other agents are at work") ? " Knows about the others." : ""}${job.message.includes("Earlier in this session") ? " Knows what came before." : ""}${looked}`, sessionId: "fake-session" }));
+        void saw.then((looked) => resolve({ ok: true, reply: `Stand-in reply. I got ${(job.message.match(/^\d+\. \[/gm) ?? []).length} comment(s).${job.resume ? " Carried on." : ""}${job.message.includes("Other agents are at work") ? " Knows about the others." : ""}${job.message.includes("Earlier in this session") ? " Knows what came before." : ""}${job.model ? ` On ${job.model}.` : ""}${looked}`, sessionId: "fake-session" }));
       }, delay * 3));
     });
     return {
