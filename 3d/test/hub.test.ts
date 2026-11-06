@@ -317,7 +317,7 @@ describe("the agent", () => {
     stream.line("not json");
     stream.line("");
     stream.line(JSON.stringify({ type: "result", subtype: "success", session_id: "s1", is_error: false, result: "Done, one file." }));
-    expect(activity).toEqual(["Looking.", "Looking at your picture", "Editing a/b.ts"]);
+    expect(activity).toEqual(["Looking.", "Looking at your picture", "Editing b.ts"]);
     expect(changed).toEqual(["a/b.ts"]);
     expect(stream.reply).toBe("Done, one file.");
     expect(stream.sessionId).toBe("s1");

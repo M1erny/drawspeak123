@@ -1519,6 +1519,7 @@ export class Drawspeak3D {
           edge = true;
         }
       }
+      pin.classList.toggle("is-working", working.has(note.id) && since === undefined);
       // Out of sight and in an agent's hands, the arrow at the edge says it all.
       if (!at || (edge && (working.has(note.id) || since !== undefined))) {
         pin.style.display = "none";
@@ -1531,7 +1532,6 @@ export class Drawspeak3D {
       const state = readiness(note);
       pin.classList.toggle("is-edge", edge);
       pin.classList.toggle("is-dim", this.occludedNotes.has(note.id) && !edge);
-      pin.classList.toggle("is-working", working.has(note.id) && since === undefined);
       pin.classList.toggle("is-sent", state === "sent" && !working.has(note.id) && since === undefined);
       pin.classList.toggle("is-empty", state === "markOnly");
       pin.classList.toggle("is-rec", state === "recording");

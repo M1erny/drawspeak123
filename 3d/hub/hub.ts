@@ -181,7 +181,7 @@ export async function startHub(options: HubOptions): Promise<Hub> {
         const earlier = resume
           ? []
           : runsOf(project.id)
-              .filter((run) => run.status === "done" && run.reply && Date.now() - Date.parse(run.endedAt ?? run.startedAt) < EARLIER_MS)
+              .filter((run) => run.status === "done" && !run.undone && run.reply && Date.now() - Date.parse(run.endedAt ?? run.startedAt) < EARLIER_MS)
               .slice(-EARLIER_RUNS)
               .map((run) => `"${shortly(run.about ?? "", 90)}": ${shortly(run.reply ?? "", 240)}`);
         startRun(project, batchId, earlier.length > 0 ? [message, "", "Earlier in this session, for context (all of it is done):", ...earlier.map((line) => `- ${line}`)].join("\n") : message, manifest.directive?.mode ?? "apply", resume, entry, nearby);
