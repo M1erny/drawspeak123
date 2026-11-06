@@ -311,6 +311,39 @@ export class Overlay {
     ctx.globalAlpha = 1;
   }
 
+  /** Which way an agent is at work, when that's out of sight: at the edge of the screen, with a ring going out. */
+  pointer(at: Vec2, angle: number, seconds: number, fade = 1) {
+    const ctx = this.ctx;
+    const u = (seconds * 1.1) % 1;
+    ctx.save();
+    ctx.translate(at[0], at[1]);
+    ctx.globalAlpha = (1 - u) * 0.8 * fade;
+    ctx.strokeStyle = "rgb(40, 150, 255)";
+    ctx.lineWidth = 2.6;
+    ctx.beginPath();
+    ctx.arc(0, 0, 16 + u * 22, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.globalAlpha = fade;
+    ctx.fillStyle = "rgb(16, 112, 240)";
+    ctx.beginPath();
+    ctx.arc(0, 0, 16, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.strokeStyle = "rgba(255, 255, 255, 0.95)";
+    ctx.lineWidth = 2;
+    ctx.stroke();
+    ctx.rotate(angle);
+    ctx.lineWidth = 3;
+    ctx.lineCap = "round";
+    ctx.lineJoin = "round";
+    ctx.strokeStyle = "#ffffff";
+    ctx.beginPath();
+    ctx.moveTo(-3.5, -6.5);
+    ctx.lineTo(3.5, 0);
+    ctx.lineTo(-3.5, 6.5);
+    ctx.stroke();
+    ctx.restore();
+  }
+
   /** Light running along a line an agent is working on. */
   flow(ink: Vec3[], camera: THREE.Camera, rect: { left: number; top: number; width: number; height: number }, seconds: number, fade = 1) {
     if (ink.length < 2) return;

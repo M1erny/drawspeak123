@@ -208,6 +208,10 @@ vite-error-overlay { display: none !important; }
 @keyframes ds3d-pop { from { scale: 0.3; } to { scale: 1; } }
 @keyframes ds3d-ping { 0% { opacity: 0.7; scale: 0.8; } 100% { opacity: 0; scale: 1.5; } }
 @keyframes ds3d-blink { 50% { opacity: 0.4; } }
+.ds3d-arrived { display: flex; align-items: center; gap: 6px; }
+.ds3d-arrived-arrow { display: none; width: 20px; height: 20px; margin-left: -6px; border-radius: 50%; background: ${DONE}; color: #fff; place-items: center; }
+.ds3d-arrived-arrow svg { width: 15px; height: 15px; stroke-width: 3.2; }
+.ds3d-arrived.is-away .ds3d-arrived-arrow { display: inline-grid; }
 @keyframes ds3d-arrive { from { opacity: 0; translate: 0 10px; scale: 0.7; } to { opacity: 1; translate: 0 0; scale: 1; } }
 @keyframes ds3d-ring { from { opacity: 0.85; scale: 1; } to { opacity: 0; scale: 1.7; } }
 @keyframes ds3d-turn { to { rotate: 360deg; } }

@@ -8,8 +8,8 @@ import type { InputKind, NRect, Note, NoteTarget, PathEnd, Pose, ProjectInfo, Re
 import { HubClient, type HubProject, type LookRequest, type RunState } from "./hubClient.ts";
 import { Store } from "./store.ts";
 import { Host } from "./three/host.ts";
-import { Picker, worldPerPixel, boxOnScreen, inkPlane, isSurfaceLike, lineInWorld, lineLength, liftOnto, poseOf, ringOn, toScreen, type InkPlane, type LoopPick, type RayHit, type SceneAdapter } from "./three/world.ts";
-import { leave } from "./ui/dom.ts";
+import { Picker, edgeOf, worldPerPixel, boxOnScreen, inkPlane, isSurfaceLike, lineInWorld, lineLength, liftOnto, poseOf, ringOn, toScreen, type InkPlane, type LoopPick, type RayHit, type SceneAdapter } from "./three/world.ts";
+import { ICON, leave } from "./ui/dom.ts";
 import { blobToDataUrl, pinSpot, renderComposite, scaledCopy, toBlobAway } from "./ui/composite.ts";
 import { domTargetFor } from "./ui/domTarget.ts";
 import { Overlay } from "./ui/overlay.ts";
@@ -162,7 +162,7 @@ export class Drawspeak3D {
   private frameTime = 16;
   private plain = false;
   /** Names over what has just been built. */
-  private readonly announced: Array<{ el: HTMLElement; position: Vec3; until: number }> = [];
+  private readonly announced: Array<{ el: HTMLElement; arrow: HTMLElement; text: HTMLElement; name: string; position: Vec3; at: number; until: number; more: number }> = [];
   /** Marks whose agent has just finished, and since when. */
   private readonly leaving = new Map<string, number>();
   /** Enter twice, faster than the last words arrive. */
@@ -333,23 +333,45 @@ export class Drawspeak3D {
 
   /** A name over something that has just been built in front of you. */
   announce(name: string, position: Vec3) {
+    const now = performance.now();
+    // A lot at once: a few names are enough.
+    const together = this.announced.filter((one) => now - one.at < 400);
+    if (together.length >= 3) {
+      const last = together[together.length - 1];
+      last.more++;
+      last.text.textContent = `${last.name} +${last.more}`;
+      return;
+    }
+    const arrow = document.createElement("span");
+    arrow.className = "ds3d-arrived-arrow";
+    arrow.innerHTML = ICON.chevron;
+    const text = document.createElement("span");
+    text.textContent = name;
     const el = document.createElement("div");
     el.className = "ds3d-arrived";
-    el.textContent = name;
+    el.append(arrow, text);
     this.root.append(el);
-    this.announced.push({ el, position, until: performance.now() + 2800 });
+    this.announced.push({ el, arrow, text, name, position, at: now, until: now + 2800, more: 0 });
   }
 
   private placeAnnounced(camera: THREE.Camera, rect: DOMRect) {
     const now = performance.now();
     for (let i = this.announced.length - 1; i >= 0; i--) {
-      const { el, position, until } = this.announced[i];
+      const one = this.announced[i];
+      const { el, arrow, position, until } = one;
       if (now > until) {
         leave(el);
         this.announced.splice(i, 1);
         continue;
       }
-      const at = toScreen(position, camera, rect);
+      // Built out of sight, it says which way, and stays longer: there is time to turn and see it.
+      const edge = edgeOf(position, camera, rect);
+      if (edge) {
+        one.until = Math.max(until, one.at + 6000);
+        arrow.style.transform = `rotate(${edge.angle.toFixed(3)}rad)`;
+      }
+      el.classList.toggle("is-away", edge !== undefined);
+      const at = edge ? ([edge.at[0], edge.at[1] + 34] as Vec2) : toScreen(position, camera, rect);
       el.style.display = at ? "" : "none";
       // Its top may be out of sight: the name stays on the screen.
       if (at) el.style.transform = `translate(calc(${Math.max(rect.left + 90, Math.min(rect.right - 90, at[0])).toFixed(1)}px - 50%), ${Math.max(rect.top + 84, Math.min(rect.bottom - 110, at[1] - 34)).toFixed(1)}px)`;
@@ -1424,6 +1446,8 @@ export class Drawspeak3D {
     const since = this.leaving.get(note.id);
     const fade = since === undefined ? 1 : Math.max(0, 1 - (now - since) / LEAVE_MS);
     const seconds = now / 1000;
+    const edge = edgeOf(note.world.place?.center ?? note.world.anchor, camera, rect);
+    if (edge) this.overlay.pointer(edge.at, edge.angle, seconds, fade);
     if (note.shape.kind === "arrow") {
       this.overlay.flow(note.world.ink, camera, rect, seconds, fade);
       return;
@@ -1495,7 +1519,8 @@ export class Drawspeak3D {
           edge = true;
         }
       }
-      if (!at) {
+      // Out of sight and in an agent's hands, the arrow at the edge says it all.
+      if (!at || (edge && (working.has(note.id) || since !== undefined))) {
         pin.style.display = "none";
         continue;
       }

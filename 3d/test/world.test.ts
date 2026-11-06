@@ -2,7 +2,7 @@ import * as THREE from "three";
 import { describe, expect, it } from "vitest";
 import type { SceneEntity, Vec2, Vec3 } from "../src/core/types.ts";
 import { Host } from "../src/three/host.ts";
-import { Picker, inkPlane, isSurfaceLike, lineInWorld, lineLength, liftOnto, ringOn, toScreen, type SceneAdapter } from "../src/three/world.ts";
+import { Picker, edgeOf, inkPlane, isSurfaceLike, lineInWorld, lineLength, liftOnto, ringOn, toScreen, type SceneAdapter } from "../src/three/world.ts";
 import { projectInk } from "../src/ui/overlay.ts";
 
 const rect = { left: 0, top: 0, width: 1000, height: 600 } as DOMRect;
@@ -350,5 +350,34 @@ describe("places and routes in a room", () => {
     expect(top.normal[1]).toBeLessThan(0.5);
     const edgeOn = inkPlane([{ point: [2, 1.6, -20], normal: [-1, 0, 0], distance: 20 }], low, 5);
     expect(edgeOn.normal[0]).not.toBe(-1);
+  });
+});
+
+describe("what is out of sight", () => {
+  const camera = new THREE.PerspectiveCamera(60, 16 / 9, 0.1, 100);
+  camera.updateMatrixWorld();
+  camera.updateProjectionMatrix();
+  const rect = { left: 0, top: 0, width: 1600, height: 900 };
+
+  it("has no arrow while it is in view", () => {
+    expect(edgeOf([0, 0, -5], camera, rect)).toBeUndefined();
+  });
+
+  it("points the way, from the edge of the screen", () => {
+    const right = edgeOf([50, 0, -5], camera, rect)!;
+    expect(right.at[0]).toBeCloseTo(1530);
+    expect(right.at[1]).toBeCloseTo(450);
+    expect(right.angle).toBeCloseTo(0);
+    expect(edgeOf([0, 30, -5], camera, rect)!.at[1]).toBeCloseTo(90);
+  });
+
+  it("knows which side something behind you is on", () => {
+    const left = edgeOf([-5, 0, 1], camera, rect)!;
+    expect(left.at[0]).toBeCloseTo(110);
+    expect(left.at[1]).toBeGreaterThan(450);
+    expect(edgeOf([5, 0, 1], camera, rect)!.at[0]).toBeCloseTo(1530);
+    const back = edgeOf([0, -2, 5], camera, rect)!;
+    expect(back.at[0]).toBeCloseTo(800);
+    expect(back.at[1]).toBeCloseTo(780);
   });
 });

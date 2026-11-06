@@ -2,6 +2,13 @@ import * as THREE from "three";
 import type { Pose } from "../core/types.ts";
 import { poseOf } from "./world.ts";
 
+/** One render in a frame. */
+interface Pass {
+  scene: THREE.Scene;
+  camera: THREE.PerspectiveCamera;
+  area: number;
+}
+
 /**
  * The tie to the app's renderer. It wraps renderer.render, so marks are placed with the very camera
  * of the frame being drawn (no swimming behind the world), and adds nothing to the app's scene: marks
@@ -26,6 +33,12 @@ export class Host {
   /** A copy of the last frame covers the canvas, so the world needn't be drawn: all the time goes to the pen. */
   resting = false;
   private rendering = false;
+  /** What is drawn in a frame, and which of it was the world in the last one. */
+  private passes: Pass[] = [];
+  private passesFrame: number | undefined;
+  private world?: Pass;
+  private readonly sizes = new WeakMap<THREE.Scene, { count: number; at: number }>();
+  private readonly viewport = new THREE.Vector4();
 
   constructor(renderer: THREE.WebGLRenderer, options: { scene?: THREE.Scene; camera?: THREE.PerspectiveCamera } = {}) {
     this.renderer = renderer;
@@ -47,7 +60,7 @@ export class Host {
 
   private render(scene: THREE.Scene, camera: THREE.PerspectiveCamera) {
     // The world's own camera, of either kind: not a mirror's pass inside this one, nor a post-processing quad.
-    const isMain = !this.rendering && (this.fixedCamera ? camera === this.fixedCamera : scene.isScene === true && (camera.isPerspectiveCamera === true || (camera as unknown as THREE.OrthographicCamera).isOrthographicCamera === true));
+    const isMain = !this.rendering && (this.fixedCamera ? camera === this.fixedCamera : scene.isScene === true && (camera.isPerspectiveCamera === true || (camera as unknown as THREE.OrthographicCamera).isOrthographicCamera === true) && this.isWorld(scene, camera));
     if (!isMain) {
       this.realRender.call(this.renderer, scene, camera);
       return;
@@ -57,6 +70,94 @@ export class Host {
       this.renderMain(scene, camera);
     } finally {
       this.rendering = false;
+    }
+  }
+
+  /**
+   * Is this render the world, among all a game may draw in a frame: a map in a corner, a screen on a wall, a HUD
+   * as a scene of its own? Each frame is judged by the one before: nothing flickers between them.
+   */
+  private isWorld(scene: THREE.Scene, camera: THREE.PerspectiveCamera): boolean {
+    const frame = typeof document === "undefined" ? undefined : (document.timeline?.currentTime as number | null | undefined);
+    if (frame === undefined || frame === null || frame !== this.passesFrame) {
+      this.passesFrame = frame ?? undefined;
+      if (this.passes.length > 0) this.world = this.biggest(this.passes);
+      this.passes = [];
+    }
+    const pass = { scene, camera, area: this.areaNow() };
+    this.passes.push(pass);
+    this.world ??= pass;
+    return this.world.scene === scene && this.world.camera === camera;
+  }
+
+  private areaNow(): number {
+    const renderer = this.renderer;
+    if (!renderer.getCurrentViewport) return 1;
+    const { z, w } = renderer.getCurrentViewport(this.viewport);
+    return z * w;
+  }
+
+  /** The biggest on the canvas, in perspective if it can be, with the most in it; the last, if they're alike: a mirror comes before what it shows in. */
+  private biggest(passes: Pass[]): Pass {
+    if (passes.length === 1) return passes[0];
+    let best = passes[0];
+    let bestScore = -1;
+    for (const pass of passes) {
+      const score = pass.area * (pass.camera.isPerspectiveCamera ? 4 : 1) * (1 + Math.min(this.sizeOf(pass.scene), 2000) / 2000);
+      if (score >= bestScore) {
+        best = pass;
+        bestScore = score;
+      }
+    }
+    return best;
+  }
+
+  /** How many things are in a scene, looked at now and then. */
+  private sizeOf(scene: THREE.Scene): number {
+    const now = performance.now();
+    let known = this.sizes.get(scene);
+    if (!known || now - known.at > 2000) {
+      let count = 0;
+      scene.traverse(() => {
+        count++;
+      });
+      known = { count, at: now };
+      this.sizes.set(scene, known);
+    }
+    return known.count;
+  }
+
+  /** Draws on the canvas itself, all of it, whatever pass the game was in, and leaves things as they were. */
+  private onCanvas(draw: () => void) {
+    const renderer = this.renderer;
+    const target = renderer.getRenderTarget();
+    const autoClear = renderer.autoClear;
+    const viewport = renderer.getViewport(new THREE.Vector4());
+    const scissor = renderer.getScissor(new THREE.Vector4());
+    const scissorTest = renderer.getScissorTest();
+    const size = renderer.getSize(new THREE.Vector2());
+    renderer.setRenderTarget(null);
+    renderer.autoClear = true;
+    renderer.setViewport(0, 0, size.x, size.y);
+    renderer.setScissorTest(false);
+    try {
+      draw();
+    } finally {
+      renderer.setViewport(viewport);
+      renderer.setScissor(scissor);
+      renderer.setScissorTest(scissorTest);
+      renderer.autoClear = autoClear;
+      renderer.setRenderTarget(target);
+    }
+  }
+
+  private drawWorldNow(scene: THREE.Scene, camera: THREE.PerspectiveCamera) {
+    const inFrame = this.rendering;
+    this.rendering = true;
+    try {
+      this.renderMain(scene, camera);
+    } finally {
+      this.rendering = inFrame;
     }
   }
 
@@ -145,12 +246,15 @@ export class Host {
   /** Draws a frame now and copies it, while the drawing buffer still holds it. */
   captureFrame(): HTMLCanvasElement | undefined {
     if (!this.scene || !this.camera) return undefined;
-    this.render(this.scene, this.camera);
-    const gl = this.renderer.domElement;
+    const { scene, camera } = this;
     const canvas = document.createElement("canvas");
-    canvas.width = gl.width;
-    canvas.height = gl.height;
-    canvas.getContext("2d")!.drawImage(gl, 0, 0);
+    this.onCanvas(() => {
+      this.drawWorldNow(scene, camera);
+      const gl = this.renderer.domElement;
+      canvas.width = gl.width;
+      canvas.height = gl.height;
+      canvas.getContext("2d")!.drawImage(gl, 0, 0);
+    });
     return canvas;
   }
 
@@ -164,20 +268,22 @@ export class Host {
     const saved = { position: camera.position.clone(), quaternion: camera.quaternion.clone(), fov: camera.fov };
     setPose(camera, pose);
     camera.updateMatrixWorld();
-    this.realRender.call(this.renderer, scene, camera);
-    const gl = this.renderer.domElement;
     const canvas = document.createElement("canvas");
-    canvas.width = gl.width;
-    canvas.height = gl.height;
-    canvas.getContext("2d")!.drawImage(gl, 0, 0);
-    camera.position.copy(saved.position);
-    camera.quaternion.copy(saved.quaternion);
-    if (camera.fov !== saved.fov) {
-      camera.fov = saved.fov;
-      camera.updateProjectionMatrix();
-    }
-    camera.updateMatrixWorld();
-    this.render(scene, camera);
+    this.onCanvas(() => {
+      this.realRender.call(this.renderer, scene, camera);
+      const gl = this.renderer.domElement;
+      canvas.width = gl.width;
+      canvas.height = gl.height;
+      canvas.getContext("2d")!.drawImage(gl, 0, 0);
+      camera.position.copy(saved.position);
+      camera.quaternion.copy(saved.quaternion);
+      if (camera.fov !== saved.fov) {
+        camera.fov = saved.fov;
+        camera.updateProjectionMatrix();
+      }
+      camera.updateMatrixWorld();
+      this.drawWorldNow(scene, camera);
+    });
     return canvas;
   }
 

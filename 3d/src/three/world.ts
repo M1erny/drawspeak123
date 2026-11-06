@@ -88,6 +88,28 @@ const corners = (b: Box): Vec3[] => {
 const scratch = new THREE.Vector3();
 
 /** A world point on a screen rectangle, or nothing when it is behind the camera. */
+/**
+ * Where something out of sight lies, at the edge of the screen, clear of the game's and the tool's own bars;
+ * nothing while it's in view.
+ */
+export function edgeOf(position: Vec3, camera: THREE.Camera, rect: { left: number; top: number; width: number; height: number }): { at: Vec2; angle: number } | undefined {
+  const seen = new THREE.Vector3(position[0], position[1], position[2]).applyMatrix4(camera.matrixWorldInverse);
+  // Behind you it reads like a compass: straight back is straight down, back and to the right is down and right.
+  let across = seen.x;
+  let up = -seen.z;
+  if (isOrtho(camera) || seen.z < -1e-3) {
+    seen.applyMatrix4((camera as THREE.PerspectiveCamera).projectionMatrix);
+    if (Math.abs(seen.x) <= 1 && Math.abs(seen.y) <= 1) return undefined;
+    across = seen.x * rect.width;
+    up = seen.y * rect.height;
+  } else if (across === 0 && Math.abs(up) < 1e-6) {
+    up = -1;
+  }
+  const middle: Vec2 = [rect.left + rect.width / 2, rect.top + rect.height / 2];
+  const scale = Math.min((rect.width / 2 - (across > 0 ? 70 : 110)) / Math.max(Math.abs(across), 1e-6), (rect.height / 2 - (up > 0 ? 90 : 120)) / Math.max(Math.abs(up), 1e-6));
+  return { at: [middle[0] + across * scale, middle[1] - up * scale], angle: Math.atan2(-up, across) };
+}
+
 export function toScreen(point: Vec3, camera: THREE.Camera, rect: { left: number; top: number; width: number; height: number }): Vec2 | undefined {
   scratch.set(point[0], point[1], point[2]).applyMatrix4(camera.matrixWorldInverse);
   if (scratch.z >= -1e-4) return undefined;
