@@ -298,6 +298,7 @@ export class Drawspeak3D {
   private onRuns(runs: RunState[]) {
     const before = this.runCards.working;
     this.runCards.update(runs);
+    this.column.render();
     for (const run of runs) {
       if (run.status === "running") this.runsHere.set(run.id, run.noteIds ?? []);
       else if (this.runsHere.delete(run.id)) {
@@ -544,6 +545,11 @@ export class Drawspeak3D {
       this.numbersNow = displayNumbers(this.notes, this.showSent);
     }
     return this.numbersNow;
+  }
+
+  /** What agents have finished lately. */
+  get recentRuns(): RunState[] {
+    return this.runCards.recent;
   }
 
   /** Agents at work right now. */

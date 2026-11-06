@@ -128,6 +128,12 @@ vite-error-overlay { display: none !important; }
 .ds3d-card-buttons .ds3d-btn { height: 28px; min-width: 28px; padding: 0 5px; border-radius: 9px; }
 .ds3d-card-buttons svg { width: 16px; height: 16px; }
 
+.ds3d-history-title { margin: 8px 2px 0; font-size: 11.5px; font-weight: 650; letter-spacing: 0.02em; color: rgba(255, 255, 255, 0.5); }
+.ds3d-history-row { display: flex; align-items: center; gap: 7px; min-height: 34px; padding: 2px 4px 2px 8px; border-radius: 11px; background: rgba(255, 255, 255, 0.045); }
+.ds3d-history-ok { width: 16px; height: 16px; display: inline-grid; place-items: center; flex: none; border-radius: 50%; background: ${DONE}; color: #fff; }
+.ds3d-history-off { width: 16px; height: 16px; display: inline-grid; place-items: center; flex: none; color: rgba(255, 255, 255, 0.45); }
+.ds3d-history-ok svg, .ds3d-history-off svg { width: 11px; height: 11px; stroke-width: 3; }
+.ds3d-history-text { flex: 1; min-width: 0; font-size: 12.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .ds3d-scrim { position: fixed; inset: 0; z-index: 5; background: rgba(8, 12, 24, 0.46); pointer-events: auto; animation: ds3d-fade 0.16s ease-out; display: grid; place-items: center; padding: 18px; }
 .ds3d-sheet { width: min(860px, 100%); max-height: min(92vh, 100%); display: flex; flex-direction: column; border-radius: 24px; overflow: hidden; background: rgba(26, 29, 34, 0.94); animation: ds3d-sheet 0.24s ${EASE}; }
 .ds3d-sheet-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 16px 12px 10px 22px; }

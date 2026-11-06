@@ -551,7 +551,8 @@ export class Column {
     const t = this.tool;
     const notes = t.visibleNotes;
     const sent = t.notes.filter((n) => readiness(n) === "sent").length;
-    const key = JSON.stringify([notes.map((n) => [n.id, readiness(n), t.numbers.get(n.id), n.target?.depth, n.target?.layer, document.activeElement?.getAttribute("data-note") === n.id ? "" : n.text]), t.showSent, sent, t.active?.id]);
+    const done = t.recentRuns;
+    const key = JSON.stringify([notes.map((n) => [n.id, readiness(n), t.numbers.get(n.id), n.target?.depth, n.target?.layer, document.activeElement?.getAttribute("data-note") === n.id ? "" : n.text]), t.showSent, sent, t.active?.id, done.map((run) => [run.id, run.status, run.undone])]);
     if (key === this.renderedKey) return;
     this.renderedKey = key;
     this.head.replaceChildren(
@@ -567,11 +568,30 @@ export class Column {
         button(ICON.close, undefined, () => this.toggle(), { class: "ds3d-small", title: "Close" }),
       ),
     );
+    const history = done.length > 0 ? [h("div", { class: "ds3d-history-title" }, "Done lately"), ...done.map((run) => this.historyRow(run))] : [];
     if (notes.length === 0) {
-      this.list.replaceChildren(h("div", { class: "ds3d-empty" }, sent > 0 ? "All sent. Circle something new to go on." : "Hold C and circle something in the world, then say what should change."));
+      this.list.replaceChildren(h("div", { class: "ds3d-empty" }, sent > 0 || done.length > 0 ? "All sent. Circle something new to go on." : "Hold C and circle something in the world, then say what should change."), ...history);
       return;
     }
-    this.list.replaceChildren(...notes.map((note) => this.card(note)));
+    this.list.replaceChildren(...notes.map((note) => this.card(note)), ...history);
+  }
+
+  /** What an agent did, with its way back, after its card has gone. */
+  private historyRow(run: RunState): HTMLElement {
+    const t = this.tool;
+    const ok = run.status === "done" && !run.undone;
+    return h(
+      "div",
+      { class: "ds3d-history-row" },
+      iconSpan(ok ? ICON.check : ICON.close, ok ? "ds3d-history-ok" : "ds3d-history-off"),
+      h("span", { class: "ds3d-history-text", title: run.reply ?? run.error ?? "" }, run.undone ? `Taken back: ${run.about ?? "a change"}` : (run.about ?? "A change")),
+      h(
+        "div",
+        { class: "ds3d-card-buttons" },
+        ok && (run.noteIds?.length ?? 0) > 0 ? button(ICON.eye, undefined, () => t.seeRun(run), { title: "Look from where you marked it" }) : null,
+        ok && (run.changed?.length ?? 0) > 0 && !run.shared?.length ? button(ICON.undo, undefined, () => void t.undoRun(run), { title: "Take this change back" }) : null,
+      ),
+    );
   }
 
   private card(note: Note): HTMLElement {
@@ -939,6 +959,11 @@ export class RunCards {
 
   get working(): number {
     return this.runs.filter((run) => run.status === "running").length;
+  }
+
+  /** What agents have finished lately, newest first. */
+  get recent(): RunState[] {
+    return this.runs.filter((run) => run.status !== "running").slice(-6).reverse();
   }
 
   update(runs: RunState[]) {
