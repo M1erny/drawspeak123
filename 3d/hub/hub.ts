@@ -100,6 +100,9 @@ const BODY_LIMIT = 96 * 1024 * 1024;
 const LOOK_WAIT_MS = 14_000;
 /** A page that is reloading is back in a moment. */
 const PAGE_BACK_MS = 3000;
+/** What a new conversation is told about the last few that finished. */
+const EARLIER_RUNS = 3;
+const EARLIER_MS = 30 * 60_000;
 
 export interface Hub {
   server: Server;
@@ -158,7 +161,14 @@ export async function startHub(options: HubOptions): Promise<Hub> {
         // One conversation cannot be carried on in two places at once.
         const resume = body.newThread || others.length > 0 ? undefined : inbox.thread(project.id);
         const nearby = others.flatMap((other) => other.comments).slice(0, 8).map((comment) => shortly(comment, 120));
-        startRun(project, batchId, message, manifest.directive?.mode ?? "apply", resume, entry, nearby);
+        // A new conversation starts light, but "make it bigger" should still mean something.
+        const earlier = resume
+          ? []
+          : runsOf(project.id)
+              .filter((run) => run.status === "done" && run.reply && Date.now() - Date.parse(run.endedAt ?? run.startedAt) < EARLIER_MS)
+              .slice(-EARLIER_RUNS)
+              .map((run) => `"${shortly(run.about ?? "", 90)}": ${shortly(run.reply ?? "", 240)}`);
+        startRun(project, batchId, earlier.length > 0 ? [message, "", "Earlier in this session, for context (all of it is done):", ...earlier.map((line) => `- ${line}`)].join("\n") : message, manifest.directive?.mode ?? "apply", resume, entry, nearby);
       } catch (error) {
         // It never started: say so, and do not stay "running" for ever.
         state.status = "failed";

@@ -186,6 +186,18 @@ describe("the agent", () => {
     expect(done.reply).not.toContain("Knows about the others");
     expect(done.shared).toBeUndefined();
   });
+  it("a new conversation still knows what was just done", async () => {
+    await post("/v1/projects/shop/batches", batch("v1"));
+    await post("/v1/projects/shop/batches/v1/send", { newThread: true });
+    const done = await runDone("shop");
+    expect(done.reply).toContain("Knows what came before");
+    // Carrying on, it knows already.
+    await post("/v1/projects/shop/batches", batch("v2"));
+    await post("/v1/projects/shop/batches/v2/send", {});
+    const again = await runDone("shop");
+    expect(again.reply).toContain("Carried on");
+    expect(again.reply).not.toContain("Knows what came before");
+  });
   it("can be stopped", async () => {
     await post("/v1/projects/shop/batches", batch("r3"));
     await post("/v1/projects/shop/batches/r3/send", {});

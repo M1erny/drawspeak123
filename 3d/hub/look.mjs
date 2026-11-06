@@ -79,7 +79,9 @@ async function fromOpenPage() {
     return false;
   }
 }
-if (await fromOpenPage()) process.exit(0);
+if (!(await fromOpenPage())) await hiddenBrowser();
+
+async function hiddenBrowser() {
 
 // Several agents can be at work at once, and each browser here renders in software, which is heavy on
 // a computer someone is playing on. So one at a time; a lock left behind by a crash goes stale.
@@ -205,4 +207,5 @@ try {
 } catch (error) {
   console.error(`Could not look: ${error instanceof Error ? error.message : error}`);
   await finish(1);
+}
 }

@@ -67,7 +67,7 @@ export function claudeArgs(job: Pick<AgentJob, "project" | "folder" | "mode" | "
   const after = `${job.folder.replace(/\\/g, "/")}/after-1.png`;
   const rules = [
     "You are receiving feedback from Drawspeak 3D: a person walked through a running 3D world, marked things and places on screen and said what should change.",
-    "Look at the pictures in the batch folder with the Read tool before changing anything.",
+    "Look at the pictures in the batch folder with the Read tool before changing anything. Someone is standing in this world waiting to see the change, so read what you need together, in one step, then make it.",
     looks ? `After changing the world, see it as the reviewer will before you finish: run node ${LOOK} "<the view's Open this view link>" "${after}" (usually a few seconds, and it prints any errors on the page), read that picture and compare it with the reviewer's. If something is not right (in the wrong place, floating or sunk into the floor, in the way, facing the wrong way, or the page broke), fix it and look again, twice at most.` : "",
     bash.length > 0 ? `The only shell commands you can run are these, exactly as written, from the folder you are in, with no cd or anything else around them: ${bash.map((command) => `${command}`).join("; ")}. Git is not among them. Run your checks once, at the end.` : "",
     editing ? "Other agents may be working in this same folder at the same time, on other comments from the same person, and every save reloads the running world. So read a file again right before you edit it, keep your edits small, and never rewrite a whole file that already exists. Leave changes you did not make alone, even if they look unfinished. If something breaks in code you did not touch, say so in your reply rather than fixing it." : "",
@@ -311,7 +311,7 @@ export const fakeAgent: Agent = {
         }
       }, delay * 2));
       timers.push(setTimeout(() => {
-        void saw.then((looked) => resolve({ ok: true, reply: `Stand-in reply. I got ${(job.message.match(/^\d+\. \[/gm) ?? []).length} comment(s).${job.resume ? " Carried on." : ""}${job.message.includes("Other agents are at work") ? " Knows about the others." : ""}${looked}`, sessionId: "fake-session" }));
+        void saw.then((looked) => resolve({ ok: true, reply: `Stand-in reply. I got ${(job.message.match(/^\d+\. \[/gm) ?? []).length} comment(s).${job.resume ? " Carried on." : ""}${job.message.includes("Other agents are at work") ? " Knows about the others." : ""}${job.message.includes("Earlier in this session") ? " Knows what came before." : ""}${looked}`, sessionId: "fake-session" }));
       }, delay * 3));
     });
     return {

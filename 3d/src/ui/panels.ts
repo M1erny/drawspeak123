@@ -597,6 +597,8 @@ export class Sheet {
     if (this.busy) return false;
     this.chosen = new Set([note.id]);
     this.directive = { mode: "apply", note: "" };
+    // Each comment says where and what, so it starts light: that's quicker, however long you've been at it.
+    this.newThread = true;
     return this.deliver("send");
   }
 
